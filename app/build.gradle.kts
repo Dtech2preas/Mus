@@ -65,8 +65,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
 
     // YoutubeDL-Android
-    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
-    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1") {
+        exclude(group = "com.github.yausername")
+    }
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1") {
+        exclude(group = "com.github.yausername")
+    }
 
     // Coil for images
     implementation("io.coil-kt:coil-compose:2.5.0")
