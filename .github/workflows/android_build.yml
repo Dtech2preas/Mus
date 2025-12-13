@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "music-downloader-app-7315293495363157775" ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main", "music-downloader-app-7315293495363157775" ]
 
 jobs:
   build:
