@@ -162,4 +162,3 @@ fun VideoItemRow(video: VideoItem, onDownload: () -> Unit) {
         }
     }
 }
-
