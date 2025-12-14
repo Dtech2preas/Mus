@@ -21,6 +21,7 @@ object InnerTubeClient {
     private const val API_KEY = "AIzaSyD2" + "C07e2_" + "49XC2" + "sT5e" + "0M_" + "E2" // Obfuscated slightly
 
     private const val BASE_URL = "https://youtubei.googleapis.com/youtubei/v1/search?key=$API_KEY"
+    private const val PLAYER_URL = "https://youtubei.googleapis.com/youtubei/v1/player?key=$API_KEY"
 
     suspend fun search(query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val jsonBody = JSONObject().apply {
@@ -55,6 +56,39 @@ object InnerTubeClient {
             val json = JSONObject(responseString)
 
             return@withContext parseInnerTubeResponse(json)
+        }
+    }
+
+    suspend fun getStreamUrl(videoId: String): String = withContext(Dispatchers.IO) {
+        val jsonBody = JSONObject().apply {
+            put("videoId", videoId)
+            put("context", JSONObject().apply {
+                put("client", JSONObject().apply {
+                    put("clientName", "IOS")
+                    put("clientVersion", "19.45.4")
+                    put("deviceMake", "Apple")
+                    put("deviceModel", "sq1")
+                    put("hl", "en")
+                    put("gl", "US")
+                })
+            })
+        }
+
+        val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url(PLAYER_URL)
+            .post(requestBody)
+            .addHeader("User-Agent", "com.google.ios.youtube/19.45.4 (iPhone; U; CPU iPhone OS 14_0 like Mac OS X; en_US)")
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("InnerTube Player failed: ${response.code}")
+
+            val responseString = response.body?.string() ?: throw IOException("Empty response")
+            val json = JSONObject(responseString)
+
+            return@withContext parsePlayerResponse(json)
         }
     }
 
@@ -118,5 +152,33 @@ object InnerTubeClient {
         }
 
         return videos
+    }
+
+    private fun parsePlayerResponse(json: JSONObject): String {
+        val streamingData = json.optJSONObject("streamingData") ?: throw IOException("No streaming data")
+        val adaptiveFormats = streamingData.optJSONArray("adaptiveFormats") ?: throw IOException("No adaptive formats")
+
+        for (i in 0 until adaptiveFormats.length()) {
+            val format = adaptiveFormats.optJSONObject(i) ?: continue
+            val mimeType = format.optString("mimeType")
+            val url = format.optString("url")
+
+            if (mimeType.contains("audio/mp4") && url.isNotEmpty()) {
+                return url
+            }
+        }
+
+        // Fallback: search for any audio if no mp4 audio found
+        for (i in 0 until adaptiveFormats.length()) {
+            val format = adaptiveFormats.optJSONObject(i) ?: continue
+            val mimeType = format.optString("mimeType")
+            val url = format.optString("url")
+
+            if (mimeType.contains("audio") && url.isNotEmpty()) {
+                return url
+            }
+        }
+
+        throw IOException("No valid audio stream found")
     }
 }

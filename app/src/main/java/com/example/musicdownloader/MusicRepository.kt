@@ -58,7 +58,19 @@ object MusicRepository {
             return Result.success(it)
         }
 
-        // 2. Try Piped/Invidious (Fast API)
+        // 2. Try InnerTube (Fastest)
+        try {
+            val streamUrl = InnerTubeClient.getStreamUrl(cleanId)
+            if (streamUrl.isNotBlank()) {
+                streamUrlCache[cleanId] = streamUrl
+                return Result.success(streamUrl)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback to Piped
+        }
+
+        // 3. Try Piped/Invidious (Backup)
         try {
             val streamUrl = PipedClient.getStreamUrl(cleanId)
             if (streamUrl.isNotBlank()) {
@@ -70,7 +82,7 @@ object MusicRepository {
             // Fallback to YoutubeClient
         }
 
-        // 3. Fallback to YoutubeDL (Slowest)
+        // 4. Fallback to YoutubeDL (Slowest)
         return try {
             val streamUrl = YoutubeClient.getStreamUrl(url)
             if (streamUrl.isNotBlank()) {
