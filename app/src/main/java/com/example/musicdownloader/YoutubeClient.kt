@@ -24,7 +24,7 @@ object YoutubeClient {
             // ytsearch10:query means search for "query" and return top 10 results
             val request = YoutubeDLRequest("ytsearch10:$query")
             request.addOption("--dump-json")
-            request.addOption("--flat-playlist") // Faster, doesn't resolve every single video detail but basic info
+            request.addOption("--flat-playlist") // Critical optimization: Faster, doesn't resolve every single video detail
 
             val response = YoutubeDL.getInstance().execute(request)
             val output = response.out
@@ -70,7 +70,7 @@ object YoutubeClient {
     suspend fun downloadAudio(url: String, outputDir: File): File = withContext(Dispatchers.IO) {
         // Download best audio
         val request = YoutubeDLRequest(url)
-        request.addOption("-f", "bestaudio/best")
+        request.addOption("-f", "bestaudio[ext=m4a]")
         request.addOption("-o", File(outputDir, "%(title)s.%(ext)s").absolutePath)
 
         // Use this if you want to update the binary first, but usually not recommended to do automatically in production apps without user consent
