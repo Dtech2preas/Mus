@@ -29,7 +29,6 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -47,9 +46,15 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.4"
     }
+    
+    // --- UPDATED PACKAGING BLOCK ---
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        // This is the critical fix for "Failed to initialize YoutubeDL"
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }
