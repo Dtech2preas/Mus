@@ -2,8 +2,6 @@ package com.example.musicdownloader
 
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import javax.inject.Inject
-import javax.inject.Singleton
 
 object MusicRepository {
 
