@@ -1,6 +1,7 @@
 package com.example.musicdownloader
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +17,7 @@ data class MusicUiState(
     val currentPlayingUrl: String? = null
 )
 
-class MusicViewModel : ViewModel() {
+class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MusicUiState())
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
@@ -27,7 +28,7 @@ class MusicViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
-            val result = MusicRepository.searchVideos(query)
+            val result = repository.searchVideos(query)
             result.onSuccess { videos ->
                 _uiState.value = _uiState.value.copy(
                     results = videos,
@@ -46,7 +47,7 @@ class MusicViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
 
         viewModelScope.launch {
-            val result = MusicRepository.downloadAudio(video.webUrl, outputDir)
+            val result = repository.downloadAudio(video.webUrl, outputDir)
             result.onSuccess { file ->
                 _uiState.value = _uiState.value.copy(
                     downloadMessage = "Downloaded: ${video.title}"
@@ -65,7 +66,7 @@ class MusicViewModel : ViewModel() {
 
         viewModelScope.launch {
              // For streaming, we need the direct URL
-             val result = MusicRepository.getStreamUrl(video.webUrl)
+             val result = repository.getStreamUrl(video.webUrl)
              result.onSuccess { streamUrl ->
                  _uiState.value = _uiState.value.copy(currentPlayingUrl = streamUrl)
              }.onFailure { e ->
@@ -82,5 +83,17 @@ class MusicViewModel : ViewModel() {
 
     fun clearDownloadMessage() {
         _uiState.value = _uiState.value.copy(downloadMessage = null)
+    }
+}
+
+class MusicViewModelFactory : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MusicViewModel::class.java)) {
+            val youtubeClient = YoutubeClient()
+            val repository = MusicRepository(youtubeClient)
+            return MusicViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

@@ -30,8 +30,10 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
 
-    // Using ViewModel by viewModels delegate
-    private val viewModel: MusicViewModel by viewModels()
+    // Using ViewModel by viewModels delegate with factory
+    private val viewModel: MusicViewModel by viewModels {
+        MusicViewModelFactory()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
