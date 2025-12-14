@@ -16,7 +16,7 @@ data class VideoItem(
     val webUrl: String
 )
 
-object YoutubeClient {
+class YoutubeClient {
 
     suspend fun searchVideos(query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
