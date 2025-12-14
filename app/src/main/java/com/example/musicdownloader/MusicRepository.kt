@@ -1,8 +1,6 @@
 package com.example.musicdownloader
 
 import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
 
 // Ideally we would use Hilt or Dagger for DI, but to keep it simple and without adding more dependencies unless requested,
 // we will just make this a standard class or singleton object.
