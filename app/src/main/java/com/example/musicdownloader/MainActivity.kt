@@ -4,8 +4,8 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,31 +16,57 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.rememberAsyncImagePainter
-import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
+
+    // Using ViewModel by viewModels delegate
+    private val viewModel: MusicViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                MusicDownloaderScreen()
+                MusicDownloaderScreen(viewModel)
             }
         }
     }
 }
 
 @Composable
-fun MusicDownloaderScreen() {
+fun MusicDownloaderScreen(viewModel: MusicViewModel) {
     var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
-    var downloadStatus by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
+    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // Effects for toast messages
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(uiState.downloadMessage) {
+        uiState.downloadMessage?.let {
+            // Optional: Show simple toast updates, but usually UI state handling is better
+            // keeping it simple as per original app style
+             if (it.startsWith("Downloaded") || it.startsWith("Failed")) {
+                 Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                 viewModel.clearDownloadMessage()
+             }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         // Search Bar
@@ -58,20 +84,9 @@ fun MusicDownloaderScreen() {
             Spacer(modifier = Modifier.width(8.dp))
             Button(
                 onClick = {
-                    if (query.isNotBlank()) {
-                        isLoading = true
-                        scope.launch {
-                            try {
-                                results = YoutubeClient.searchVideos(query)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                            } finally {
-                                isLoading = false
-                            }
-                        }
-                    }
+                    viewModel.search(query)
                 },
-                enabled = !isLoading
+                enabled = !uiState.isLoading
             ) {
                 Text("Search")
             }
@@ -79,16 +94,14 @@ fun MusicDownloaderScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (downloadStatus.isNotEmpty()) {
-            Text(
-                text = downloadStatus,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+        // Streaming Player
+        if (uiState.currentPlayingUrl != null) {
+            ExoPlayerView(url = uiState.currentPlayingUrl!!)
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (isLoading) {
+        // Status or List
+        if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -96,24 +109,18 @@ fun MusicDownloaderScreen() {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(results) { video ->
-                    VideoItemRow(video) {
-                        // On Download Click
-                        scope.launch {
-                            downloadStatus = "Downloading ${video.title}..."
-                            try {
-                                val dir = File(context.filesDir, "music")
-                                if (!dir.exists()) dir.mkdirs()
-
-                                YoutubeClient.downloadAudio(video.webUrl, dir)
-                                downloadStatus = "Downloaded: ${video.title}"
-                                Toast.makeText(context, "Saved to ${dir.absolutePath}", Toast.LENGTH_LONG).show()
-                            } catch (e: Exception) {
-                                downloadStatus = "Failed: ${e.message}"
-                                e.printStackTrace()
-                            }
+                items(uiState.results) { video ->
+                    VideoItemRow(
+                        video = video,
+                        onDownload = {
+                            val dir = File(context.filesDir, "music")
+                            if (!dir.exists()) dir.mkdirs()
+                            viewModel.download(video, dir)
+                        },
+                        onPlay = {
+                            viewModel.play(video)
                         }
-                    }
+                    )
                 }
             }
         }
@@ -121,7 +128,7 @@ fun MusicDownloaderScreen() {
 }
 
 @Composable
-fun VideoItemRow(video: VideoItem, onDownload: () -> Unit) {
+fun VideoItemRow(video: VideoItem, onDownload: () -> Unit, onPlay: () -> Unit) {
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         modifier = Modifier.fillMaxWidth()
@@ -153,12 +160,62 @@ fun VideoItemRow(video: VideoItem, onDownload: () -> Unit) {
                     color = Color.Gray
                 )
             }
+            // Play Button
+            IconButton(onClick = onPlay) {
+                Text("▶", style = MaterialTheme.typography.headlineSmall)
+            }
+            // Download Button
             IconButton(onClick = onDownload) {
-                // Using a simple text or icon
-                // Since we didn't add material-icons-extended, let's use a textual representation or standard icon if available
-                // Material3 usually has basic icons. Let's use a simple Text or "V" for download
                 Text("⇩", style = MaterialTheme.typography.headlineSmall)
             }
         }
     }
+}
+
+@Composable
+fun ExoPlayerView(url: String) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Remember the ExoPlayer instance
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build()
+    }
+
+    // Effect to update media item when URL changes
+    LaunchedEffect(url) {
+        val mediaItem = MediaItem.fromUri(url)
+        exoPlayer.setMediaItem(mediaItem)
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = true
+    }
+
+    // Manage lifecycle events to pause/release player
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                exoPlayer.pause()
+            } else if (event == Lifecycle.Event.ON_STOP) {
+                exoPlayer.pause()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            exoPlayer.release()
+        }
+    }
+
+    AndroidView(
+        factory = {
+            PlayerView(context).apply {
+                player = exoPlayer
+                // Hide default controller if desired, or customize
+                // useController = true
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp) // Set a fixed height for the player view
+    )
 }
