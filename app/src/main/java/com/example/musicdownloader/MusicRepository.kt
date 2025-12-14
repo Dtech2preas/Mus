@@ -13,6 +13,18 @@ import javax.inject.Singleton
 object MusicRepository {
 
     suspend fun searchVideos(query: String): Result<List<VideoItem>> {
+        // Try Piped first (Fast API)
+        try {
+            val videos = PipedClient.search(query)
+            if (videos.isNotEmpty()) {
+                return Result.success(videos)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback to YoutubeClient below
+        }
+
+        // Fallback to local YoutubeDL
         return try {
             val videos = YoutubeClient.searchVideos(query)
             Result.success(videos)
@@ -31,6 +43,22 @@ object MusicRepository {
     }
 
     suspend fun getStreamUrl(url: String): Result<String> {
+        // Try Piped first (Fast API)
+        try {
+            // Extract ID from URL (simple assumption for standard youtube urls)
+            val id = if (url.contains("v=")) url.substringAfter("v=") else url.substringAfterLast("/")
+            // If there's extra query params after ID, strip them (e.g. &list=...)
+            val cleanId = if (id.contains("&")) id.substringBefore("&") else id
+
+            val streamUrl = PipedClient.getStreamUrl(cleanId)
+            if (streamUrl.isNotBlank()) {
+                return Result.success(streamUrl)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback to YoutubeClient
+        }
+
         return try {
             val streamUrl = YoutubeClient.getStreamUrl(url)
             if (streamUrl.isNotBlank()) {
