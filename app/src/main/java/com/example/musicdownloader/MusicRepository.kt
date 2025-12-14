@@ -1,32 +1,40 @@
 package com.example.musicdownloader
 
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
-// Ideally we would use Hilt or Dagger for DI, but to keep it simple and without adding more dependencies unless requested,
-// we will just make this a standard class or singleton object.
-// Given the user requested a refactor to MVVM, a singleton Repository or manually injected one is fine.
-// We'll use a Singleton object for simplicity in this context, or a class instantiated by the ViewModel.
-// Let's use an object for now to mimic a Singleton provided by DI.
-
 object MusicRepository {
 
+    // Simple In-Memory Cache
+    private val searchCache = ConcurrentHashMap<String, List<VideoItem>>()
+    private val streamUrlCache = ConcurrentHashMap<String, String>()
+
     suspend fun searchVideos(query: String): Result<List<VideoItem>> {
-        // Try Piped first (Fast API)
+        // 1. Check Cache
+        searchCache[query]?.let {
+            return Result.success(it)
+        }
+
+        // 2. Try InnerTube (Fastest & Most Reliable)
         try {
-            val videos = PipedClient.search(query)
+            val videos = InnerTubeClient.search(query)
             if (videos.isNotEmpty()) {
+                searchCache[query] = videos
                 return Result.success(videos)
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fallback to YoutubeClient below
+            // Continue to fallbacks
         }
 
-        // Fallback to local YoutubeDL
+        // 3. Fallback to YoutubeClient (Slow but reliable backup)
         return try {
             val videos = YoutubeClient.searchVideos(query)
+            if (videos.isNotEmpty()) {
+                searchCache[query] = videos
+            }
             Result.success(videos)
         } catch (e: Exception) {
             Result.failure(e)
@@ -43,15 +51,20 @@ object MusicRepository {
     }
 
     suspend fun getStreamUrl(url: String): Result<String> {
-        // Try Piped first (Fast API)
-        try {
-            // Extract ID from URL (simple assumption for standard youtube urls)
-            val id = if (url.contains("v=")) url.substringAfter("v=") else url.substringAfterLast("/")
-            // If there's extra query params after ID, strip them (e.g. &list=...)
-            val cleanId = if (id.contains("&")) id.substringBefore("&") else id
+        // Extract ID
+        val id = if (url.contains("v=")) url.substringAfter("v=") else url.substringAfterLast("/")
+        val cleanId = if (id.contains("&")) id.substringBefore("&") else id
 
+        // 1. Check Cache
+        streamUrlCache[cleanId]?.let {
+            return Result.success(it)
+        }
+
+        // 2. Try Piped/Invidious (Fast API)
+        try {
             val streamUrl = PipedClient.getStreamUrl(cleanId)
             if (streamUrl.isNotBlank()) {
+                streamUrlCache[cleanId] = streamUrl
                 return Result.success(streamUrl)
             }
         } catch (e: Exception) {
@@ -59,9 +72,11 @@ object MusicRepository {
             // Fallback to YoutubeClient
         }
 
+        // 3. Fallback to YoutubeDL (Slowest)
         return try {
             val streamUrl = YoutubeClient.getStreamUrl(url)
             if (streamUrl.isNotBlank()) {
+                streamUrlCache[cleanId] = streamUrl
                 Result.success(streamUrl)
             } else {
                 Result.failure(Exception("Could not retrieve stream URL"))
