@@ -4,7 +4,6 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 
 data class VideoItem(
@@ -21,39 +20,32 @@ object YoutubeClient {
     suspend fun searchVideos(query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
         try {
-            // ytsearch10:query means search for "query" and return top 10 results
-            val request = YoutubeDLRequest("ytsearch10:$query")
-            request.addOption("--dump-json")
+            // New command: ytsearch5:[QUERY] --flat-playlist --print "%(id)s::%(title)s::%(uploader)s::%(duration)s"
+            val request = YoutubeDLRequest("ytsearch5:$query")
             request.addOption("--flat-playlist")
-            // We don't need --skip-download explicitly with --dump-json as it implies info only, but good to ensure
-            request.addOption("--skip-download")
+            request.addOption("--print", "%(id)s::%(title)s::%(uploader)s::%(duration)s")
 
             val response = YoutubeDL.getInstance().execute(request)
             val output = response.out
 
             if (output.isNullOrBlank()) return@withContext emptyList()
 
-            // The output is line-delimited JSON objects
+            // Parse output line-by-line
             output.lines().forEach { line ->
                 if (line.isNotBlank()) {
                     try {
-                        val json = JSONObject(line)
+                        val parts = line.split("::")
+                        if (parts.size >= 4) {
+                            val id = parts[0]
+                            val title = parts[1]
+                            val uploader = parts[2]
+                            val durationRaw = parts[3]
 
-                        // Safe parsing logic with checks
-                        val id = json.optString("id")
-                        val title = json.optString("title")
-                        // Duration might be null or numeric in flat-playlist
-                        val durationObj = json.opt("duration")
-                        val duration = if (durationObj != null) formatDuration(durationObj) else "0:00"
+                            val duration = formatDuration(durationRaw)
 
-                        val uploader = json.optString("uploader")
+                            val webUrl = "https://www.youtube.com/watch?v=$id"
+                            val thumb = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
 
-                        // Construct URLs
-                        val webUrl = "https://www.youtube.com/watch?v=$id"
-                        // Standard YT thumbnail URL since flat-playlist might miss it
-                        val thumb = "https://i.ytimg.com/vi/$id/hqdefault.jpg"
-
-                        if (id.isNotEmpty() && title.isNotEmpty()) {
                             videos.add(
                                 VideoItem(
                                     id = id,
@@ -66,14 +58,12 @@ object YoutubeClient {
                             )
                         }
                     } catch (e: Exception) {
-                        // Log parsing error but don't crash
                         e.printStackTrace()
                     }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Return empty list on failure instead of crashing
             return@withContext emptyList()
         }
         return@withContext videos
@@ -100,8 +90,9 @@ object YoutubeClient {
     suspend fun getStreamUrl(url: String): String = withContext(Dispatchers.IO) {
          try {
             val request = YoutubeDLRequest(url)
-            request.addOption("-g") // get-url
-            request.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best") // Prefer m4a for streaming too if possible, or best audio
+            request.addOption("-g")
+            request.addOption("-f", "bestaudio[ext=m4a]")
+            request.addOption("--no-warnings")
 
             val response = YoutubeDL.getInstance().execute(request)
             val streamUrl = response.out?.trim()
@@ -115,9 +106,13 @@ object YoutubeClient {
 
     private fun formatDuration(durationObj: Any): String {
         return try {
-            // If it's a number (seconds)
-            if (durationObj is Number) {
-                val seconds = durationObj.toLong()
+            val seconds = when (durationObj) {
+                is Number -> durationObj.toLong()
+                is String -> durationObj.toDoubleOrNull()?.toLong() ?: 0L
+                else -> 0L
+            }
+
+            if (seconds > 0) {
                 val m = seconds / 60
                 val s = seconds % 60
                 String.format("%d:%02d", m, s)
