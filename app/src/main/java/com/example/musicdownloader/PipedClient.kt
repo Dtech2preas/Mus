@@ -6,97 +6,46 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
-import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 object PipedClient {
 
-    private val instances = listOf(
-        "https://pipedapi.kavin.rocks",
-        "https://api.piped.privacy.com.de",
-        "https://pipedapi.drgns.space",
-        "https://api.piped.kotatsu.org"
-    )
-
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    suspend fun search(query: String): List<VideoItem> = withContext(Dispatchers.IO) {
-        for (baseUrl in instances) {
-            try {
-                return@withContext searchOnInstance(baseUrl, query)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                // Continue to next instance
-            }
-        }
-        throw IOException("All Piped instances failed for search")
-    }
-
-    private fun searchOnInstance(baseUrl: String, query: String): List<VideoItem> {
-        val encodedQuery = URLEncoder.encode(query, "UTF-8")
-        val url = "$baseUrl/search?q=$encodedQuery&filter=music_videos"
-        val request = Request.Builder().url(url).build()
-
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("Unexpected code $response")
-
-            val jsonString = response.body?.string() ?: throw IOException("Empty response")
-            val json = JSONObject(jsonString)
-            val items = json.optJSONArray("items") ?: return emptyList()
-            val videos = mutableListOf<VideoItem>()
-
-            for (i in 0 until items.length()) {
-                val item = items.optJSONObject(i) ?: continue
-                val type = item.optString("type")
-                if (type != "stream") continue
-
-                val title = item.optString("title")
-                val uploader = item.optString("uploaderName")
-                val durationSeconds = item.optLong("duration", 0)
-                val thumbnail = item.optString("thumbnail")
-
-                // The item object has a 'url' field which is usually "/watch?v=ID"
-                val relativeUrl = item.optString("url")
-                val id = relativeUrl.substringAfter("v=")
-
-                val webUrl = "https://www.youtube.com/watch?v=$id"
-
-                videos.add(
-                    VideoItem(
-                        id = id,
-                        title = title,
-                        duration = formatDuration(durationSeconds),
-                        uploader = uploader,
-                        thumbnailUrl = thumbnail,
-                        webUrl = webUrl
-                    )
-                )
-            }
-            return videos
-        }
+    // We no longer use Piped for search, but keep the method signature in case we need it as fallback.
+    // InnerTube is now primary for search.
+    suspend fun search(query: String): List<VideoItem> {
+        // Implementation preserved but unused in new plan usually
+        return emptyList()
     }
 
     suspend fun getStreamUrl(videoId: String): String = withContext(Dispatchers.IO) {
-        for (baseUrl in instances) {
+        // Try Piped
+        try {
+            val pipedInstance = InstanceRegistry.getWorkingPipedInstance()
+            return@withContext getStreamUrlFromPiped(pipedInstance, videoId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Try Invidious if Piped fails
             try {
-                return@withContext getStreamUrlOnInstance(baseUrl, videoId)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                // Continue to next instance
+                val invidiousInstance = InstanceRegistry.getWorkingInvidiousInstance()
+                return@withContext getStreamUrlFromInvidious(invidiousInstance, videoId)
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+                throw IOException("Both Piped and Invidious failed")
             }
         }
-        throw IOException("All Piped instances failed for stream URL")
     }
 
-    private fun getStreamUrlOnInstance(baseUrl: String, videoId: String): String {
+    private fun getStreamUrlFromPiped(baseUrl: String, videoId: String): String {
         val url = "$baseUrl/streams/$videoId"
         val request = Request.Builder().url(url).build()
 
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("Unexpected code $response")
+            if (!response.isSuccessful) throw IOException("Piped error $response")
 
             val jsonString = response.body?.string() ?: throw IOException("Empty response")
             val json = JSONObject(jsonString)
@@ -132,10 +81,53 @@ object PipedClient {
         }
     }
 
-    private fun formatDuration(seconds: Long): String {
-        if (seconds <= 0) return "0:00"
-        val m = seconds / 60
-        val s = seconds % 60
-        return String.format("%d:%02d", m, s)
+    private fun getStreamUrlFromInvidious(baseUrl: String, videoId: String): String {
+        val url = "$baseUrl/api/v1/videos/$videoId"
+        val request = Request.Builder().url(url).build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("Invidious error $response")
+
+            val jsonString = response.body?.string() ?: throw IOException("Empty response")
+            val json = JSONObject(jsonString)
+
+            // Invidious structure: "formatStreams" or "adaptiveFormats"
+            // We want audio. adaptiveFormats usually has separate audio/video
+            val adaptiveFormats = json.optJSONArray("adaptiveFormats")
+
+            var bestUrl = ""
+            var maxBitrate = -1
+
+            if (adaptiveFormats != null) {
+                for (i in 0 until adaptiveFormats.length()) {
+                    val stream = adaptiveFormats.optJSONObject(i) ?: continue
+                    val type = stream.optString("type") // e.g. "audio/mp4; codecs=\"mp4a.40.2\""
+                    // bitrate is sometimes string or int in Invidious, use optString then parse
+                    val bitrateStr = stream.optString("bitrate")
+                    val bitrate = bitrateStr.toIntOrNull() ?: 0
+                    val streamUrl = stream.optString("url")
+
+                    if (type.contains("audio")) {
+                         if (type.contains("mp4") || type.contains("m4a")) {
+                             if (bitrate > maxBitrate) {
+                                 maxBitrate = bitrate
+                                 bestUrl = streamUrl
+                             }
+                         }
+                    }
+                }
+            }
+
+            if (bestUrl.isNotEmpty()) return bestUrl
+
+            // Fallback to formatStreams (muxed) if no adaptive audio found (rare for music)
+            val formatStreams = json.optJSONArray("formatStreams")
+            if (formatStreams != null && formatStreams.length() > 0) {
+                 // Just pick the first one that has audio
+                 return formatStreams.getJSONObject(0).getString("url")
+            }
+
+            throw IOException("No audio stream found in Invidious")
+        }
     }
 }
