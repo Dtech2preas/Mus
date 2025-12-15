@@ -1,7 +1,14 @@
 package com.example.musicdownloader
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 object MusicRepository {
 
@@ -58,38 +65,58 @@ object MusicRepository {
             return Result.success(it)
         }
 
-        // 2. Try InnerTube (Fastest)
-        try {
-            val streamUrl = InnerTubeClient.getStreamUrl(cleanId)
-            if (streamUrl.isNotBlank()) {
-                streamUrlCache[cleanId] = streamUrl
-                return Result.success(streamUrl)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Fallback to Piped
-        }
-
-        // 3. Try Piped/Invidious (Backup)
-        try {
-            val streamUrl = PipedClient.getStreamUrl(cleanId)
-            if (streamUrl.isNotBlank()) {
-                streamUrlCache[cleanId] = streamUrl
-                return Result.success(streamUrl)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Fallback to YoutubeClient
-        }
-
-        // 4. Fallback to YoutubeDL (Slowest)
+        // Parallel Race Strategy on IO Dispatcher
         return try {
-            val streamUrl = YoutubeClient.getStreamUrl(url)
-            if (streamUrl.isNotBlank()) {
-                streamUrlCache[cleanId] = streamUrl
-                Result.success(streamUrl)
-            } else {
-                Result.failure(Exception("Could not retrieve stream URL"))
+            withContext(Dispatchers.IO) {
+                coroutineScope {
+                    // Use a buffered channel to ensure we don't miss the signal if receiver isn't ready immediately
+                    // or if multiple return concurrently.
+                    val resultChannel = Channel<String>(Channel.CONFLATED)
+                    val failures = AtomicInteger(0)
+                    val totalSources = 3
+
+                    // Helper to launch tasks
+                    fun launchTask(block: suspend () -> String?) {
+                        launch {
+                            val res = block()
+                            if (res != null) {
+                                resultChannel.trySend(res)
+                            } else {
+                                if (failures.incrementAndGet() == totalSources) {
+                                    resultChannel.close() // Close indicates failure
+                                }
+                            }
+                        }
+                    }
+
+                    // Launch all sources concurrently
+                    launchTask {
+                        try { InnerTubeClient.getStreamUrl(cleanId).takeIf { it.isNotBlank() } } catch (e: Exception) { null }
+                    }
+                    launchTask {
+                        try { PipedClient.getStreamUrl(cleanId).takeIf { it.isNotBlank() } } catch (e: Exception) { null }
+                    }
+                    launchTask {
+                        try { YoutubeClient.getStreamUrl(url).takeIf { it.isNotBlank() } } catch (e: Exception) { null }
+                    }
+
+                    // Wait for first successful result
+                    val resultUrl = try {
+                        resultChannel.receive()
+                    } catch (e: Exception) {
+                        null // Channel closed (all failed)
+                    }
+
+                    // Cancel remaining jobs since we found a result or failed entirely
+                    this.coroutineContext.cancelChildren()
+
+                    if (resultUrl != null) {
+                        streamUrlCache[cleanId] = resultUrl
+                        Result.success(resultUrl)
+                    } else {
+                        Result.failure(Exception("Could not retrieve stream URL from any source"))
+                    }
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)

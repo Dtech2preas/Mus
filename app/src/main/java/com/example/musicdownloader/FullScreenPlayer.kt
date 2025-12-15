@@ -26,6 +26,7 @@ fun FullScreenPlayer(
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     if (currentMediaItem == null) return
 
@@ -122,11 +123,18 @@ fun FullScreenPlayer(
                         .size(72.dp)
                         .background(MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.extraLarge)
                 ) {
-                    Text(
-                        text = if (isPlaying) "⏸" else "▶",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    if (uiState.isLoadingPlayer) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(36.dp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    } else {
+                        Text(
+                            text = if (isPlaying) "⏸" else "▶",
+                            style = MaterialTheme.typography.headlineLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
 
                 IconButton(onClick = { /* Next not implemented */ }, modifier = Modifier.size(48.dp)) {

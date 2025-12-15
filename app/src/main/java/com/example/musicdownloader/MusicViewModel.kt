@@ -16,6 +16,7 @@ import java.io.File
 data class MusicUiState(
     val results: List<VideoItem> = emptyList(),
     val isLoading: Boolean = false,
+    val isLoadingPlayer: Boolean = false,
     val errorMessage: String? = null,
     val downloadMessage: String? = null
 )
@@ -85,11 +86,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun play(video: VideoItem) {
-        _uiState.value = _uiState.value.copy(errorMessage = null)
+        _uiState.value = _uiState.value.copy(errorMessage = null, isLoadingPlayer = true)
 
         viewModelScope.launch {
              // For streaming, we need the direct URL
              val result = MusicRepository.getStreamUrl(video.webUrl)
+             _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
+
              result.onSuccess { streamUrl ->
                  val mediaMetadata = MediaMetadata.Builder()
                      .setTitle(video.title)
