@@ -65,7 +65,7 @@ object InnerTubeClient {
             put("context", JSONObject().apply {
                 put("client", JSONObject().apply {
                     put("clientName", "IOS")
-                    put("clientVersion", "19.45.4")
+                    put("clientVersion", "19.29.1")
                     put("deviceMake", "Apple")
                     put("deviceModel", "sq1")
                     put("hl", "en")
@@ -79,7 +79,7 @@ object InnerTubeClient {
         val request = Request.Builder()
             .url(PLAYER_URL)
             .post(requestBody)
-            .addHeader("User-Agent", "com.google.ios.youtube/19.45.4 (iPhone; U; CPU iPhone OS 14_0 like Mac OS X; en_US)")
+            .addHeader("User-Agent", "com.google.ios.youtube/19.29.1 (iPhone; U; CPU iPhone OS 14_0 like Mac OS X; en_US)")
             .build()
 
         client.newCall(request).execute().use { response ->

@@ -140,6 +140,7 @@ fun FullScreenPlayer(
 }
 
 fun formatTime(ms: Long): String {
+    if (ms <= 0) return "00:00"
     val totalSeconds = ms / 1000
     val m = totalSeconds / 60
     val s = totalSeconds % 60
