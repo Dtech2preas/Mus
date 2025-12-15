@@ -25,7 +25,7 @@ class MusicService : MediaSessionService() {
 
         // Configure ExoPlayer with the IOS User-Agent to avoid 403 errors from YouTube
         // The User-Agent must match what InnerTubeClient uses.
-        val userAgent = "com.google.ios.youtube/19.45.4 (iPhone; U; CPU iPhone OS 14_0 like Mac OS X; en_US)"
+        val userAgent = "com.google.ios.youtube/19.29.1 (iPhone; U; CPU iPhone OS 14_0 like Mac OS X; en_US)"
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
