@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 fun MusicPlayerScreen(viewModel: MusicViewModel) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isPlayerExpanded by remember { mutableStateOf(false) }
+    var showLogs by remember { mutableStateOf(false) }
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -22,7 +23,8 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
 
         MusicDownloaderScreen(
             viewModel = viewModel,
-            contentPadding = PaddingValues(bottom = bottomPadding)
+            contentPadding = PaddingValues(bottom = bottomPadding),
+            onShowLogs = { showLogs = true }
         )
 
         // Mini Player anchored to bottom
@@ -45,5 +47,10 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                 onCollapse = { isPlayerExpanded = false }
             )
         }
+    }
+
+    if (showLogs) {
+        // Log Console Overlay (z-index top)
+        LogConsoleOverlay(onClose = { showLogs = false })
     }
 }
