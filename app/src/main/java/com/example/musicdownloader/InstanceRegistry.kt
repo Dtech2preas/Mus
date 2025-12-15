@@ -2,7 +2,10 @@ package com.example.musicdownloader
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -10,6 +13,7 @@ import org.json.JSONArray
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 object InstanceRegistry {
 
@@ -144,20 +148,39 @@ object InstanceRegistry {
     }
 
     private suspend fun raceInstances(instances: List<String>, testPath: String): String? = withContext(Dispatchers.IO) {
-        // Shuffle and pick top 5 to race
         val candidates = instances.shuffled().take(5)
 
-        // Create async tasks
-        val tasks = candidates.map { baseUrl ->
-            async {
-                if (checkInstance(baseUrl, testPath)) baseUrl else null
-            }
-        }
+        if (candidates.isEmpty()) return@withContext null
 
-        // Wait for all (or first success ideally, but for simplicity awaitAll and pick first non-null)
-        // A better implementation would be to return immediately on first success
-        val results = tasks.awaitAll()
-        return@withContext results.firstOrNull { it != null }
+        // Use a channel to get the first successful result
+        val resultChannel = Channel<String>(Channel.CONFLATED)
+        val failures = AtomicInteger(0)
+
+        coroutineScope {
+            candidates.forEach { baseUrl ->
+                launch {
+                    val isWorking = checkInstance(baseUrl, testPath)
+                    if (isWorking) {
+                        resultChannel.trySend(baseUrl)
+                    } else {
+                        if (failures.incrementAndGet() == candidates.size) {
+                            resultChannel.close()
+                        }
+                    }
+                }
+            }
+
+            val winner = try {
+                resultChannel.receive()
+            } catch (e: Exception) {
+                null
+            }
+
+            // Cancel other ongoing checks
+            coroutineContext.cancelChildren()
+
+            winner
+        }
     }
 
     private fun checkInstance(baseUrl: String, testPath: String): Boolean {
