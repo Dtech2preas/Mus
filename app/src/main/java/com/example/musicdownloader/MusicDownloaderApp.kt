@@ -11,6 +11,9 @@ import kotlinx.coroutines.launch
 class MusicDownloaderApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Force IPv4 globally to avoid IPv6 latency issues
+        System.setProperty("java.net.preferIPv4Stack", "true")
+
         try {
             YoutubeDL.getInstance().init(this)
         } catch (e: YoutubeDLException) {

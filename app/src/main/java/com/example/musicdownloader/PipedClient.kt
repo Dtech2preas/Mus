@@ -13,6 +13,7 @@ object PipedClient {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .dns(IPv4Dns)
         .build()
 
     // We no longer use Piped for search, but keep the method signature in case we need it as fallback.
@@ -42,7 +43,10 @@ object PipedClient {
 
     private fun getStreamUrlFromPiped(baseUrl: String, videoId: String): String {
         val url = "$baseUrl/streams/$videoId"
-        val request = Request.Builder().url(url).build()
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("User-Agent", NetworkUtils.USER_AGENT)
+            .build()
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("Piped error $response")
@@ -83,7 +87,10 @@ object PipedClient {
 
     private fun getStreamUrlFromInvidious(baseUrl: String, videoId: String): String {
         val url = "$baseUrl/api/v1/videos/$videoId"
-        val request = Request.Builder().url(url).build()
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("User-Agent", NetworkUtils.USER_AGENT)
+            .build()
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("Invidious error $response")
