@@ -1,11 +1,11 @@
 package com.example.musicdownloader
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -65,61 +65,64 @@ object MusicRepository {
             return Result.success(it)
         }
 
-        // Parallel Race Strategy on IO Dispatcher
+        // Parallel Race Strategy
         return try {
-            withContext(Dispatchers.IO) {
-                coroutineScope {
-                    // Use a buffered channel to ensure we don't miss the signal if receiver isn't ready immediately
-                    // or if multiple return concurrently.
-                    val resultChannel = Channel<String>(Channel.CONFLATED)
-                    val failures = AtomicInteger(0)
-                    val totalSources = 3
+            val resultUrl = startRace(url, cleanId)
 
-                    // Helper to launch tasks
-                    fun launchTask(block: suspend () -> String?) {
-                        launch {
-                            val res = block()
-                            if (res != null) {
-                                resultChannel.trySend(res)
-                            } else {
-                                if (failures.incrementAndGet() == totalSources) {
-                                    resultChannel.close() // Close indicates failure
-                                }
-                            }
-                        }
-                    }
-
-                    // Launch all sources concurrently
-                    launchTask {
-                        try { InnerTubeClient.getStreamUrl(cleanId).takeIf { it.isNotBlank() } } catch (e: Exception) { null }
-                    }
-                    launchTask {
-                        try { PipedClient.getStreamUrl(cleanId).takeIf { it.isNotBlank() } } catch (e: Exception) { null }
-                    }
-                    launchTask {
-                        try { YoutubeClient.getStreamUrl(url).takeIf { it.isNotBlank() } } catch (e: Exception) { null }
-                    }
-
-                    // Wait for first successful result
-                    val resultUrl = try {
-                        resultChannel.receive()
-                    } catch (e: Exception) {
-                        null // Channel closed (all failed)
-                    }
-
-                    // Cancel remaining jobs since we found a result or failed entirely
-                    this.coroutineContext.cancelChildren()
-
-                    if (resultUrl != null) {
-                        streamUrlCache[cleanId] = resultUrl
-                        Result.success(resultUrl)
-                    } else {
-                        Result.failure(Exception("Could not retrieve stream URL from any source"))
-                    }
-                }
+            if (resultUrl != null) {
+                streamUrlCache[cleanId] = resultUrl
+                Result.success(resultUrl)
+            } else {
+                Result.failure(Exception("Could not retrieve stream URL from any source"))
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private suspend fun startRace(url: String, cleanId: String): String? {
+        val raceJob = Job()
+        // Use a manual scope so we don't wait for children to complete upon cancellation
+        val scope = CoroutineScope(Dispatchers.IO + raceJob)
+        // Use CONFLATED to avoid dropping results if send happens before receive
+        val channel = Channel<String>(Channel.CONFLATED)
+        val failures = AtomicInteger(0)
+        val totalSources = 3
+
+        fun launchTask(block: suspend () -> String?) {
+            scope.launch {
+                try {
+                    val res = block()
+                    if (!res.isNullOrBlank()) {
+                        channel.trySend(res)
+                    } else {
+                        if (failures.incrementAndGet() == totalSources) {
+                            channel.close()
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (failures.incrementAndGet() == totalSources) {
+                        channel.close()
+                    }
+                }
+            }
+        }
+
+        launchTask { InnerTubeClient.getStreamUrl(cleanId) }
+        launchTask { PipedClient.getStreamUrl(cleanId) }
+        launchTask { YoutubeClient.getStreamUrl(url) }
+
+        return try {
+            channel.receive()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        } finally {
+            // Cancel the others immediately.
+            // Because we are using a manual Job/Scope, this call returns immediately
+            // and does NOT wait for the children to finish cleanup.
+            raceJob.cancel()
         }
     }
 }
