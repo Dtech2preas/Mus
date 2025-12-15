@@ -23,6 +23,7 @@ class MusicService : MediaSessionService() {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        AppLogger.log("MusicService", "Service created")
 
         // Configure ExoPlayer with the IOS User-Agent to avoid 403 errors from YouTube
         // The User-Agent must match what InnerTubeClient uses.

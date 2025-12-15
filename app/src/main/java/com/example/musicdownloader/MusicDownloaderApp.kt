@@ -11,12 +11,16 @@ import kotlinx.coroutines.launch
 class MusicDownloaderApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        AppLogger.log("App", "Application starting...")
         // Force IPv4 globally to avoid IPv6 latency issues
         System.setProperty("java.net.preferIPv4Stack", "true")
+        AppLogger.log("App", "Forced IPv4 stack")
 
         try {
             YoutubeDL.getInstance().init(this)
+            AppLogger.log("App", "YoutubeDL initialized")
         } catch (e: YoutubeDLException) {
+            AppLogger.log("App", "YoutubeDL init failed: ${e.message}")
             e.printStackTrace()
             // In a real app, you might want to show a UI error if init fails
             CoroutineScope(Dispatchers.Main).launch {
