@@ -15,6 +15,7 @@ object InnerTubeClient {
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .dns(IPv4Dns)
         .build()
 
     // Public InnerTube API Key (WEB Client)
@@ -79,7 +80,7 @@ object InnerTubeClient {
         val request = Request.Builder()
             .url(PLAYER_URL)
             .post(requestBody)
-            .addHeader("User-Agent", "com.google.ios.youtube/19.29.1 (iPhone; U; CPU iPhone OS 14_0 like Mac OS X; en_US)")
+            .addHeader("User-Agent", NetworkUtils.USER_AGENT)
             .build()
 
         client.newCall(request).execute().use { response ->

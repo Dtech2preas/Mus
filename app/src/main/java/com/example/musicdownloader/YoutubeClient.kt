@@ -24,6 +24,7 @@ object YoutubeClient {
             val request = YoutubeDLRequest("ytsearch5:$query")
             request.addOption("--flat-playlist")
             request.addOption("--print", "%(id)s::%(title)s::%(uploader)s::%(duration)s")
+            request.addOption("--force-ipv4")
 
             val response = YoutubeDL.getInstance().execute(request)
             val output = response.out
@@ -76,6 +77,7 @@ object YoutubeClient {
             // Use worst[ext=m4a] for data saving as requested
             request.addOption("-f", "worst[ext=m4a]")
             request.addOption("-o", File(outputDir, "%(title)s.%(ext)s").absolutePath)
+            request.addOption("--force-ipv4")
 
             val response = YoutubeDL.getInstance().execute(request)
 
@@ -93,6 +95,7 @@ object YoutubeClient {
             request.addOption("-g")
             request.addOption("-f", "bestaudio[ext=m4a]")
             request.addOption("--no-warnings")
+            request.addOption("--force-ipv4")
 
             val response = YoutubeDL.getInstance().execute(request)
             val streamUrl = response.out?.trim()
