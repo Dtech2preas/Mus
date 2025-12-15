@@ -20,6 +20,7 @@ import coil.compose.rememberAsyncImagePainter
 fun MiniPlayer(viewModel: MusicViewModel, onClick: () -> Unit) {
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     if (currentMediaItem == null) return
 
@@ -68,10 +69,17 @@ fun MiniPlayer(viewModel: MusicViewModel, onClick: () -> Unit) {
 
             // Play/Pause Button
             IconButton(onClick = { viewModel.togglePlayPause() }) {
-                Text(
-                    text = if (isPlaying) "⏸" else "▶",
-                    style = MaterialTheme.typography.titleLarge
-                )
+                if (uiState.isLoadingPlayer) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = if (isPlaying) "⏸" else "▶",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
             }
         }
     }
