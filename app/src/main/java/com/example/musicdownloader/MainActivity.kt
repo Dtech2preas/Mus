@@ -72,7 +72,8 @@ fun RequestNotificationPermission() {
 @Composable
 fun MusicDownloaderScreen(
     viewModel: MusicViewModel,
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    onShowLogs: () -> Unit = {}
 ) {
     var query by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
@@ -119,6 +120,14 @@ fun MusicDownloaderScreen(
                 Text("Search")
             }
         }
+
+                // Show Logs Button
+                Button(
+                    onClick = { onShowLogs() },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    Text("Show Logs")
+                }
 
         Spacer(modifier = Modifier.height(16.dp))
 

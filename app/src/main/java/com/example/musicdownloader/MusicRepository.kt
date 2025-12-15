@@ -62,67 +62,81 @@ object MusicRepository {
 
         // 1. Check Cache
         streamUrlCache[cleanId]?.let {
+            AppLogger.log("Cache Hit for $cleanId")
             return Result.success(it)
         }
+
+        AppLogger.log("[Race] Started for $cleanId")
 
         // Parallel Race Strategy
         return try {
             val resultUrl = startRace(url, cleanId)
 
             if (resultUrl != null) {
+                AppLogger.log("[Race] WINNER found. Returning result NOW.")
                 streamUrlCache[cleanId] = resultUrl
                 Result.success(resultUrl)
             } else {
+                AppLogger.log("[Race] All sources failed.")
                 Result.failure(Exception("Could not retrieve stream URL from any source"))
             }
         } catch (e: Exception) {
+            AppLogger.log("[Race] Exception: ${e.message}")
             Result.failure(e)
         }
     }
 
     private suspend fun startRace(url: String, cleanId: String): String? {
-        val raceJob = Job()
-        // Use a manual scope so we don't wait for children to complete upon cancellation
-        val scope = CoroutineScope(Dispatchers.IO + raceJob)
-        // Use CONFLATED to avoid dropping results if send happens before receive
+        // Detached scope: We do NOT use structured concurrency here because we want
+        // the losers to keep running (or die eventually) without blocking the winner.
+        // Dispatchers.IO is used for network operations.
+        // We use a supervisor Job or just a new Job to ensure if one fails it doesn't cancel others (though we handle exceptions manually).
+        // Actually, the prompt says "Do not wait for the other slow tasks... Let them die in the background."
+        // Using a completely detached scope is what's requested.
+        val scope = CoroutineScope(Dispatchers.IO)
+
         val channel = Channel<String>(Channel.CONFLATED)
         val failures = AtomicInteger(0)
         val totalSources = 3
+        val startTime = System.currentTimeMillis()
 
-        fun launchTask(block: suspend () -> String?) {
+        fun launchTask(name: String, block: suspend () -> String?) {
             scope.launch {
                 try {
                     val res = block()
                     if (!res.isNullOrBlank()) {
+                        val duration = System.currentTimeMillis() - startTime
+                        AppLogger.log("[Source] $name finished in $duration ms")
                         channel.trySend(res)
                     } else {
+                        // Failed to find url
                         if (failures.incrementAndGet() == totalSources) {
-                            channel.close()
+                            channel.close() // Close channel if all failed
                         }
                     }
                 } catch (e: Exception) {
-                    if (failures.incrementAndGet() == totalSources) {
+                     // Error
+                     if (failures.incrementAndGet() == totalSources) {
                         channel.close()
-                    }
+                     }
                 }
             }
         }
 
-        launchTask { InnerTubeClient.getStreamUrl(cleanId) }
-        launchTask { PipedClient.getStreamUrl(cleanId) }
-        launchTask { YoutubeClient.getStreamUrl(url) }
+        launchTask("InnerTube") { InnerTubeClient.getStreamUrl(cleanId) }
+        launchTask("Piped") { PipedClient.getStreamUrl(cleanId) }
+        launchTask("YoutubeDL") { YoutubeClient.getStreamUrl(url) }
 
         return try {
+            // Wait for the first result
             channel.receive()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // Channel closed without value (all failed) or other error
             null
-        } finally {
-            // Cancel the others immediately.
-            // Because we are using a manual Job/Scope, this call returns immediately
-            // and does NOT wait for the children to finish cleanup.
-            raceJob.cancel()
         }
+        // Note: We do NOT cancel the scope or jobs here. We return immediately.
+        // The background tasks will finish or timeout on their own.
     }
 }
