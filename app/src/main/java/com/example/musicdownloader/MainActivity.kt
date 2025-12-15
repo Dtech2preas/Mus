@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
 import java.io.File
@@ -77,6 +78,17 @@ fun MusicDownloaderScreen(
     var query by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var showLogConsole by remember { mutableStateOf(false) }
+
+    if (showLogConsole) {
+        Dialog(onDismissRequest = { showLogConsole = false }) {
+             // Use a box to fill the dialog area properly if needed, but Dialog handles content
+             // However, for full screen feel within dialog:
+             Surface(modifier = Modifier.fillMaxSize()) {
+                 LogConsoleScreen(onDismiss = { showLogConsole = false })
+             }
+        }
+    }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -102,6 +114,13 @@ fun MusicDownloaderScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Log Button at top corner
+            IconButton(onClick = { showLogConsole = true }) {
+                Text("🐛") // Bug icon
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
             TextField(
                 value = query,
                 onValueChange = { query = it },

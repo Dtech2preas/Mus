@@ -35,13 +35,16 @@ object MusicControllerManager {
     fun initialize(context: Context) {
         if (mediaController != null) return
 
+        AppLogger.log("MusicController", "Initializing MediaController...")
         val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
         mediaControllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         mediaControllerFuture?.addListener({
             try {
                 mediaController = mediaControllerFuture?.get()
+                AppLogger.log("MusicController", "MediaController connected")
                 setupListeners()
             } catch (e: Exception) {
+                AppLogger.log("MusicController", "MediaController connection failed: ${e.message}")
                 e.printStackTrace()
             }
         }, MoreExecutors.directExecutor())
@@ -50,10 +53,27 @@ object MusicControllerManager {
     private fun setupListeners() {
         mediaController?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                AppLogger.log("MusicController", "IsPlaying changed: $isPlaying")
                 _isPlaying.value = isPlaying
             }
 
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                val stateName = when(playbackState) {
+                    androidx.media3.common.Player.STATE_IDLE -> "IDLE"
+                    androidx.media3.common.Player.STATE_BUFFERING -> "BUFFERING"
+                    androidx.media3.common.Player.STATE_READY -> "READY"
+                    androidx.media3.common.Player.STATE_ENDED -> "ENDED"
+                    else -> "UNKNOWN"
+                }
+                AppLogger.log("MusicController", "PlaybackState changed: $stateName")
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                AppLogger.log("MusicController", "Player Error: ${error.message}")
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                AppLogger.log("MusicController", "MediaItem transition. ID: ${mediaItem?.mediaId}")
                 _currentMediaItem.value = mediaItem
             }
 
@@ -65,11 +85,12 @@ object MusicControllerManager {
     }
 
     fun playMedia(mediaItem: MediaItem) {
+        AppLogger.log("MusicController", "Sending MediaItem to player: ${mediaItem.mediaId}")
         mediaController?.let { controller ->
             controller.setMediaItem(mediaItem)
             controller.prepare()
             controller.play()
-        }
+        } ?: AppLogger.log("MusicController", "MediaController is null!")
     }
 
     fun play() {
