@@ -66,9 +66,9 @@ object InnerTubeClient {
             put("context", JSONObject().apply {
                 put("client", JSONObject().apply {
                     put("clientName", "IOS")
-                    put("clientVersion", "19.29.1")
+                    put("clientVersion", "19.45.4")
                     put("deviceMake", "Apple")
-                    put("deviceModel", "sq1")
+                    put("deviceModel", "iPhone")
                     put("hl", "en")
                     put("gl", "US")
                 })
@@ -157,26 +157,35 @@ object InnerTubeClient {
 
     private fun parsePlayerResponse(json: JSONObject): String {
         val streamingData = json.optJSONObject("streamingData") ?: throw IOException("No streaming data")
-        val adaptiveFormats = streamingData.optJSONArray("adaptiveFormats") ?: throw IOException("No adaptive formats")
 
-        for (i in 0 until adaptiveFormats.length()) {
-            val format = adaptiveFormats.optJSONObject(i) ?: continue
-            val mimeType = format.optString("mimeType")
-            val url = format.optString("url")
-
-            if (mimeType.contains("audio/mp4") && url.isNotEmpty()) {
-                return url
-            }
+        // Priority 1: HLS Manifest (m3u8) - iOS preferred format
+        val hlsManifestUrl = streamingData.optString("hlsManifestUrl")
+        if (hlsManifestUrl.isNotEmpty()) {
+            return hlsManifestUrl
         }
 
-        // Fallback: search for any audio if no mp4 audio found
-        for (i in 0 until adaptiveFormats.length()) {
-            val format = adaptiveFormats.optJSONObject(i) ?: continue
-            val mimeType = format.optString("mimeType")
-            val url = format.optString("url")
+        // Priority 2: Adaptive Formats (mp4/webm audio)
+        val adaptiveFormats = streamingData.optJSONArray("adaptiveFormats")
+        if (adaptiveFormats != null) {
+            for (i in 0 until adaptiveFormats.length()) {
+                val format = adaptiveFormats.optJSONObject(i) ?: continue
+                val mimeType = format.optString("mimeType")
+                val url = format.optString("url")
 
-            if (mimeType.contains("audio") && url.isNotEmpty()) {
-                return url
+                if (mimeType.contains("audio/mp4") && url.isNotEmpty()) {
+                    return url
+                }
+            }
+
+            // Fallback: search for any audio if no mp4 audio found
+            for (i in 0 until adaptiveFormats.length()) {
+                val format = adaptiveFormats.optJSONObject(i) ?: continue
+                val mimeType = format.optString("mimeType")
+                val url = format.optString("url")
+
+                if (mimeType.contains("audio") && url.isNotEmpty()) {
+                    return url
+                }
             }
         }
 

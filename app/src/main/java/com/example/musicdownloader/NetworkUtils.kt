@@ -6,7 +6,7 @@ import java.net.InetAddress
 import java.net.UnknownHostException
 
 object NetworkUtils {
-    const val USER_AGENT = "com.google.ios.youtube/19.29.1 (iPhone; U; CPU iPhone OS 14_0 like Mac OS X; en_US)"
+    const val USER_AGENT = "com.google.ios.youtube/19.45.4 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X)"
 }
 
 object IPv4Dns : Dns {
