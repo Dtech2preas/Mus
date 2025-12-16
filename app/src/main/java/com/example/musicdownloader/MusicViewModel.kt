@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -100,13 +101,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                      .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
                      .build()
 
-                 val mediaItem = MediaItem.Builder()
+                 val mediaItemBuilder = MediaItem.Builder()
                      .setUri(streamUrl)
                      .setMediaId(video.id)
                      .setMediaMetadata(mediaMetadata)
-                     .build()
 
-                 MusicControllerManager.playMedia(mediaItem)
+                 if (streamUrl.contains(".m3u8", ignoreCase = true)) {
+                     mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+                 }
+
+                 MusicControllerManager.playMedia(mediaItemBuilder.build())
              }.onFailure { e ->
                  _uiState.value = _uiState.value.copy(
                      errorMessage = "Failed to play: ${e.message}"
