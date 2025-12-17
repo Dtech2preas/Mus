@@ -65,10 +65,8 @@ object InnerTubeClient {
             put("videoId", videoId)
             put("context", JSONObject().apply {
                 put("client", JSONObject().apply {
-                    put("clientName", "IOS")
-                    put("clientVersion", "19.45.4")
-                    put("deviceMake", "Apple")
-                    put("deviceModel", "iPhone")
+                    put("clientName", "ANDROID_TESTSUITE")
+                    put("clientVersion", "1.9")
                     put("hl", "en")
                     put("gl", "US")
                 })
@@ -158,13 +156,7 @@ object InnerTubeClient {
     private fun parsePlayerResponse(json: JSONObject): String {
         val streamingData = json.optJSONObject("streamingData") ?: throw IOException("No streaming data")
 
-        // Priority 1: HLS Manifest (m3u8) - iOS preferred format
-        val hlsManifestUrl = streamingData.optString("hlsManifestUrl")
-        if (hlsManifestUrl.isNotEmpty()) {
-            return hlsManifestUrl
-        }
-
-        // Priority 2: Adaptive Formats (mp4/webm audio)
+        // Priority: Adaptive Formats (mp4/webm audio)
         val adaptiveFormats = streamingData.optJSONArray("adaptiveFormats")
         if (adaptiveFormats != null) {
             for (i in 0 until adaptiveFormats.length()) {
