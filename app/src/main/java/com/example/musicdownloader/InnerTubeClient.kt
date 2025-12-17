@@ -36,14 +36,12 @@ object InnerTubeClient {
             })
             put("query", query)
             // "EgIQAQ%3D%3D" is the param for "Video" filter.
-            // Without it, it searches everything (channels, playlists).
-            // But to be safe, we can just search everything and filter in code, or use params.
-            // "EgIQAQ==" corresponds to "Type: Video"
             put("params", "EgIQAQ%3D%3D")
         }
 
         val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
 
+        // Search uses WEB client, so we keep a desktop User-Agent to match the client context
         val request = Request.Builder()
             .url(BASE_URL)
             .post(requestBody)
@@ -80,7 +78,7 @@ object InnerTubeClient {
         val request = Request.Builder()
             .url(PLAYER_URL)
             .post(requestBody)
-            .addHeader("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 10; Pixel 3 Build/QQ3A.200805.001)")
+            .addHeader("User-Agent", NetworkUtils.USER_AGENT)
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -165,6 +163,7 @@ object InnerTubeClient {
                 val mimeType = format.optString("mimeType")
                 val url = format.optString("url")
 
+                // Look only for audio streams in adaptiveFormats
                 if (mimeType.contains("audio") && url.isNotEmpty()) {
                     return url
                 }
