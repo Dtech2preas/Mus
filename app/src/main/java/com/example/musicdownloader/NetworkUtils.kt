@@ -6,7 +6,7 @@ import java.net.InetAddress
 import java.net.UnknownHostException
 
 object NetworkUtils {
-    const val USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 10; Pixel 3 Build/QQ3A.200805.001)"
+    const val USER_AGENT = "com.google.android.apps.youtube.music/6.42.52 (Linux; U; Android 13) gzip"
 }
 
 object IPv4Dns : Dns {
