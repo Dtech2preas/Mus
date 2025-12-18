@@ -7,7 +7,7 @@ object MusicRepository {
 
     // Simple In-Memory Cache
     private val searchCache = ConcurrentHashMap<String, List<VideoItem>>()
-    private val streamUrlCache = ConcurrentHashMap<String, String>()
+    private val streamUrlCache = ConcurrentHashMap<String, StreamInfo>()
 
     suspend fun searchVideos(query: String): Result<List<VideoItem>> {
         // 1. Check Cache
@@ -48,7 +48,7 @@ object MusicRepository {
         }
     }
 
-    suspend fun getStreamUrl(url: String): Result<String> {
+    suspend fun getStreamUrl(url: String): Result<StreamInfo> {
         // Extract ID
         val id = if (url.contains("v=")) url.substringAfter("v=") else url.substringAfterLast("/")
         val cleanId = if (id.contains("&")) id.substringBefore("&") else id
@@ -63,11 +63,11 @@ object MusicRepository {
 
         // Step 1: InnerTube (Priority)
         try {
-            val innerTubeUrl = InnerTubeClient.getStreamUrl(cleanId)
-            if (innerTubeUrl.isNotEmpty()) {
+            val innerTubeStream = InnerTubeClient.getStreamUrl(cleanId)
+            if (innerTubeStream.url.isNotEmpty()) {
                 AppLogger.log("[Stream] InnerTube Success")
-                streamUrlCache[cleanId] = innerTubeUrl
-                return Result.success(innerTubeUrl)
+                streamUrlCache[cleanId] = innerTubeStream
+                return Result.success(innerTubeStream)
             }
         } catch (e: Exception) {
             AppLogger.log("[Stream] InnerTube Failed: ${e.message}. Switching to Fallback.")
@@ -76,11 +76,11 @@ object MusicRepository {
         // Step 2: Fallback to YoutubeClient (yt-dlp)
         // PipedClient is removed as per requirements.
         return try {
-            val ytUrl = YoutubeClient.getStreamUrl(url)
-            if (ytUrl.isNotEmpty()) {
+            val ytStream = YoutubeClient.getStreamUrl(url)
+            if (ytStream.url.isNotEmpty()) {
                 AppLogger.log("[Stream] YoutubeDL Fallback Success")
-                streamUrlCache[cleanId] = ytUrl
-                Result.success(ytUrl)
+                streamUrlCache[cleanId] = ytStream
+                Result.success(ytStream)
             } else {
                 AppLogger.log("[Stream] All sources failed.")
                 Result.failure(Exception("Could not retrieve stream URL from any source"))

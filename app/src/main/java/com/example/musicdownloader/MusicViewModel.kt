@@ -94,7 +94,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
              val result = MusicRepository.getStreamUrl(video.webUrl)
              _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
 
-             result.onSuccess { streamUrl ->
+             result.onSuccess { streamInfo ->
                  val mediaMetadata = MediaMetadata.Builder()
                      .setTitle(video.title)
                      .setArtist(video.uploader)
@@ -102,11 +102,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                      .build()
 
                  val mediaItemBuilder = MediaItem.Builder()
-                     .setUri(streamUrl)
+                     .setUri(streamInfo.url)
                      .setMediaId(video.id)
                      .setMediaMetadata(mediaMetadata)
 
-                 if (streamUrl.contains(".m3u8", ignoreCase = true)) {
+                 // Explicit HLS handling based on flag, not just extension
+                 if (streamInfo.isHls || streamInfo.url.contains(".m3u8", ignoreCase = true)) {
                      mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
                  }
 

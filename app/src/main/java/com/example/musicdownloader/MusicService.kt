@@ -9,6 +9,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -26,12 +27,10 @@ class MusicService : MediaSessionService() {
 
         // Configure ExoPlayer with the IOS User-Agent to avoid 403 errors from YouTube
         // The User-Agent must match what InnerTubeClient uses.
+        // We use OkHttpDataSource to share the same OkHttpClient configuration (IPv4, Timeouts)
         val userAgent = NetworkUtils.USER_AGENT
-        val dataSourceFactory = DefaultHttpDataSource.Factory()
+        val dataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
             .setUserAgent(userAgent)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(8000)
-            .setReadTimeoutMs(8000)
 
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 

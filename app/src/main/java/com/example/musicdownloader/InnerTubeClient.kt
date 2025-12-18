@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 
 object InnerTubeClient {
 
-    private val client = OkHttpClient.Builder()
+    val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .dns(IPv4Dns)
@@ -58,7 +58,7 @@ object InnerTubeClient {
         }
     }
 
-    suspend fun getStreamUrl(videoId: String): String = withContext(Dispatchers.IO) {
+    suspend fun getStreamUrl(videoId: String): StreamInfo = withContext(Dispatchers.IO) {
         val jsonBody = JSONObject().apply {
             put("videoId", videoId)
             put("contentCheckOk", true)
@@ -158,13 +158,13 @@ object InnerTubeClient {
         return videos
     }
 
-    private fun parsePlayerResponse(json: JSONObject): String {
+    private fun parsePlayerResponse(json: JSONObject): StreamInfo {
         val streamingData = json.optJSONObject("streamingData") ?: throw IOException("No streaming data")
 
         // Priority 1: HLS Manifest (m3u8) - specific to iOS/Web clients
         val hlsManifestUrl = streamingData.optString("hlsManifestUrl")
         if (hlsManifestUrl.isNotEmpty()) {
-            return hlsManifestUrl
+            return StreamInfo(hlsManifestUrl, true)
         }
 
         // Priority 2: Adaptive Formats (legacy fallback)
@@ -177,7 +177,7 @@ object InnerTubeClient {
 
                 // Look only for audio streams in adaptiveFormats
                 if (mimeType.contains("audio") && url.isNotEmpty()) {
-                    return url
+                    return StreamInfo(url, false)
                 }
             }
         }
