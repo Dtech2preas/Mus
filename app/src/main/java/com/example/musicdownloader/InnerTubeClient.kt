@@ -65,13 +65,14 @@ object InnerTubeClient {
             put("racyCheckOk", true)
             put("context", JSONObject().apply {
                 put("client", JSONObject().apply {
-                    put("clientName", "ANDROID_MUSIC")
-                    put("clientVersion", "6.42.52")
-                    put("androidSdkVersion", 30)
+                    put("clientName", "IOS")
+                    put("clientVersion", "19.45.4")
+                    put("deviceMake", "Apple")
+                    put("deviceModel", "iPhone")
                     put("hl", "en")
                     put("gl", "US")
-                    put("osName", "Android")
-                    put("osVersion", "13")
+                    put("osName", "iOS")
+                    put("osVersion", "17.5.1")
                     put("platform", "MOBILE")
                 })
             })
@@ -160,6 +161,13 @@ object InnerTubeClient {
     private fun parsePlayerResponse(json: JSONObject): String {
         val streamingData = json.optJSONObject("streamingData") ?: throw IOException("No streaming data")
 
+        // Priority 1: HLS Manifest (m3u8) - specific to iOS/Web clients
+        val hlsManifestUrl = streamingData.optString("hlsManifestUrl")
+        if (hlsManifestUrl.isNotEmpty()) {
+            return hlsManifestUrl
+        }
+
+        // Priority 2: Adaptive Formats (legacy fallback)
         val adaptiveFormats = streamingData.optJSONArray("adaptiveFormats")
         if (adaptiveFormats != null) {
             for (i in 0 until adaptiveFormats.length()) {
