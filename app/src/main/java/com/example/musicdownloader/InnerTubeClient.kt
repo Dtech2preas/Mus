@@ -61,14 +61,18 @@ object InnerTubeClient {
     suspend fun getStreamUrl(videoId: String): String = withContext(Dispatchers.IO) {
         val jsonBody = JSONObject().apply {
             put("videoId", videoId)
+            put("contentCheckOk", true)
+            put("racyCheckOk", true)
             put("context", JSONObject().apply {
                 put("client", JSONObject().apply {
-                    put("clientName", "ANDROID_TESTSUITE")
-                    put("clientVersion", "1.9")
+                    put("clientName", "ANDROID_MUSIC")
+                    put("clientVersion", "6.42.52")
                     put("androidSdkVersion", 30)
                     put("hl", "en")
                     put("gl", "US")
-                    put("utf8", "1")
+                    put("osName", "Android")
+                    put("osVersion", "13")
+                    put("platform", "MOBILE")
                 })
             })
         }
