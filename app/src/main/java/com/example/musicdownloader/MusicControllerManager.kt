@@ -61,6 +61,11 @@ object MusicControllerManager {
                 _duration.value = player.duration
                 // Position updates are not event-driven in the same way, usually polled
             }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                AppLogger.log("[Player] Error: ${error.errorCodeName} - ${error.message}")
+                error.printStackTrace()
+            }
         })
     }
 

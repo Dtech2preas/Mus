@@ -89,7 +89,7 @@ object YoutubeClient {
         }
     }
 
-    suspend fun getStreamUrl(url: String): String = withContext(Dispatchers.IO) {
+    suspend fun getStreamUrl(url: String): StreamInfo = withContext(Dispatchers.IO) {
          try {
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
@@ -98,9 +98,12 @@ object YoutubeClient {
             request.addOption("--force-ipv4")
 
             val response = YoutubeDL.getInstance().execute(request)
-            val streamUrl = response.out?.trim()
+            val streamUrl = response.out?.trim() ?: ""
 
-            return@withContext streamUrl ?: ""
+            // YT-DLP usually returns direct links, unless using --hls-prefer-native which we aren't
+            // But we can check if it looks like m3u8
+            val isHls = streamUrl.contains(".m3u8")
+            return@withContext StreamInfo(streamUrl, isHls)
         } catch (e: Exception) {
             e.printStackTrace()
             throw e
