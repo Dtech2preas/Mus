@@ -65,13 +65,13 @@ object InnerTubeClient {
             put("racyCheckOk", true)
             put("context", JSONObject().apply {
                 put("client", JSONObject().apply {
-                    put("clientName", "WEB_MAIDEN")
-                    put("clientVersion", "2.20230920.00.00")
+                    put("clientName", "IOS")
+                    put("clientVersion", "19.45.4")
                     put("platform", "MOBILE")
                     put("osName", "iOS")
                     put("osVersion", "17.5.1")
                     put("deviceMake", "Apple")
-                    put("deviceModel", "iPhone")
+                    put("deviceModel", "iPhone14,5")
                     put("hl", "en")
                     put("gl", "US")
                 })
