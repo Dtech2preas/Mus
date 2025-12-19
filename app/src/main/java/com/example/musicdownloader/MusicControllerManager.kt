@@ -3,9 +3,11 @@ package com.example.musicdownloader
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
@@ -89,16 +91,24 @@ object MusicControllerManager {
     }
 
     fun playMedia(mediaItem: MediaItem) {
-        AppLogger.log("[Controller] playMedia: ${mediaItem.mediaId}")
+        AppLogger.log("[Controller] playMedia: ${mediaItem.mediaId} via Custom Command")
         if (mediaController == null) {
             AppLogger.log("[Controller] ERROR: mediaController is null!")
             return
         }
         mediaController?.let { controller ->
-            controller.setMediaItem(mediaItem)
-            controller.prepare()
-            controller.play()
-            AppLogger.log("[Controller] Commands sent: setMediaItem, prepare, play")
+            val command = SessionCommand("PLAY_STREAM", Bundle.EMPTY)
+            val args = Bundle().apply {
+                putString("URL", mediaItem.localConfiguration?.uri.toString())
+                putString("MEDIA_ID", mediaItem.mediaId)
+                putString("TITLE", mediaItem.mediaMetadata.title?.toString())
+                putString("ARTIST", mediaItem.mediaMetadata.artist?.toString())
+                putString("ARTWORK_URI", mediaItem.mediaMetadata.artworkUri?.toString())
+                putString("MIME_TYPE", mediaItem.localConfiguration?.mimeType)
+            }
+
+            controller.sendCustomCommand(command, args)
+            AppLogger.log("[Controller] Custom Command sent: PLAY_STREAM")
         }
     }
 

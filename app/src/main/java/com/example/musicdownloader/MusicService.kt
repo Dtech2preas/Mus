@@ -3,10 +3,13 @@ package com.example.musicdownloader
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -14,6 +17,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 class MusicService : MediaSessionService() {
 
@@ -67,6 +74,7 @@ class MusicService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(pendingIntent)
+            .setCallback(CustomMediaSessionCallback())
             .build()
     }
 
@@ -83,5 +91,77 @@ class MusicService : MediaSessionService() {
             mediaSession = null
         }
         super.onDestroy()
+    }
+
+    private inner class CustomMediaSessionCallback : MediaSession.Callback {
+        @OptIn(UnstableApi::class)
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction == "PLAY_STREAM") {
+                AppLogger.log("[Service] Received PLAY_STREAM command")
+
+                val url = args.getString("URL")
+                val mediaId = args.getString("MEDIA_ID") ?: ""
+                val title = args.getString("TITLE")
+                val artist = args.getString("ARTIST")
+                val artworkUriString = args.getString("ARTWORK_URI")
+                val mimeType = args.getString("MIME_TYPE")
+
+                if (url != null) {
+                    try {
+                        // Create DataSource Factory with custom headers
+                        val dataSourceFactory = DefaultHttpDataSource.Factory()
+                            .setUserAgent(NetworkUtils.USER_AGENT)
+                            .setDefaultRequestProperties(mapOf("Referer" to "https://www.youtube.com/"))
+
+                        // Create HlsMediaSource.Factory using the custom dataSourceFactory
+                        val hlsFactory = HlsMediaSource.Factory(dataSourceFactory)
+
+                        // Reconstruct MediaItem
+                        val mediaMetadataBuilder = MediaMetadata.Builder()
+                            .setTitle(title)
+                            .setArtist(artist)
+
+                        if (artworkUriString != null) {
+                            mediaMetadataBuilder.setArtworkUri(Uri.parse(artworkUriString))
+                        }
+
+                        val mediaItemBuilder = MediaItem.Builder()
+                            .setUri(Uri.parse(url))
+                            .setMediaId(mediaId)
+                            .setMediaMetadata(mediaMetadataBuilder.build())
+
+                        if (mimeType != null) {
+                            mediaItemBuilder.setMimeType(mimeType)
+                        }
+
+                        val mediaItem = mediaItemBuilder.build()
+
+                        // Create MediaSource and set it to player
+                        val source = hlsFactory.createMediaSource(mediaItem)
+
+                        // Execute playback on main thread (MediaSession callback runs on main looper by default)
+                        player.setMediaSource(source)
+                        player.prepare()
+                        player.play()
+
+                        AppLogger.log("[Service] Player configured with custom HlsMediaSource")
+
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    } catch (e: Exception) {
+                        AppLogger.log("[Service] Error handling PLAY_STREAM: ${e.message}")
+                        e.printStackTrace()
+                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+                    }
+                } else {
+                     AppLogger.log("[Service] Error: URL is null in PLAY_STREAM command")
+                }
+            }
+            return super.onCustomCommand(session, controller, customCommand, args)
+        }
     }
 }
