@@ -1,5 +1,6 @@
 package com.example.musicdownloader
 
+import android.content.Context
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +18,7 @@ data class VideoItem(
 
 object YoutubeClient {
 
-    suspend fun searchVideos(query: String): List<VideoItem> = withContext(Dispatchers.IO) {
+    suspend fun searchVideos(context: Context, query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
         try {
             // New command: ytsearch5:[QUERY] --flat-playlist --print "%(id)s::%(title)s::%(uploader)s::%(duration)s"
@@ -25,6 +26,11 @@ object YoutubeClient {
             request.addOption("--flat-playlist")
             request.addOption("--print", "%(id)s::%(title)s::%(uploader)s::%(duration)s")
             request.addOption("--force-ipv4")
+
+            val cookieFile = CookieManager.getCookieFile(context)
+            if (cookieFile != null) {
+                request.addOption("--cookies", cookieFile.absolutePath)
+            }
 
             val response = YoutubeDL.getInstance().execute(request)
             val output = response.out
@@ -70,7 +76,7 @@ object YoutubeClient {
         return@withContext videos
     }
 
-    suspend fun downloadAudio(url: String, outputDir: File): File = withContext(Dispatchers.IO) {
+    suspend fun downloadAudio(context: Context, url: String, outputDir: File): File = withContext(Dispatchers.IO) {
         try {
             // Download best audio
             val request = YoutubeDLRequest(url)
@@ -78,6 +84,11 @@ object YoutubeClient {
             request.addOption("-f", "worst[ext=m4a]")
             request.addOption("-o", File(outputDir, "%(title)s.%(ext)s").absolutePath)
             request.addOption("--force-ipv4")
+
+            val cookieFile = CookieManager.getCookieFile(context)
+            if (cookieFile != null) {
+                request.addOption("--cookies", cookieFile.absolutePath)
+            }
 
             val response = YoutubeDL.getInstance().execute(request)
 
@@ -89,13 +100,18 @@ object YoutubeClient {
         }
     }
 
-    suspend fun getStreamUrl(url: String): StreamInfo = withContext(Dispatchers.IO) {
+    suspend fun getStreamUrl(context: Context, url: String): StreamInfo = withContext(Dispatchers.IO) {
          try {
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
             request.addOption("-f", "bestaudio[ext=m4a]")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
+
+            val cookieFile = CookieManager.getCookieFile(context)
+            if (cookieFile != null) {
+                request.addOption("--cookies", cookieFile.absolutePath)
+            }
 
             val response = YoutubeDL.getInstance().execute(request)
             val streamUrl = response.out?.trim() ?: ""

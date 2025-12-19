@@ -1,5 +1,6 @@
 package com.example.musicdownloader
 
+import android.content.Context
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -9,7 +10,7 @@ object MusicRepository {
     private val searchCache = ConcurrentHashMap<String, List<VideoItem>>()
     private val streamUrlCache = ConcurrentHashMap<String, StreamInfo>()
 
-    suspend fun searchVideos(query: String): Result<List<VideoItem>> {
+    suspend fun searchVideos(context: Context, query: String): Result<List<VideoItem>> {
         // 1. Check Cache
         searchCache[query]?.let {
             return Result.success(it)
@@ -29,7 +30,7 @@ object MusicRepository {
 
         // 3. Fallback to YoutubeClient (Slow but reliable backup)
         return try {
-            val videos = YoutubeClient.searchVideos(query)
+            val videos = YoutubeClient.searchVideos(context, query)
             if (videos.isNotEmpty()) {
                 searchCache[query] = videos
             }
@@ -39,16 +40,16 @@ object MusicRepository {
         }
     }
 
-    suspend fun downloadAudio(url: String, outputDir: File): Result<File> {
+    suspend fun downloadAudio(context: Context, url: String, outputDir: File): Result<File> {
         return try {
-            val file = YoutubeClient.downloadAudio(url, outputDir)
+            val file = YoutubeClient.downloadAudio(context, url, outputDir)
             Result.success(file)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun getStreamUrl(context: android.content.Context, url: String): Result<StreamInfo> {
+    suspend fun getStreamUrl(context: Context, url: String): Result<StreamInfo> {
         // Extract ID
         val id = if (url.contains("v=")) url.substringAfter("v=") else url.substringAfterLast("/")
         val cleanId = if (id.contains("&")) id.substringBefore("&") else id
@@ -76,7 +77,7 @@ object MusicRepository {
         // Step 2: Fallback to YoutubeClient (yt-dlp)
         // PipedClient is removed as per requirements.
         return try {
-            val ytStream = YoutubeClient.getStreamUrl(url)
+            val ytStream = YoutubeClient.getStreamUrl(context, url)
             if (ytStream.url.isNotEmpty()) {
                 AppLogger.log("[Stream] YoutubeDL Fallback Success")
                 streamUrlCache[cleanId] = ytStream

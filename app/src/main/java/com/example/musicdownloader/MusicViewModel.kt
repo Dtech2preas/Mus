@@ -54,7 +54,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
-            val result = MusicRepository.searchVideos(query)
+            val result = MusicRepository.searchVideos(getApplication(), query)
             result.onSuccess { videos ->
                 _uiState.value = _uiState.value.copy(
                     results = videos,
@@ -73,7 +73,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
 
         viewModelScope.launch {
-            val result = MusicRepository.downloadAudio(video.webUrl, outputDir)
+            val result = MusicRepository.downloadAudio(getApplication(), video.webUrl, outputDir)
             result.onSuccess { file ->
                 _uiState.value = _uiState.value.copy(
                     downloadMessage = "Downloaded: ${video.title}"
