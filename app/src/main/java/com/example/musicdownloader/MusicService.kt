@@ -6,10 +6,9 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.MimeTypes
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -25,50 +24,49 @@ import com.google.common.util.concurrent.ListenableFuture
 
 class MusicService : MediaSessionService() {
 
-    companion object {
-        val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle())
-    }
-
     private var mediaSession: MediaSession? = null
     private lateinit var player: ExoPlayer
+
+    // Define the custom command constant
+    companion object {
+        val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle.EMPTY)
+    }
 
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
         AppLogger.log("[Service] onCreate")
 
-        // Configure ExoPlayer with the IOS User-Agent to avoid 403 errors from YouTube
-        // The User-Agent must match what InnerTubeClient uses.
+        // 1. Base DataSource Factory (Global)
         // We use DefaultHttpDataSource to ensure a clean slate for headers.
         val userAgent = NetworkUtils.USER_AGENT
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
 
-        // Manually instantiate HlsMediaSource.Factory to force HLS handling without auto-detection
+        // 2. HlsMediaSource Factory
+        // Manually instantiate to force HLS handling without auto-detection issues
         val hlsMediaSourceFactory = HlsMediaSource.Factory(dataSourceFactory)
 
-        // optimize buffering for faster playback start ("instant")
-        // minBufferMs: Minimum duration of media that the player attempts to buffer.
-        // maxBufferMs: Maximum duration of media that the player attempts to buffer.
-        // bufferForPlaybackMs: The duration of media that must be buffered for playback to start or resume following a user action such as a seek.
-        // bufferForPlaybackAfterRebufferMs: The default duration of media that must be buffered for playback to resume after a rebuffer.
+        // 3. Load Control (Buffering Optimization)
+        // bufferForPlaybackMs reduced to 500ms for "instant" start
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                30_000, // minBufferMs (reduced from 50s)
-                30_000, // maxBufferMs (reduced from 50s)
-                500,    // bufferForPlaybackMs (reduced from 2500ms -> 500ms for instant start)
-                1000    // bufferForPlaybackAfterRebufferMs (reduced from 5000ms -> 1000ms)
+                30_000, // minBufferMs
+                30_000, // maxBufferMs
+                500,    // bufferForPlaybackMs
+                1000    // bufferForPlaybackAfterRebufferMs
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
+        // 4. Player Build
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(hlsMediaSourceFactory)
             .setLoadControl(loadControl)
-            .setAudioAttributes(AudioAttributes.DEFAULT, true) // Handle audio focus
+            .setAudioAttributes(AudioAttributes.DEFAULT, true)
             .build()
 
-        // Create a PendingIntent to launch the UI when the notification is clicked
+        // 5. Session Activity (Notification Click)
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -77,6 +75,7 @@ class MusicService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // 6. MediaSession Build
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(pendingIntent)
             .setCallback(CustomMediaSessionCallback())
@@ -99,14 +98,22 @@ class MusicService : MediaSessionService() {
     }
 
     private inner class CustomMediaSessionCallback : MediaSession.Callback {
+
+        // --- CRITICAL FIX: Whitelist the Custom Command ---
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo
         ): MediaSession.ConnectionResult {
+            
+            // Add our custom PLAY_STREAM command to the allowed list
             val sessionCommands = SessionCommands.Builder()
                 .add(PLAY_STREAM_COMMAND)
                 .build()
-            return MediaSession.ConnectionResult.AcceptedWithSessionCommands(sessionCommands)
+
+            // Allow all standard player commands (Play, Pause, etc.) + Custom Commands
+            val playerCommands = Player.Commands.Builder().addAllCommands().build()
+
+            return MediaSession.ConnectionResult.accept(sessionCommands, playerCommands)
         }
 
         @OptIn(UnstableApi::class)
@@ -116,6 +123,8 @@ class MusicService : MediaSessionService() {
             customCommand: SessionCommand,
             args: Bundle
         ): ListenableFuture<SessionResult> {
+            
+            // Check for our specific command
             if (customCommand.customAction == "PLAY_STREAM") {
                 AppLogger.log("[Service] Received PLAY_STREAM command")
 
@@ -128,15 +137,19 @@ class MusicService : MediaSessionService() {
 
                 if (url != null) {
                     try {
-                        // Create DataSource Factory with custom headers
+                        // --- PLAYBACK LOGIC ---
+                        
+                        // 1. Create a FRESH DataSource Factory for this specific request
+                        // This ensures the Referer header is set correctly for this session
                         val dataSourceFactory = DefaultHttpDataSource.Factory()
-                            .setUserAgent(NetworkUtils.USER_AGENT)
+                            .setUserAgent(NetworkUtils.USER_AGENT) // iOS User-Agent
                             .setDefaultRequestProperties(mapOf("Referer" to "https://www.youtube.com/"))
+                            .setAllowCrossProtocolRedirects(true)
 
-                        // Create HlsMediaSource.Factory using the custom dataSourceFactory
+                        // 2. Create HlsMediaSource
                         val hlsFactory = HlsMediaSource.Factory(dataSourceFactory)
 
-                        // Reconstruct MediaItem
+                        // 3. Reconstruct MediaMetadata
                         val mediaMetadataBuilder = MediaMetadata.Builder()
                             .setTitle(title)
                             .setArtist(artist)
@@ -145,6 +158,7 @@ class MusicService : MediaSessionService() {
                             mediaMetadataBuilder.setArtworkUri(Uri.parse(artworkUriString))
                         }
 
+                        // 4. Reconstruct MediaItem
                         val mediaItemBuilder = MediaItem.Builder()
                             .setUri(Uri.parse(url))
                             .setMediaId(mediaId)
@@ -156,21 +170,21 @@ class MusicService : MediaSessionService() {
 
                         val mediaItem = mediaItemBuilder.build()
 
-                        // Create MediaSource and set it to player
+                        // 5. Create Source & Play
                         val source = hlsFactory.createMediaSource(mediaItem)
 
-                        // Execute playback on main thread (MediaSession callback runs on main looper by default)
+                        // IMPORTANT: Set source, don't set item
                         player.setMediaSource(source)
                         player.prepare()
                         player.play()
 
-                        AppLogger.log("[Service] Player configured with custom HlsMediaSource")
+                        AppLogger.log("[Service] Player configured with custom HlsMediaSource. Playing...")
 
                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     } catch (e: Exception) {
                         AppLogger.log("[Service] Error handling PLAY_STREAM: ${e.message}")
                         e.printStackTrace()
-                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
                     }
                 } else {
                      AppLogger.log("[Service] Error: URL is null in PLAY_STREAM command")
