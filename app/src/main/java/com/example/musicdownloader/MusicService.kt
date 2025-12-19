@@ -18,11 +18,16 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
 class MusicService : MediaSessionService() {
+
+    companion object {
+        val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle())
+    }
 
     private var mediaSession: MediaSession? = null
     private lateinit var player: ExoPlayer
@@ -94,6 +99,16 @@ class MusicService : MediaSessionService() {
     }
 
     private inner class CustomMediaSessionCallback : MediaSession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): MediaSession.ConnectionResult {
+            val sessionCommands = SessionCommands.Builder()
+                .add(PLAY_STREAM_COMMAND)
+                .build()
+            return MediaSession.ConnectionResult.AcceptedWithSessionCommands(sessionCommands)
+        }
+
         @OptIn(UnstableApi::class)
         override fun onCustomCommand(
             session: MediaSession,
