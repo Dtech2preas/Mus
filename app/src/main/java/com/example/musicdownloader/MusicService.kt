@@ -29,7 +29,7 @@ class MusicService : MediaSessionService() {
 
     // Define the custom command constant
     companion object {
-        val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle.EMPTY)
+        val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle())
     }
 
     @OptIn(UnstableApi::class)
@@ -150,7 +150,7 @@ class MusicService : MediaSessionService() {
                         }
 
                         val dataSourceFactory = DefaultHttpDataSource.Factory()
-                            .setUserAgent("AppleCoreMedia/1.0.0.19E241 (iPhone; U; CPU OS 17_5_1 like Mac OS X; en_us)")
+                            .setUserAgent(NetworkUtils.USER_AGENT)
                             .setDefaultRequestProperties(requestProps)
                             .setAllowCrossProtocolRedirects(true)
 
