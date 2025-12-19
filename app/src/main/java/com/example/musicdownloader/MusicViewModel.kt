@@ -87,6 +87,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun play(video: VideoItem) {
+        AppLogger.log("[ViewModel] play called for ${video.id}")
         _uiState.value = _uiState.value.copy(errorMessage = null, isLoadingPlayer = true)
 
         viewModelScope.launch {
@@ -95,6 +96,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
              _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
 
              result.onSuccess { streamInfo ->
+                 AppLogger.log("[ViewModel] Got stream URL. HLS=${streamInfo.isHls}")
                  val mediaMetadata = MediaMetadata.Builder()
                      .setTitle(video.title)
                      .setArtist(video.uploader)
@@ -108,11 +110,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
                  // Explicit HLS handling based on flag, not just extension
                  if (streamInfo.isHls || streamInfo.url.contains(".m3u8", ignoreCase = true)) {
+                     AppLogger.log("[ViewModel] Setting MIME type to M3U8")
                      mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
                  }
 
                  MusicControllerManager.playMedia(mediaItemBuilder.build())
              }.onFailure { e ->
+                 AppLogger.log("[ViewModel] Failed to get stream: ${e.message}")
                  _uiState.value = _uiState.value.copy(
                      errorMessage = "Failed to play: ${e.message}"
                  )
