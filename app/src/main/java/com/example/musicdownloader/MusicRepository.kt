@@ -48,7 +48,7 @@ object MusicRepository {
         }
     }
 
-    suspend fun getStreamUrl(url: String): Result<StreamInfo> {
+    suspend fun getStreamUrl(context: android.content.Context, url: String): Result<StreamInfo> {
         // Extract ID
         val id = if (url.contains("v=")) url.substringAfter("v=") else url.substringAfterLast("/")
         val cleanId = if (id.contains("&")) id.substringBefore("&") else id
@@ -63,7 +63,7 @@ object MusicRepository {
 
         // Step 1: InnerTube (Priority)
         try {
-            val innerTubeStream = InnerTubeClient.getStreamUrl(cleanId)
+            val innerTubeStream = InnerTubeClient.getStreamUrl(context, cleanId)
             if (innerTubeStream.url.isNotEmpty()) {
                 AppLogger.log("[Stream] InnerTube Success")
                 streamUrlCache[cleanId] = innerTubeStream

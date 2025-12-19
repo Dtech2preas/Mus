@@ -58,7 +58,7 @@ object InnerTubeClient {
         }
     }
 
-    suspend fun getStreamUrl(videoId: String): StreamInfo = withContext(Dispatchers.IO) {
+    suspend fun getStreamUrl(context: android.content.Context, videoId: String): StreamInfo = withContext(Dispatchers.IO) {
         val jsonBody = JSONObject().apply {
             put("videoId", videoId)
             put("contentCheckOk", true)
@@ -80,11 +80,18 @@ object InnerTubeClient {
 
         val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
 
-        val request = Request.Builder()
+        val cookie = CookieManager.getCookie(context)
+
+        val requestBuilder = Request.Builder()
             .url(PLAYER_URL)
             .post(requestBody)
             .addHeader("User-Agent", NetworkUtils.USER_AGENT)
-            .build()
+
+        if (cookie.isNotEmpty()) {
+            requestBuilder.addHeader("Cookie", cookie)
+        }
+
+        val request = requestBuilder.build()
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("InnerTube Player failed: ${response.code}")

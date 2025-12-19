@@ -129,6 +129,26 @@ fun MusicDownloaderScreen(
                     Text("Show Logs")
                 }
 
+                // Set Cookies Button
+                var showCookieDialog by remember { mutableStateOf(false) }
+                Button(
+                    onClick = { showCookieDialog = true },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    Text("Set Cookies")
+                }
+
+                if (showCookieDialog) {
+                    CookieDialog(
+                        onDismiss = { showCookieDialog = false },
+                        onSave = { cookie ->
+                            CookieManager.saveCookie(context, cookie)
+                            showCookieDialog = false
+                            Toast.makeText(context, "Cookie Saved", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (uiState.isLoading) {
@@ -156,6 +176,38 @@ fun MusicDownloaderScreen(
             }
         }
     }
+}
+
+@Composable
+fun CookieDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var cookieText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set YouTube Cookie") },
+        text = {
+            Column {
+                Text("Paste your cookie string here to bypass 403 errors:")
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(
+                    value = cookieText,
+                    onValueChange = { cookieText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 5
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(cookieText) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

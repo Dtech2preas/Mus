@@ -92,7 +92,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
              // For streaming, we need the direct URL
-             val result = MusicRepository.getStreamUrl(video.webUrl)
+             val result = MusicRepository.getStreamUrl(getApplication<Application>(), video.webUrl)
              _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
 
              result.onSuccess { streamInfo ->

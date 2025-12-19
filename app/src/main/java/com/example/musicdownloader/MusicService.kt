@@ -141,9 +141,15 @@ class MusicService : MediaSessionService() {
                         
                         // 1. Create a FRESH DataSource Factory for this specific request
                         // This ensures the Referer header is set correctly for this session
+                        val cookie = CookieManager.getCookie(this@MusicService)
+                        val requestProps = mutableMapOf("Referer" to "https://www.youtube.com/")
+                        if (cookie.isNotEmpty()) {
+                            requestProps["Cookie"] = cookie
+                        }
+
                         val dataSourceFactory = DefaultHttpDataSource.Factory()
                             .setUserAgent(NetworkUtils.USER_AGENT)
-                            .setDefaultRequestProperties(mapOf("Referer" to "https://www.youtube.com/"))
+                            .setDefaultRequestProperties(requestProps)
                             .setAllowCrossProtocolRedirects(true)
 
                         // 2. Create HlsMediaSource
