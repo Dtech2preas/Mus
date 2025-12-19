@@ -24,6 +24,7 @@ class MusicService : MediaSessionService() {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        AppLogger.log("[Service] onCreate")
 
         // Configure ExoPlayer with the IOS User-Agent to avoid 403 errors from YouTube
         // The User-Agent must match what InnerTubeClient uses.
@@ -70,10 +71,12 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        AppLogger.log("[Service] onGetSession for package: ${controllerInfo.packageName}")
         return mediaSession
     }
 
     override fun onDestroy() {
+        AppLogger.log("[Service] onDestroy")
         mediaSession?.run {
             player.release()
             release()
