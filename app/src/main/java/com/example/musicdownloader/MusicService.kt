@@ -142,7 +142,8 @@ class MusicService : MediaSessionService() {
                         // 1. Create a FRESH DataSource Factory for this specific request
                         // This ensures the Referer header is set correctly for this session
                         val dataSourceFactory = DefaultHttpDataSource.Factory()
-                            .setUserAgent("AppleCoreMedia/1.0.0.19E241 (iPhone; U; CPU OS 17_5_1 like Mac OS X; en_us)") // iOS System Player User-Agent
+                            .setUserAgent(NetworkUtils.USER_AGENT)
+                            .setDefaultRequestProperties(mapOf("Referer" to "https://m.youtube.com/"))
                             .setAllowCrossProtocolRedirects(true)
 
                         // 2. Create HlsMediaSource
