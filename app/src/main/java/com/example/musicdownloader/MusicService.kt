@@ -143,7 +143,7 @@ class MusicService : MediaSessionService() {
                         // This ensures the Referer header is set correctly for this session
                         val dataSourceFactory = DefaultHttpDataSource.Factory()
                             .setUserAgent(NetworkUtils.USER_AGENT)
-                            .setDefaultRequestProperties(mapOf("Referer" to "https://m.youtube.com/"))
+                            .setDefaultRequestProperties(mapOf("Referer" to "https://www.youtube.com/"))
                             .setAllowCrossProtocolRedirects(true)
 
                         // 2. Create HlsMediaSource
