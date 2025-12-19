@@ -9,10 +9,9 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -28,12 +27,13 @@ class MusicService : MediaSessionService() {
 
         // Configure ExoPlayer with the IOS User-Agent to avoid 403 errors from YouTube
         // The User-Agent must match what InnerTubeClient uses.
-        // We use OkHttpDataSource to share the same OkHttpClient configuration (IPv4, Timeouts)
+        // We use DefaultHttpDataSource to ensure a clean slate for headers.
         val userAgent = NetworkUtils.USER_AGENT
-        val dataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
+        val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+        // Manually instantiate HlsMediaSource.Factory to force HLS handling without auto-detection
+        val hlsMediaSourceFactory = HlsMediaSource.Factory(dataSourceFactory)
 
         // optimize buffering for faster playback start ("instant")
         // minBufferMs: Minimum duration of media that the player attempts to buffer.
@@ -51,7 +51,7 @@ class MusicService : MediaSessionService() {
             .build()
 
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(mediaSourceFactory)
+            .setMediaSourceFactory(hlsMediaSourceFactory)
             .setLoadControl(loadControl)
             .setAudioAttributes(AudioAttributes.DEFAULT, true) // Handle audio focus
             .build()
