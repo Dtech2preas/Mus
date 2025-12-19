@@ -140,15 +140,17 @@ class MusicService : MediaSessionService() {
                         // --- PLAYBACK LOGIC ---
                         
                         // 1. Create a FRESH DataSource Factory for this specific request
-                        // This ensures the Referer header is set correctly for this session
+                        // Switch User-Agent to AppleCoreMedia and remove Referer to bypass strict token checks
                         val cookie = CookieManager.getCookie(this@MusicService)
-                        val requestProps = mutableMapOf("Referer" to "https://www.youtube.com/")
+
+                        // Only add Cookie header, NO Referer
+                        val requestProps = mutableMapOf<String, String>()
                         if (cookie.isNotEmpty()) {
                             requestProps["Cookie"] = cookie
                         }
 
                         val dataSourceFactory = DefaultHttpDataSource.Factory()
-                            .setUserAgent(NetworkUtils.USER_AGENT)
+                            .setUserAgent("AppleCoreMedia/1.0.0.19E241 (iPhone; U; CPU OS 17_5_1 like Mac OS X; en_us)")
                             .setDefaultRequestProperties(requestProps)
                             .setAllowCrossProtocolRedirects(true)
 
