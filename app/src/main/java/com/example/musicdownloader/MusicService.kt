@@ -11,6 +11,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -21,6 +22,8 @@ import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import okhttp3.CacheControl
+import okhttp3.OkHttpClient
 
 class MusicService : MediaSessionService() {
 
@@ -38,9 +41,11 @@ class MusicService : MediaSessionService() {
         AppLogger.log("[Service] onCreate")
 
         // 1. Base DataSource Factory (Global)
-        // We use DefaultHttpDataSource to ensure a clean slate for headers.
+        // Switch to OkHttpDataSource to ensure we use the same OkHttpClient (IPv4Dns) as InnerTubeClient
         val userAgent = NetworkUtils.USER_AGENT
-        val dataSourceFactory = DefaultHttpDataSource.Factory()
+
+        // Use InnerTubeClient.client which forces IPv4
+        val dataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
             .setUserAgent(userAgent)
 
         // 2. HlsMediaSource Factory
@@ -149,10 +154,13 @@ class MusicService : MediaSessionService() {
                             requestProps["Cookie"] = cookie
                         }
 
-                        val dataSourceFactory = DefaultHttpDataSource.Factory()
+                        // FIX: Use OkHttpDataSource to ensure strict IPv4 (via InnerTubeClient.client) and correct header handling.
+                        // DefaultHttpDataSource uses system network stack which might use IPv6, causing 403 Forbidden on IPv4-signed URLs.
+                        val dataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
                             .setUserAgent(NetworkUtils.USER_AGENT)
                             .setDefaultRequestProperties(requestProps)
-                            .setAllowCrossProtocolRedirects(true)
+                            // OkHttp handles redirects automatically, but we can configure cache control if needed.
+                            // .setCacheControl(CacheControl.FORCE_NETWORK)
 
                         // 2. Create HlsMediaSource
                         val hlsFactory = HlsMediaSource.Factory(dataSourceFactory)
@@ -186,7 +194,7 @@ class MusicService : MediaSessionService() {
                         player.prepare()
                         player.play()
 
-                        AppLogger.log("[Service] Player configured with custom HlsMediaSource. Playing...")
+                        AppLogger.log("[Service] Player configured with custom HlsMediaSource (OkHttp+IPv4). Playing...")
 
                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     } catch (e: Exception) {
