@@ -45,6 +45,21 @@ object CookieManager {
         return if (file.exists()) file else null
     }
 
+    fun checkAndLogCookies(context: Context) {
+        val cookie = getCookie(context)
+        if (cookie.isEmpty()) {
+            AppLogger.log("[CookieManager] No cookies found in preferences.")
+            return
+        }
+
+        val keys = cookie.split(";").map { it.substringBefore("=").trim() }
+        // Common important YouTube cookies
+        val importantKeys = listOf("SAPISID", "__Secure-3PSID", "LOGIN_INFO", "VISITOR_INFO1_LIVE")
+        val foundKeys = keys.filter { key -> importantKeys.any { it.equals(key, ignoreCase = true) } }
+
+        AppLogger.log("[CookieManager] Cookie Check: Found ${keys.size} cookies. Important present: $foundKeys")
+    }
+
     private fun saveCookieToFile(context: Context, content: String) {
         try {
             val file = File(context.filesDir, COOKIE_FILENAME)

@@ -39,10 +39,12 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         AppLogger.log("[Service] onCreate")
+        CookieManager.checkAndLogCookies(this)
 
         // 1. Base DataSource Factory (Global)
         // Switch to OkHttpDataSource to ensure we use the same OkHttpClient (IPv4Dns) as InnerTubeClient
-        val userAgent = NetworkUtils.USER_AGENT
+        // USE AppleCoreMedia User-Agent for HLS playback (required for official video streams)
+        val userAgent = "AppleCoreMedia/1.0.0.1931042321 (iPad; U; CPU OS 17_5_1 like Mac OS X; en_us)"
 
         // Use InnerTubeClient.client which forces IPv4
         val dataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
@@ -157,7 +159,7 @@ class MusicService : MediaSessionService() {
                         // FIX: Use OkHttpDataSource to ensure strict IPv4 (via InnerTubeClient.client) and correct header handling.
                         // DefaultHttpDataSource uses system network stack which might use IPv6, causing 403 Forbidden on IPv4-signed URLs.
                         val dataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
-                            .setUserAgent(NetworkUtils.USER_AGENT)
+                            .setUserAgent("AppleCoreMedia/1.0.0.1931042321 (iPad; U; CPU OS 17_5_1 like Mac OS X; en_us)")
                             .setDefaultRequestProperties(requestProps)
                             // OkHttp handles redirects automatically, but we can configure cache control if needed.
                             // .setCacheControl(CacheControl.FORCE_NETWORK)
