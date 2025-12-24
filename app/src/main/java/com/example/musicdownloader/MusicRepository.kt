@@ -64,7 +64,12 @@ object MusicRepository {
                 return Result.success(file)
             }
         } catch (e: Exception) {
-            AppLogger.log("[Repo] InnerTube URL fetch failed: ${e.message}")
+            val msg = e.message ?: "Unknown error"
+            if (msg.contains("No address associated with hostname") || e is java.net.UnknownHostException) {
+                AppLogger.log("[Repo] Network Error during InnerTube fetch: Check internet connection.")
+            } else {
+                AppLogger.log("[Repo] InnerTube URL fetch failed: $msg")
+            }
         }
 
         // 2. Fallback: Use yt-dlp to extract and download from Video URL
@@ -73,8 +78,14 @@ object MusicRepository {
             val file = YoutubeClient.downloadAudio(context, video.webUrl, outputDir, fileName = video.id)
             Result.success(file)
         } catch (e: Exception) {
-            AppLogger.log("[Repo] Download failed: ${e.message}")
-            Result.failure(e)
+            val msg = e.message ?: "Unknown error"
+            if (msg.contains("No address associated with hostname") || e is java.net.UnknownHostException) {
+                AppLogger.log("[Repo] Network Error during Fallback: Check internet connection.")
+                Result.failure(Exception("Network Error: Check internet connection."))
+            } else {
+                AppLogger.log("[Repo] Download failed: $msg")
+                Result.failure(e)
+            }
         }
     }
 
