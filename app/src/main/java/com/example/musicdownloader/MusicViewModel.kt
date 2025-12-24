@@ -69,54 +69,43 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun download(video: VideoItem, outputDir: File) {
-        _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
-
-        viewModelScope.launch {
-            val result = MusicRepository.downloadAudio(getApplication(), video.webUrl, outputDir)
-            result.onSuccess { file ->
-                _uiState.value = _uiState.value.copy(
-                    downloadMessage = "Downloaded: ${video.title}"
-                )
-            }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(
-                    downloadMessage = "Failed: ${e.message}"
-                )
-            }
-        }
-    }
-
     fun play(video: VideoItem) {
         AppLogger.log("[ViewModel] play called for ${video.id}")
-        _uiState.value = _uiState.value.copy(errorMessage = null, isLoadingPlayer = true)
+        // Set loading state to true. We can use downloadMessage to show progress to user.
+        _uiState.value = _uiState.value.copy(
+            errorMessage = null,
+            isLoadingPlayer = true,
+            downloadMessage = "Preparing ${video.title}..."
+        )
 
         viewModelScope.launch {
-             // For streaming, we need the direct URL
-             val result = MusicRepository.getStreamUrl(getApplication<Application>(), video.webUrl)
-             _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
+             // New flow: Download -> Play
+             val result = MusicRepository.downloadAndPlay(getApplication(), video)
 
-             result.onSuccess { streamInfo ->
-                 AppLogger.log("[ViewModel] Got stream URL. HLS=${streamInfo.isHls}")
+             _uiState.value = _uiState.value.copy(
+                 isLoadingPlayer = false,
+                 downloadMessage = null
+             )
+
+             result.onSuccess { file ->
+                 AppLogger.log("[ViewModel] File ready: ${file.absolutePath}")
+
                  val mediaMetadata = MediaMetadata.Builder()
                      .setTitle(video.title)
                      .setArtist(video.uploader)
                      .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
                      .build()
 
-                 val mediaItemBuilder = MediaItem.Builder()
-                     .setUri(streamInfo.url)
+                 // Play from local file
+                 val mediaItem = MediaItem.Builder()
+                     .setUri(android.net.Uri.fromFile(file))
                      .setMediaId(video.id)
                      .setMediaMetadata(mediaMetadata)
+                     .build()
 
-                 // Explicit HLS handling based on flag, not just extension
-                 if (streamInfo.isHls || streamInfo.url.contains(".m3u8", ignoreCase = true)) {
-                     AppLogger.log("[ViewModel] Setting MIME type to M3U8")
-                     mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
-                 }
-
-                 MusicControllerManager.playMedia(mediaItemBuilder.build())
+                 MusicControllerManager.playMedia(mediaItem)
              }.onFailure { e ->
-                 AppLogger.log("[ViewModel] Failed to get stream: ${e.message}")
+                 AppLogger.log("[ViewModel] Failed to download/play: ${e.message}")
                  _uiState.value = _uiState.value.copy(
                      errorMessage = "Failed to play: ${e.message}"
                  )

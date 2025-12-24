@@ -77,6 +77,7 @@ fun MusicDownloaderScreen(
     onShowLogs: () -> Unit = {}
 ) {
     var query by remember { mutableStateOf("") }
+    var isLibraryVisible by remember { mutableStateOf(false) } // State to toggle Search vs Library
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
@@ -100,79 +101,92 @@ fun MusicDownloaderScreen(
         .fillMaxSize()
         .padding(16.dp)) {
 
+        // Top Bar: Search and Library Toggle
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Search Song") },
-                modifier = Modifier.weight(1f),
-                singleLine = true
-            )
+            if (!isLibraryVisible) {
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search Song") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = { viewModel.search(query) },
+                    enabled = !uiState.isLoading
+                ) {
+                    Text("Search")
+                }
+            } else {
+                Text(
+                    text = "My Library",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
             Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    viewModel.search(query)
-                },
-                enabled = !uiState.isLoading
-            ) {
-                Text("Search")
+
+            // Toggle Button
+            Button(onClick = { isLibraryVisible = !isLibraryVisible }) {
+                Text(if (isLibraryVisible) "Search" else "Lib")
             }
         }
 
-                // Show Logs Button
-                Button(
-                    onClick = { onShowLogs() },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                ) {
-                    Text("Show Logs")
-                }
+        // Action Buttons (Logs / Cookies) - Only show in Search mode to reduce clutter?
+        // Or keep them accessible. Let's keep them small or in a row.
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+             Button(onClick = { onShowLogs() }) { Text("Logs") }
 
-                // Set Cookies Button
-                var showCookieDialog by remember { mutableStateOf(false) }
-                Button(
-                    onClick = { showCookieDialog = true },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                ) {
-                    Text("Set Cookies")
-                }
+             var showCookieDialog by remember { mutableStateOf(false) }
+             Button(onClick = { showCookieDialog = true }) { Text("Cookies") }
 
-                if (showCookieDialog) {
-                    CookieDialog(
-                        onDismiss = { showCookieDialog = false },
-                        onSave = { cookie ->
-                            CookieManager.saveCookie(context, cookie)
-                            showCookieDialog = false
-                            Toast.makeText(context, "Cookie Saved", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                }
+             if (showCookieDialog) {
+                CookieDialog(
+                    onDismiss = { showCookieDialog = false },
+                    onSave = { cookie ->
+                        CookieManager.saveCookie(context, cookie)
+                        showCookieDialog = false
+                        Toast.makeText(context, "Cookie Saved", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (uiState.isLoading || uiState.isLoadingPlayer) {
+             Column(
+                 modifier = Modifier.fillMaxSize(),
+                 horizontalAlignment = Alignment.CenterHorizontally,
+                 verticalArrangement = Arrangement.Center
+             ) {
                 CircularProgressIndicator()
+                if (uiState.downloadMessage != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(uiState.downloadMessage!!)
+                }
             }
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = contentPadding // Use the passed padding
-            ) {
-                items(uiState.results) { video ->
-                    VideoItemRow(
-                        video = video,
-                        onDownload = {
-                            val dir = File(context.filesDir, "music")
-                            if (!dir.exists()) dir.mkdirs()
-                            viewModel.download(video, dir)
-                        },
-                        onPlay = {
-                            viewModel.play(video)
-                        }
-                    )
+            if (isLibraryVisible) {
+                LibraryScreen(viewModel = viewModel, contentPadding = contentPadding)
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = contentPadding // Use the passed padding
+                ) {
+                    items(uiState.results) { video ->
+                        VideoItemRow(
+                            video = video,
+                            onPlay = {
+                                viewModel.play(video)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -212,10 +226,10 @@ fun CookieDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 }
 
 @Composable
-fun VideoItemRow(video: VideoItem, onDownload: () -> Unit, onPlay: () -> Unit) {
+fun VideoItemRow(video: VideoItem, onPlay: () -> Unit) {
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().clickable { onPlay() } // Make whole card clickable
     ) {
         Row(
             modifier = Modifier
@@ -244,11 +258,9 @@ fun VideoItemRow(video: VideoItem, onDownload: () -> Unit, onPlay: () -> Unit) {
                     color = Color.Gray
                 )
             }
+            // Just a Play icon to indicate action
             IconButton(onClick = onPlay) {
                 Text("▶", style = MaterialTheme.typography.headlineSmall)
-            }
-            IconButton(onClick = onDownload) {
-                Text("⇩", style = MaterialTheme.typography.headlineSmall)
             }
         }
     }

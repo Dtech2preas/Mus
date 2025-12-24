@@ -76,24 +76,38 @@ object YoutubeClient {
         return@withContext videos
     }
 
-    suspend fun downloadAudio(context: Context, url: String, outputDir: File): File = withContext(Dispatchers.IO) {
+    suspend fun downloadAudio(context: Context, url: String, outputDir: File, fileName: String? = null): File = withContext(Dispatchers.IO) {
         try {
-            // Download best audio
             val request = YoutubeDLRequest(url)
-            // Use worst[ext=m4a] for data saving as requested
-            request.addOption("-f", "worst[ext=m4a]")
-            request.addOption("-o", File(outputDir, "%(title)s.%(ext)s").absolutePath)
+            // Smallest audio possible as requested by user ("smallest byte", "try to download n play")
+            // Fallback to "bestaudio" if "worst" fails or isn't available
+            request.addOption("-f", "worst[ext=m4a]/bestaudio[ext=m4a]/bestaudio")
+
+            val nameTemplate = fileName ?: "%(title)s"
+            val outputFile = File(outputDir, "$nameTemplate.%(ext)s")
+            request.addOption("-o", outputFile.absolutePath)
+
             request.addOption("--force-ipv4")
+            request.addOption("--no-warnings")
 
             val cookieFile = CookieManager.getCookieFile(context)
             if (cookieFile != null) {
                 request.addOption("--cookies", cookieFile.absolutePath)
             }
 
-            val response = YoutubeDL.getInstance().execute(request)
+            YoutubeDL.getInstance().execute(request)
 
-            // Success if no exception
-            return@withContext outputDir
+            // Find the file that was actually created (since extension might vary)
+            // If we used a specific name, we look for files starting with that name
+            val foundFile = outputDir.listFiles { _, name ->
+                 name.startsWith(fileName ?: "")
+            }?.firstOrNull()
+
+            if (foundFile == null || !foundFile.exists()) {
+                 throw java.io.FileNotFoundException("Downloaded file not found in ${outputDir.absolutePath}")
+            }
+
+            return@withContext foundFile
         } catch (e: Exception) {
             e.printStackTrace()
             throw e

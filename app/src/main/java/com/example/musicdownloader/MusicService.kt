@@ -42,20 +42,12 @@ class MusicService : MediaSessionService() {
         CookieManager.checkAndLogCookies(this)
 
         // 1. Base DataSource Factory (Global)
-        // Switch to OkHttpDataSource to ensure we use the same OkHttpClient (IPv4Dns) as InnerTubeClient
-        // USE AppleCoreMedia User-Agent for HLS playback (required for official video streams)
+        // We now primarily play local files, but keep network capabilities for robustness.
         val userAgent = "AppleCoreMedia/1.0.0.1931042321 (iPad; U; CPU OS 17_5_1 like Mac OS X; en_us)"
-
-        // Use InnerTubeClient.client which forces IPv4
         val dataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
             .setUserAgent(userAgent)
 
-        // 2. HlsMediaSource Factory
-        // Manually instantiate to force HLS handling without auto-detection issues
-        val hlsMediaSourceFactory = HlsMediaSource.Factory(dataSourceFactory)
-
-        // 3. Load Control (Buffering Optimization)
-        // bufferForPlaybackMs reduced to 500ms for "instant" start
+        // 2. Load Control (Buffering Optimization)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 30_000, // minBufferMs
@@ -67,8 +59,10 @@ class MusicService : MediaSessionService() {
             .build()
 
         // 4. Player Build
+        // Removed HlsMediaSource.Factory enforcement since we are playing local files which might not be HLS.
+        // ExoPlayer's default MediaSourceFactory handles local files better.
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(hlsMediaSourceFactory)
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this))
             .setLoadControl(loadControl)
             .setAudioAttributes(AudioAttributes.DEFAULT, true)
             .build()

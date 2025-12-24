@@ -40,55 +40,47 @@ object MusicRepository {
         }
     }
 
-    suspend fun downloadAudio(context: Context, url: String, outputDir: File): Result<File> {
+    suspend fun downloadAndPlay(context: Context, video: VideoItem): Result<File> {
+        val outputDir = File(context.filesDir, "music_downloads")
+        if (!outputDir.exists()) outputDir.mkdirs()
+
+        // Check if file already exists
+        // We use ID as filename for reliable checking
+        val existingFiles = outputDir.listFiles { _, name -> name.startsWith(video.id) }
+        if (!existingFiles.isNullOrEmpty()) {
+            AppLogger.log("[Repo] File already exists for ${video.id}")
+            return Result.success(existingFiles.first())
+        }
+
+        AppLogger.log("[Repo] Starting download for ${video.id}")
+
+        // 1. Try InnerTube URL first (Fastest)
+        try {
+            val innerTubeStream = InnerTubeClient.getStreamUrl(context, video.id)
+            if (innerTubeStream.url.isNotEmpty()) {
+                AppLogger.log("[Repo] Using InnerTube URL for download")
+                // Pass the direct URL to yt-dlp to download
+                val file = YoutubeClient.downloadAudio(context, innerTubeStream.url, outputDir, fileName = video.id)
+                return Result.success(file)
+            }
+        } catch (e: Exception) {
+            AppLogger.log("[Repo] InnerTube URL fetch failed: ${e.message}")
+        }
+
+        // 2. Fallback: Use yt-dlp to extract and download from Video URL
         return try {
-            val file = YoutubeClient.downloadAudio(context, url, outputDir)
+            AppLogger.log("[Repo] Fallback: using yt-dlp with original URL")
+            val file = YoutubeClient.downloadAudio(context, video.webUrl, outputDir, fileName = video.id)
             Result.success(file)
         } catch (e: Exception) {
+            AppLogger.log("[Repo] Download failed: ${e.message}")
             Result.failure(e)
         }
     }
 
-    suspend fun getStreamUrl(context: Context, url: String): Result<StreamInfo> {
-        // Extract ID
-        val id = if (url.contains("v=")) url.substringAfter("v=") else url.substringAfterLast("/")
-        val cleanId = if (id.contains("&")) id.substringBefore("&") else id
-
-        // 1. Check Cache
-        streamUrlCache[cleanId]?.let {
-            AppLogger.log("Cache Hit for $cleanId")
-            return Result.success(it)
-        }
-
-        AppLogger.log("[Stream] Requesting URL for $cleanId")
-
-        // Step 1: InnerTube (Priority)
-        try {
-            val innerTubeStream = InnerTubeClient.getStreamUrl(context, cleanId)
-            if (innerTubeStream.url.isNotEmpty()) {
-                AppLogger.log("[Stream] InnerTube Success")
-                streamUrlCache[cleanId] = innerTubeStream
-                return Result.success(innerTubeStream)
-            }
-        } catch (e: Exception) {
-            AppLogger.log("[Stream] InnerTube Failed: ${e.message}. Switching to Fallback.")
-        }
-
-        // Step 2: Fallback to YoutubeClient (yt-dlp)
-        // PipedClient is removed as per requirements.
-        return try {
-            val ytStream = YoutubeClient.getStreamUrl(context, url)
-            if (ytStream.url.isNotEmpty()) {
-                AppLogger.log("[Stream] YoutubeDL Fallback Success")
-                streamUrlCache[cleanId] = ytStream
-                Result.success(ytStream)
-            } else {
-                AppLogger.log("[Stream] All sources failed.")
-                Result.failure(Exception("Could not retrieve stream URL from any source"))
-            }
-        } catch (e: Exception) {
-            AppLogger.log("[Stream] YoutubeDL Fallback Exception: ${e.message}")
-            Result.failure(e)
-        }
+    suspend fun getDownloadedFiles(context: Context): List<File> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val outputDir = File(context.filesDir, "music_downloads")
+        if (!outputDir.exists()) return@withContext emptyList()
+        return@withContext outputDir.listFiles()?.toList() ?: emptyList()
     }
 }
