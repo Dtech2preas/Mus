@@ -80,8 +80,8 @@ object YoutubeClient {
         try {
             val request = YoutubeDLRequest(url)
             // Smallest audio possible as requested by user ("smallest byte", "try to download n play")
-            // Fallback to "bestaudio" if "worst" fails or isn't available
-            request.addOption("-f", "worst[ext=m4a]/bestaudio[ext=m4a]/bestaudio")
+            // Fallback to "bestaudio" if "worst" fails or isn't available. Added /best as final fallback.
+            request.addOption("-f", "worst[ext=m4a]/bestaudio[ext=m4a]/bestaudio/best")
 
             val nameTemplate = fileName ?: "%(title)s"
             val outputFile = File(outputDir, "$nameTemplate.%(ext)s")
@@ -95,7 +95,11 @@ object YoutubeClient {
                 request.addOption("--cookies", cookieFile.absolutePath)
             }
 
-            YoutubeDL.getInstance().execute(request)
+            YoutubeDL.getInstance().execute(request) { _, _, line ->
+                if (line.isNotBlank()) {
+                    AppLogger.log("[yt-dlp] $line")
+                }
+            }
 
             // Find the file that was actually created (since extension might vary)
             // If we used a specific name, we look for files starting with that name
@@ -127,7 +131,11 @@ object YoutubeClient {
                 request.addOption("--cookies", cookieFile.absolutePath)
             }
 
-            val response = YoutubeDL.getInstance().execute(request)
+            val response = YoutubeDL.getInstance().execute(request) { _, _, line ->
+                if (line.isNotBlank()) {
+                    AppLogger.log("[yt-dlp stream] $line")
+                }
+            }
             val streamUrl = response.out?.trim() ?: ""
 
             // YT-DLP usually returns direct links, unless using --hls-prefer-native which we aren't
