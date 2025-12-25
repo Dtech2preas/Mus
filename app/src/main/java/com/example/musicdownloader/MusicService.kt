@@ -11,6 +11,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -137,15 +138,18 @@ class MusicService : MediaSessionService() {
                         try {
                             // 1. Configure the Network Client (Cookies + UserAgent)
                             val cookie = CookieManager.getCookie(this@MusicService)
-                            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                                 .setUserAgent(NetworkUtils.USER_AGENT)
                                 .setAllowCrossProtocolRedirects(true)
                                 .setDefaultRequestProperties(mapOf("Cookie" to cookie))
 
+                            // DefaultDataSource automatically switches between ContentDataSource, FileDataSource, and HttpDataSource
+                            val defaultDataSourceFactory = DefaultDataSource.Factory(this@MusicService, httpDataSourceFactory)
+
                             // 2. Use Universal Factory (Handles both Local MP4s and Network HLS)
                             // CRITICAL: We use DefaultMediaSourceFactory, NOT HlsMediaSource.Factory
                             val mediaSourceFactory = DefaultMediaSourceFactory(this@MusicService)
-                                .setDataSourceFactory(dataSourceFactory)
+                                .setDataSourceFactory(defaultDataSourceFactory)
 
                             // 3. Build Media Item WITHOUT forcing MimeType
                             // ExoPlayer will auto-detect if it is MP4, M4A, or HLS based on the URL/File
