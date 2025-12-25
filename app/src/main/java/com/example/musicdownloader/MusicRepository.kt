@@ -54,33 +54,14 @@ object MusicRepository {
 
         AppLogger.log("[Repo] Starting download for ${video.id}")
 
-        // 1. Try InnerTube URL first (Fastest)
-        try {
-            val innerTubeStream = InnerTubeClient.getStreamUrl(context, video.id)
-            if (innerTubeStream.url.isNotEmpty()) {
-                AppLogger.log("[Repo] Using InnerTube URL for download")
-                // Pass the direct URL to yt-dlp to download
-                val file = YoutubeClient.downloadAudio(context, innerTubeStream.url, outputDir, fileName = video.id)
-                return Result.success(file)
-            }
-        } catch (e: Exception) {
-            val msg = e.message ?: "Unknown error"
-            if (msg.contains("No address associated with hostname") || e is java.net.UnknownHostException) {
-                AppLogger.log("[Repo] Network Error during InnerTube fetch: Check internet connection.")
-            } else {
-                AppLogger.log("[Repo] InnerTube URL fetch failed: $msg")
-            }
-        }
-
-        // 2. Fallback: Use yt-dlp to extract and download from Video URL
         return try {
-            AppLogger.log("[Repo] Fallback: using yt-dlp with original URL")
-            val file = YoutubeClient.downloadAudio(context, video.webUrl, outputDir, fileName = video.id)
+            AppLogger.log("[Repo] Using yt-dlp with optimized settings")
+            val file = YoutubeClient.downloadAudio(context, video.id, outputDir)
             Result.success(file)
         } catch (e: Exception) {
             val msg = e.message ?: "Unknown error"
             if (msg.contains("No address associated with hostname") || e is java.net.UnknownHostException) {
-                AppLogger.log("[Repo] Network Error during Fallback: Check internet connection.")
+                AppLogger.log("[Repo] Network Error: Check internet connection.")
                 Result.failure(Exception("Network Error: Check internet connection."))
             } else {
                 AppLogger.log("[Repo] Download failed: $msg")
