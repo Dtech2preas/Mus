@@ -62,7 +62,7 @@ class MusicService : MediaSessionService() {
         // Removed HlsMediaSource.Factory enforcement since we are playing local files which might not be HLS.
         // ExoPlayer's default MediaSourceFactory handles local files better.
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this))
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory))
             .setLoadControl(loadControl)
             .setAudioAttributes(AudioAttributes.DEFAULT, true)
             .build()
@@ -158,8 +158,10 @@ class MusicService : MediaSessionService() {
                             // OkHttp handles redirects automatically, but we can configure cache control if needed.
                             // .setCacheControl(CacheControl.FORCE_NETWORK)
 
-                        // 2. Create HlsMediaSource
-                        val hlsFactory = HlsMediaSource.Factory(dataSourceFactory)
+                        // 2. Create DefaultMediaSourceFactory (Universal)
+                        // Uses the custom dataSourceFactory (with correct Headers/User-Agent) and allows any file format.
+                        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this@MusicService)
+                            .setDataSourceFactory(dataSourceFactory)
 
                         // 3. Reconstruct MediaMetadata
                         val mediaMetadataBuilder = MediaMetadata.Builder()
@@ -176,14 +178,12 @@ class MusicService : MediaSessionService() {
                             .setMediaId(mediaId)
                             .setMediaMetadata(mediaMetadataBuilder.build())
 
-                        if (mimeType != null) {
-                            mediaItemBuilder.setMimeType(mimeType)
-                        }
+                        // REMOVED: setMimeType to allow auto-detection of universal formats (mp3, m4a, mp4)
 
                         val mediaItem = mediaItemBuilder.build()
 
                         // 5. Create Source & Play
-                        val source = hlsFactory.createMediaSource(mediaItem)
+                        val source = mediaSourceFactory.createMediaSource(mediaItem)
 
                         // IMPORTANT: Set source, don't set item
                         player.setMediaSource(source)
