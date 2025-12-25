@@ -99,7 +99,7 @@ object MusicControllerManager {
         mediaController?.let { controller ->
             val command = SessionCommand("PLAY_STREAM", Bundle.EMPTY)
             val args = Bundle().apply {
-                putString("URL", mediaItem.localConfiguration?.uri.toString())
+                putString("url", mediaItem.localConfiguration?.uri.toString())
                 putString("MEDIA_ID", mediaItem.mediaId)
                 putString("TITLE", mediaItem.mediaMetadata.title?.toString())
                 putString("ARTIST", mediaItem.mediaMetadata.artist?.toString())
