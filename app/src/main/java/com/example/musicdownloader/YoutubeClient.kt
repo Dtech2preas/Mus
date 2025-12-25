@@ -76,15 +76,18 @@ object YoutubeClient {
         return@withContext videos
     }
 
-    suspend fun downloadAudio(context: Context, url: String, outputDir: File, fileName: String? = null): File = withContext(Dispatchers.IO) {
+    suspend fun downloadAudio(context: Context, videoId: String, outputDir: File): File = withContext(Dispatchers.IO) {
         try {
+            val url = "https://www.youtube.com/watch?v=$videoId"
             val request = YoutubeDLRequest(url)
-            // Smallest audio possible as requested by user ("smallest byte", "try to download n play")
-            // Fallback to "bestaudio" if "worst" fails or isn't available. Added /best as final fallback.
-            request.addOption("-f", "worst[ext=m4a]/bestaudio[ext=m4a]/bestaudio/best")
 
-            val nameTemplate = fileName ?: "%(title)s"
-            val outputFile = File(outputDir, "$nameTemplate.%(ext)s")
+            // Speed fix options and preferred format
+            request.addOption("-f", "bestaudio/best")
+            request.addOption("--no-check-certificate")
+            request.addOption("--extractor-args", "youtube:player_client=android,ios")
+
+            // Use videoId for filename to ensure consistency
+            val outputFile = File(outputDir, "$videoId.%(ext)s")
             request.addOption("-o", outputFile.absolutePath)
 
             request.addOption("--force-ipv4")
@@ -101,10 +104,9 @@ object YoutubeClient {
                 }
             }
 
-            // Find the file that was actually created (since extension might vary)
-            // If we used a specific name, we look for files starting with that name
+            // Find the file that was actually created
             val foundFile = outputDir.listFiles { _, name ->
-                 name.startsWith(fileName ?: "")
+                 name.startsWith(videoId)
             }?.firstOrNull()
 
             if (foundFile == null || !foundFile.exists()) {
