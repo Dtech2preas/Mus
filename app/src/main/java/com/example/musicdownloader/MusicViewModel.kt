@@ -140,7 +140,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSong(song: Song) {
         viewModelScope.launch {
             // 1. Remove from DB
-            AppDatabase.getDatabase(getApplication()).songDao().delete(song)
+            AppDatabase.getDatabase(getApplication()).songDao().deleteById(song.id)
 
             // 2. Move file to "trash" (rename to .deleted)
             withContext(Dispatchers.IO) {
