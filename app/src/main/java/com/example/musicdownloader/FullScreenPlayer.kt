@@ -1,5 +1,6 @@
 package com.example.musicdownloader
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,9 +12,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.ui.ElectricPurple
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlin.random.Random
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,10 +202,57 @@ fun FullScreenPlayer(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(24.dp))
+
+                CyberpunkVisualizer(isPlaying = isPlaying)
+
                 Spacer(modifier = Modifier.weight(0.2f))
             }
         }
     }
+}
+
+@Composable
+fun CyberpunkVisualizer(isPlaying: Boolean, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        repeat(16) {
+            VisualizerBar(isPlaying = isPlaying)
+        }
+    }
+}
+
+@Composable
+fun VisualizerBar(isPlaying: Boolean) {
+    var targetHeight by remember { mutableStateOf(0.1f) }
+
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            while (isActive) {
+                targetHeight = Random.nextFloat().coerceIn(0.15f, 1f)
+                delay(100 + Random.nextLong(0, 150))
+            }
+        } else {
+            targetHeight = 0.1f
+        }
+    }
+
+    val animatedHeight by animateFloatAsState(targetValue = targetHeight, label = "barHeight")
+    // Electric Purple or Cyan
+    val color = remember { if (Random.nextBoolean()) ElectricPurple else Color(0xFF00E5FF) }
+
+    Box(
+        modifier = Modifier
+            .width(6.dp)
+            .fillMaxHeight(animatedHeight)
+            .clip(RoundedCornerShape(4.dp))
+            .background(color)
+    )
 }
 
 private fun formatTime(millis: Long): String {
