@@ -67,7 +67,9 @@ fun SearchScreen(
                         title = video.title,
                         artist = video.uploader,
                         thumbnailUrl = video.thumbnailUrl,
-                        durationOrStatus = video.duration,
+                        isPlaying = false,
+                        isCurrentSong = false,
+                        duration = video.duration,
                         onClick = { viewModel.downloadAndPlay(video) }
                     )
                 }

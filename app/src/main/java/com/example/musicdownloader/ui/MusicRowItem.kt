@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -22,7 +23,9 @@ fun MusicRowItem(
     title: String,
     artist: String,
     thumbnailUrl: String,
-    durationOrStatus: String,
+    isPlaying: Boolean,
+    isCurrentSong: Boolean,
+    duration: String = "",
     onClick: () -> Unit
 ) {
     // Sleek, full-width row without Card borders
@@ -63,7 +66,7 @@ fun MusicRowItem(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = if (isCurrentSong) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     text = artist,
@@ -74,14 +77,31 @@ fun MusicRowItem(
                 )
             }
 
-            // Right side info (Duration or Play Icon)
-            // Tinted Purple as requested
-            Text(
-                text = durationOrStatus,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary, // Electric Purple
-                fontWeight = FontWeight.SemiBold
-            )
+            // Right side info (Duration or Play/Pause Icon)
+            if (isCurrentSong && isPlaying) {
+                // Show Pause Icon
+                Text(
+                    text = "⏸",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            } else if (isCurrentSong && !isPlaying) {
+                // Show Play Icon
+                Text(
+                    text = "▶",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                 Text(
+                    text = "▶",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
             Spacer(modifier = Modifier.width(8.dp))
         }

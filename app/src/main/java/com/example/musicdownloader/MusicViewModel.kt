@@ -7,8 +7,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.example.musicdownloader.data.AppDatabase
 import com.example.musicdownloader.data.Song
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -106,29 +108,73 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playLocalSong(id: String, title: String, artist: String, thumbnailUrl: String) {
-         val file = File(getApplication<Application>().filesDir, "music_downloads/$id") // Fallback assumption
-         // Ideally we get path from DB, but ID mapping is reliable.
+        // Use the Library Playlist feature instead of single track
+        val allSongs = librarySongs.value
+        val index = allSongs.indexOfFirst { it.id == id }
 
-         // We might need to handle the case where the file extension is different?
-         // Our repo logic just checks startsWith(id).
-         val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
-         val existingFiles = outputDir.listFiles { _, name -> name.startsWith(id) }
+        if (index != -1) {
+            MusicControllerManager.playPlaylist(allSongs, index)
+        } else {
+            // Fallback for non-library play
+             val file = File(getApplication<Application>().filesDir, "music_downloads/$id")
+             val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
+             val existingFiles = outputDir.listFiles { _, name -> name.startsWith(id) }
+             val targetFile = existingFiles?.firstOrNull() ?: file
 
-         val targetFile = existingFiles?.firstOrNull() ?: file // fallback
+             val mediaMetadata = MediaMetadata.Builder()
+                 .setTitle(title)
+                 .setArtist(artist)
+                 .setArtworkUri(android.net.Uri.parse(thumbnailUrl))
+                 .build()
 
-         val mediaMetadata = MediaMetadata.Builder()
-             .setTitle(title)
-             .setArtist(artist)
-             .setArtworkUri(android.net.Uri.parse(thumbnailUrl))
-             .build()
+             val mediaItem = MediaItem.Builder()
+                 .setUri(android.net.Uri.fromFile(targetFile))
+                 .setMediaId(id)
+                 .setMediaMetadata(mediaMetadata)
+                 .build()
 
-         val mediaItem = MediaItem.Builder()
-             .setUri(android.net.Uri.fromFile(targetFile))
-             .setMediaId(id)
-             .setMediaMetadata(mediaMetadata)
-             .build()
+             MusicControllerManager.playMedia(mediaItem)
+        }
+    }
 
-         MusicControllerManager.playMedia(mediaItem)
+    fun deleteSong(song: Song) {
+        viewModelScope.launch {
+            // 1. Remove from DB
+            AppDatabase.getDatabase(getApplication()).songDao().delete(song)
+
+            // 2. Move file to "trash" (rename to .deleted)
+            withContext(Dispatchers.IO) {
+                val file = File(song.filePath)
+                if (file.exists()) {
+                    file.renameTo(File(file.absolutePath + ".deleted"))
+                }
+            }
+        }
+    }
+
+    fun restoreSong(song: Song) {
+        viewModelScope.launch {
+            // 1. Restore file from "trash"
+            withContext(Dispatchers.IO) {
+                val deletedFile = File(song.filePath + ".deleted")
+                if (deletedFile.exists()) {
+                    deletedFile.renameTo(File(song.filePath))
+                }
+            }
+
+            // 2. Re-insert into DB
+            AppDatabase.getDatabase(getApplication()).songDao().insert(song)
+        }
+    }
+
+    fun finalizeDelete(song: Song) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deletedFile = File(song.filePath + ".deleted")
+            if (deletedFile.exists()) {
+                AppLogger.log("[ViewModel] Finalizing delete for ${song.title}")
+                deletedFile.delete()
+            }
+        }
     }
 
     fun togglePlayPause() {
