@@ -105,8 +105,8 @@ class MusicService : MediaSessionService() {
     }
 
     private inner class CustomNotificationProvider : androidx.media3.session.DefaultMediaNotificationProvider(this) {
-        override fun getSmallIconId(context: android.content.Context): Int {
-            return R.drawable.dtech_logo
+        init {
+            setSmallIcon(R.drawable.dtech_logo)
         }
     }
 
