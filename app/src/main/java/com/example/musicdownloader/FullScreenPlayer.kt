@@ -2,6 +2,7 @@ package com.example.musicdownloader
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -203,4 +204,12 @@ fun FullScreenPlayer(
             }
         }
     }
+}
+
+private fun formatTime(millis: Long): String {
+    if (millis < 0) return "00:00"
+    val totalSeconds = millis / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%02d:%02d", minutes, seconds)
 }
