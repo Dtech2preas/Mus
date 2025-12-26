@@ -11,16 +11,19 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.musicdownloader.ui.MusicRowItem
+import com.example.musicdownloader.ui.MusicAppTheme
+import com.example.musicdownloader.ui.SearchScreen
+import com.example.musicdownloader.ui.SettingsScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -29,15 +32,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            MusicAppTheme {
                 RequestNotificationPermission()
-                MusicPlayerScreen(viewModel)
+                MainScreen(viewModel)
             }
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
     }
 }
 
@@ -63,17 +62,22 @@ fun RequestNotificationPermission() {
     }
 }
 
+enum class MainTab {
+    Search, Library, Settings
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MusicDownloaderScreen(
-    viewModel: MusicViewModel,
-    contentPadding: PaddingValues = PaddingValues(0.dp),
-    onShowLogs: () -> Unit = {}
-) {
-    var query by remember { mutableStateOf("") }
-    var isLibraryVisible by remember { mutableStateOf(false) } // State to toggle Search vs Library
+fun MainScreen(viewModel: MusicViewModel) {
+    var currentTab by remember { mutableStateOf(MainTab.Search) }
+    var isPlayerExpanded by remember { mutableStateOf(false) }
+    var showLogs by remember { mutableStateOf(false) }
+    val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // Error/Message Toasts
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
@@ -90,101 +94,75 @@ fun MusicDownloaderScreen(
         }
     }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
-
-        // Top Bar: Search and Library Toggle
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (!isLibraryVisible) {
-                TextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Search Song") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = { viewModel.search(query) },
-                    enabled = !uiState.isLoading
-                ) {
-                    Text("Search")
+    Scaffold(
+        bottomBar = {
+            Column {
+                // MiniPlayer sits exactly on top of the BottomBar if a song is playing
+                if (currentMediaItem != null) {
+                    MiniPlayer(
+                        viewModel = viewModel,
+                        onClick = { isPlayerExpanded = true }
+                    )
                 }
-            } else {
-                Text(
-                    text = "My Library",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.weight(1f)
-                )
-            }
 
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Toggle Button
-            Button(onClick = { isLibraryVisible = !isLibraryVisible }) {
-                Text(if (isLibraryVisible) "Search" else "Lib")
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = currentTab == MainTab.Search,
+                        onClick = { currentTab = MainTab.Search },
+                        icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        label = { Text("Search") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == MainTab.Library,
+                        onClick = { currentTab = MainTab.Library },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Library") },
+                        label = { Text("Library") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == MainTab.Settings,
+                        onClick = { currentTab = MainTab.Settings },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                        label = { Text("Settings") }
+                    )
+                }
             }
         }
-
-        // Action Buttons (Logs / Cookies)
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-             Button(onClick = { onShowLogs() }) { Text("Logs") }
-
-             var showCookieDialog by remember { mutableStateOf(false) }
-             Button(onClick = { showCookieDialog = true }) { Text("Cookies") }
-
-             if (showCookieDialog) {
-                CookieDialog(
-                    onDismiss = { showCookieDialog = false },
-                    onSave = { cookie ->
-                        CookieManager.saveCookie(context, cookie)
-                        showCookieDialog = false
-                        Toast.makeText(context, "Cookie Saved", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (uiState.isLoading || uiState.isLoadingPlayer) {
-             Column(
-                 modifier = Modifier.fillMaxSize(),
-                 horizontalAlignment = Alignment.CenterHorizontally,
-                 verticalArrangement = Arrangement.Center
-             ) {
-                CircularProgressIndicator()
-                if (uiState.downloadMessage != null) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(uiState.downloadMessage!!)
-                }
-            }
-        } else {
-            if (isLibraryVisible) {
-                LibraryScreen(viewModel = viewModel, contentPadding = contentPadding)
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = contentPadding
-                ) {
-                    items(uiState.results) { video ->
-                        MusicRowItem(
-                            title = video.title,
-                            artist = video.uploader,
-                            thumbnailUrl = video.thumbnailUrl,
-                            durationOrStatus = video.duration,
-                            onClick = { viewModel.downloadAndPlay(video) }
-                        )
-                    }
-                }
+    ) { paddingValues ->
+        // Content Area
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (currentTab) {
+                MainTab.Search -> SearchScreen(viewModel = viewModel, contentPadding = paddingValues)
+                MainTab.Library -> LibraryScreen(viewModel = viewModel, contentPadding = paddingValues)
+                MainTab.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = paddingValues)
             }
         }
     }
+
+    // Full Screen Player Sheet
+    if (isPlayerExpanded) {
+        ModalBottomSheet(
+            onDismissRequest = { isPlayerExpanded = false },
+            sheetState = sheetState
+        ) {
+            FullScreenPlayer(
+                viewModel = viewModel,
+                onCollapse = { isPlayerExpanded = false }
+            )
+        }
+    }
+
+    if (showLogs) {
+        LogConsoleOverlay(onClose = { showLogs = false })
+    }
 }
+
+// CookieDialog moved to ui/SettingsScreen.kt or kept here if needed for others.
+// It is now used in SettingsScreen, so we can duplicate or make it public in a common place.
+// Since it's small, I'll just leave the copy in SettingsScreen and remove it from here if no longer used.
+// But wait, the original CookieDialog code was in MainActivity.kt.
+// I should make sure it is accessible.
+// I'll define it here as a public function if I need to share it, or better, keep it in SettingsScreen.
+// I will keep a copy in SettingsScreen (already done) and remove it from here.
 
 @Composable
 fun CookieDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {

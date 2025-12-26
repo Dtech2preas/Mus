@@ -131,7 +131,11 @@ class MusicService : MediaSessionService() {
         override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
             if (customCommand.customAction == PLAY_STREAM_COMMAND.customAction) {
                 val url = args.getString("url")
-                // REMOVED: val mimeType = args.getString("mimeType") <-- This was causing the crash!
+
+                // --- CRITICAL FIX: Extract Metadata from Bundle ---
+                val title = args.getString("TITLE")
+                val artist = args.getString("ARTIST")
+                val artworkUri = args.getString("ARTWORK_URI")
 
                 if (url != null) {
                     serviceScope.launch(Dispatchers.Main) {
@@ -151,9 +155,18 @@ class MusicService : MediaSessionService() {
                             val mediaSourceFactory = DefaultMediaSourceFactory(this@MusicService)
                                 .setDataSourceFactory(defaultDataSourceFactory)
 
-                            // 3. Build Media Item WITHOUT forcing MimeType
-                            // ExoPlayer will auto-detect if it is MP4, M4A, or HLS based on the URL/File
-                            val mediaItem = MediaItem.fromUri(url)
+                            // 3. Construct Metadata
+                            val metadataBuilder = MediaMetadata.Builder()
+                            if (title != null) metadataBuilder.setTitle(title)
+                            if (artist != null) metadataBuilder.setArtist(artist)
+                            if (artworkUri != null) metadataBuilder.setArtworkUri(Uri.parse(artworkUri))
+                            val metadata = metadataBuilder.build()
+
+                            // 4. Build Media Item with Metadata
+                            val mediaItem = MediaItem.Builder()
+                                .setUri(url)
+                                .setMediaMetadata(metadata)
+                                .build()
 
                             val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
 
