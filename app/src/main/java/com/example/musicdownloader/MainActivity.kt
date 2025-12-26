@@ -10,8 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,15 +17,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import coil.compose.rememberAsyncImagePainter
-import java.io.File
+import com.example.musicdownloader.ui.MusicRowItem
 
 class MainActivity : ComponentActivity() {
 
@@ -137,8 +130,7 @@ fun MusicDownloaderScreen(
             }
         }
 
-        // Action Buttons (Logs / Cookies) - Only show in Search mode to reduce clutter?
-        // Or keep them accessible. Let's keep them small or in a row.
+        // Action Buttons (Logs / Cookies)
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
              Button(onClick = { onShowLogs() }) { Text("Logs") }
 
@@ -177,14 +169,15 @@ fun MusicDownloaderScreen(
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = contentPadding // Use the passed padding
+                    contentPadding = contentPadding
                 ) {
                     items(uiState.results) { video ->
-                        VideoItemRow(
-                            video = video,
-                            onPlay = {
-                                viewModel.play(video)
-                            }
+                        MusicRowItem(
+                            title = video.title,
+                            artist = video.uploader,
+                            thumbnailUrl = video.thumbnailUrl,
+                            durationOrStatus = video.duration,
+                            onClick = { viewModel.downloadAndPlay(video) }
                         )
                     }
                 }
@@ -223,45 +216,4 @@ fun CookieDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
             }
         }
     )
-}
-
-@Composable
-fun VideoItemRow(video: VideoItem, onPlay: () -> Unit) {
-    Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        modifier = Modifier.fillMaxWidth().clickable { onPlay() } // Make whole card clickable
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painter = rememberAsyncImagePainter(video.thumbnailUrl),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(80.dp)
-                    .padding(end = 8.dp),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = video.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${video.uploader} • ${video.duration}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-            }
-            // Just a Play icon to indicate action
-            IconButton(onClick = onPlay) {
-                Text("▶", style = MaterialTheme.typography.headlineSmall)
-            }
-        }
-    }
 }
