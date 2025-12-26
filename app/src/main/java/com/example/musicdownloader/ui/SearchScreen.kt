@@ -1,5 +1,6 @@
 package com.example.musicdownloader.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.musicdownloader.MusicViewModel
 
@@ -17,6 +19,7 @@ fun SearchScreen(
 ) {
     var query by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -70,7 +73,10 @@ fun SearchScreen(
                         isPlaying = false,
                         isCurrentSong = false,
                         duration = video.duration,
-                        onClick = { viewModel.downloadAndPlay(video) }
+                        onClick = {
+                            Toast.makeText(context, "Downloading ${video.title}... Check Library", Toast.LENGTH_SHORT).show()
+                            viewModel.downloadAndPlay(video)
+                        }
                     )
                 }
             }

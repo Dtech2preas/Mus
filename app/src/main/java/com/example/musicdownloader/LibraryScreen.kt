@@ -4,11 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
@@ -30,6 +33,7 @@ fun LibraryScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showSortMenu by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
     // Observe active downloads
     val workManager = remember { WorkManager.getInstance(context) }
@@ -76,6 +80,20 @@ fun LibraryScreen(
             }
         }
 
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Search Library") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+        )
+
         // Downloads Section
         if (downloadingInfos.isNotEmpty()) {
             Text(
@@ -102,9 +120,17 @@ fun LibraryScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (songs.isEmpty()) {
+        val filteredSongs = remember(songs, searchQuery) {
+            if (searchQuery.isBlank()) songs
+            else songs.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                        it.artist.contains(searchQuery, ignoreCase = true)
+            }
+        }
+
+        if (filteredSongs.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No downloaded songs yet.")
+                Text(if (searchQuery.isEmpty()) "No downloaded songs yet." else "No matches found.")
             }
         } else {
             LazyColumn(
@@ -112,7 +138,7 @@ fun LibraryScreen(
                 contentPadding = contentPadding,
                 modifier = Modifier.weight(1f)
             ) {
-                items(songs, key = { it.id }) { song ->
+                items(filteredSongs, key = { it.id }) { song ->
                     // Swipe to Queue (Start to End)
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = {
@@ -131,17 +157,23 @@ fun LibraryScreen(
                     SwipeToDismissBox(
                         state = dismissState,
                         backgroundContent = {
-                            Box(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(vertical = 8.dp)
-                                    .background(androidx.compose.ui.graphics.Color.Green),
-                                contentAlignment = Alignment.CenterStart
+                                    .background(Color(0xFF006064))
+                                    .padding(start = 24.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlaylistAdd,
+                                    contentDescription = "Queue",
+                                    tint = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Add to Queue",
-                                    color = androidx.compose.ui.graphics.Color.Black,
-                                    modifier = Modifier.padding(start = 16.dp),
+                                    text = "Queue",
+                                    color = Color.White,
                                     style = MaterialTheme.typography.titleMedium
                                 )
                             }
