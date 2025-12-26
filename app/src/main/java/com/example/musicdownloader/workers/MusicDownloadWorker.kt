@@ -28,6 +28,9 @@ class MusicDownloadWorker(
 
         AppLogger.log("[Worker] Starting download for $title ($videoId)")
 
+        // Report progress so UI can see the title
+        setProgress(workDataOf("title" to title))
+
         return try {
             val file = YoutubeClient.downloadAudio(context, videoId, outputDir)
 

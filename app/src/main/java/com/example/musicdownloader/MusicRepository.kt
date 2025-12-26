@@ -102,6 +102,7 @@ object MusicRepository {
         val downloadRequest = OneTimeWorkRequestBuilder<MusicDownloadWorker>()
             .setInputData(workData)
             .setConstraints(constraints)
+            .addTag("download")
             .build()
 
         WorkManager.getInstance(context).enqueue(downloadRequest)
@@ -117,7 +118,13 @@ object MusicRepository {
 
         val files = outputDir.listFiles() ?: return@withContext
 
-        files.forEach { file ->
+        // Cleanup .deleted files
+        files.filter { it.name.endsWith(".deleted") }.forEach {
+             AppLogger.log("[Repo] Cleaning up .deleted file: ${it.name}")
+             it.delete()
+        }
+
+        files.filter { !it.name.endsWith(".deleted") }.forEach { file ->
             // Filename format: {id}.{ext} usually
             val id = file.nameWithoutExtension
 

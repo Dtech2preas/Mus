@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import com.example.musicdownloader.ui.MusicAppTheme
 import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -77,6 +78,9 @@ fun MainScreen(viewModel: MusicViewModel) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     // Error/Message Toasts
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -95,6 +99,7 @@ fun MainScreen(viewModel: MusicViewModel) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Column {
                 // MiniPlayer sits exactly on top of the BottomBar if a song is playing
@@ -132,7 +137,11 @@ fun MainScreen(viewModel: MusicViewModel) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentTab) {
                 MainTab.Search -> SearchScreen(viewModel = viewModel, contentPadding = paddingValues)
-                MainTab.Library -> LibraryScreen(viewModel = viewModel, contentPadding = paddingValues)
+                MainTab.Library -> LibraryScreen(
+                    viewModel = viewModel,
+                    contentPadding = paddingValues,
+                    snackbarHostState = snackbarHostState
+                )
                 MainTab.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = paddingValues)
             }
         }
@@ -157,13 +166,6 @@ fun MainScreen(viewModel: MusicViewModel) {
 }
 
 // CookieDialog moved to ui/SettingsScreen.kt or kept here if needed for others.
-// It is now used in SettingsScreen, so we can duplicate or make it public in a common place.
-// Since it's small, I'll just leave the copy in SettingsScreen and remove it from here if no longer used.
-// But wait, the original CookieDialog code was in MainActivity.kt.
-// I should make sure it is accessible.
-// I'll define it here as a public function if I need to share it, or better, keep it in SettingsScreen.
-// I will keep a copy in SettingsScreen (already done) and remove it from here.
-
 @Composable
 fun CookieDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var cookieText by remember { mutableStateOf("") }

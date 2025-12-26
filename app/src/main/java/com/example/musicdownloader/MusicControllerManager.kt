@@ -9,11 +9,13 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
+import com.example.musicdownloader.data.Song
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 
 // Singleton to manage MediaController
 object MusicControllerManager {
@@ -109,6 +111,34 @@ object MusicControllerManager {
 
             controller.sendCustomCommand(command, args)
             AppLogger.log("[Controller] Custom Command sent: PLAY_STREAM")
+        }
+    }
+
+    fun playPlaylist(songs: List<Song>, startIndex: Int) {
+        AppLogger.log("[Controller] playPlaylist with ${songs.size} songs, starting at $startIndex")
+        if (mediaController == null) {
+            AppLogger.log("[Controller] ERROR: mediaController is null!")
+            return
+        }
+
+        val mediaItems = songs.map { song ->
+            val metadata = MediaMetadata.Builder()
+                .setTitle(song.title)
+                .setArtist(song.artist)
+                .setArtworkUri(Uri.parse(song.thumbnailUrl))
+                .build()
+
+            MediaItem.Builder()
+                .setUri(Uri.fromFile(File(song.filePath)))
+                .setMediaId(song.id)
+                .setMediaMetadata(metadata)
+                .build()
+        }
+
+        mediaController?.let { controller ->
+            controller.setMediaItems(mediaItems, startIndex, 0)
+            controller.prepare()
+            controller.play()
         }
     }
 
