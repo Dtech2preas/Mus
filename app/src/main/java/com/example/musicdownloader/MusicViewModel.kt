@@ -5,11 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.MimeTypes
+import com.example.musicdownloader.data.AppDatabase
+import com.example.musicdownloader.data.Song
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
@@ -33,9 +36,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val currentPosition = MusicControllerManager.currentPosition
     val duration = MusicControllerManager.duration
 
+    // Library Flow
+    val librarySongs: StateFlow<List<Song>> = AppDatabase.getDatabase(application).songDao().getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
         // Initialize the controller connection
         MusicControllerManager.initialize(application)
+
+        // Sync files on startup
+        viewModelScope.launch {
+            MusicRepository.syncFilesWithDatabase(application)
+        }
 
         // Polling loop for position updates
         viewModelScope.launch {
@@ -69,48 +81,54 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun play(video: VideoItem) {
-        AppLogger.log("[ViewModel] play called for ${video.id}")
-        // Set loading state to true. We can use downloadMessage to show progress to user.
-        _uiState.value = _uiState.value.copy(
-            errorMessage = null,
-            isLoadingPlayer = true,
-            downloadMessage = "Preparing ${video.title}..."
-        )
+    fun downloadAndPlay(video: VideoItem) {
+        AppLogger.log("[ViewModel] downloadAndPlay called for ${video.id}")
+
+        _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
 
         viewModelScope.launch {
-             // New flow: Download -> Play
-             val result = MusicRepository.downloadAndPlay(getApplication(), video)
+             // Enqueue download via WorkManager
+             // Note: This just starts the download.
+             // Ideally we would play immediately if possible, but now we are async.
+             val result = MusicRepository.downloadSong(getApplication(), video)
 
-             _uiState.value = _uiState.value.copy(
-                 isLoadingPlayer = false,
-                 downloadMessage = null
-             )
+             result.onSuccess { msg ->
+                 _uiState.value = _uiState.value.copy(downloadMessage = msg)
 
-             result.onSuccess { file ->
-                 AppLogger.log("[ViewModel] File ready: ${file.absolutePath}")
-
-                 val mediaMetadata = MediaMetadata.Builder()
-                     .setTitle(video.title)
-                     .setArtist(video.uploader)
-                     .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
-                     .build()
-
-                 // Play from local file
-                 val mediaItem = MediaItem.Builder()
-                     .setUri(android.net.Uri.fromFile(file))
-                     .setMediaId(video.id)
-                     .setMediaMetadata(mediaMetadata)
-                     .build()
-
-                 MusicControllerManager.playMedia(mediaItem)
-             }.onFailure { e ->
-                 AppLogger.log("[ViewModel] Failed to download/play: ${e.message}")
-                 _uiState.value = _uiState.value.copy(
-                     errorMessage = "Failed to play: ${e.message}"
-                 )
+                 // If file already exists, play it now
+                 if (msg == "File already exists") {
+                    playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                 }
+                 // If queued, user will see it in Library when done.
+                 // We could listen to WorkManager to auto-play, but simple is better for now.
              }
         }
+    }
+
+    fun playLocalSong(id: String, title: String, artist: String, thumbnailUrl: String) {
+         val file = File(getApplication<Application>().filesDir, "music_downloads/$id") // Fallback assumption
+         // Ideally we get path from DB, but ID mapping is reliable.
+
+         // We might need to handle the case where the file extension is different?
+         // Our repo logic just checks startsWith(id).
+         val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
+         val existingFiles = outputDir.listFiles { _, name -> name.startsWith(id) }
+
+         val targetFile = existingFiles?.firstOrNull() ?: file // fallback
+
+         val mediaMetadata = MediaMetadata.Builder()
+             .setTitle(title)
+             .setArtist(artist)
+             .setArtworkUri(android.net.Uri.parse(thumbnailUrl))
+             .build()
+
+         val mediaItem = MediaItem.Builder()
+             .setUri(android.net.Uri.fromFile(targetFile))
+             .setMediaId(id)
+             .setMediaMetadata(mediaMetadata)
+             .build()
+
+         MusicControllerManager.playMedia(mediaItem)
     }
 
     fun togglePlayPause() {
@@ -131,12 +149,5 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearDownloadMessage() {
         _uiState.value = _uiState.value.copy(downloadMessage = null)
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        // We typically don't release the controller here because the service might still be running
-        // and we want to reconnect if the user comes back.
-        // But for strict cleanup, we could.
     }
 }
