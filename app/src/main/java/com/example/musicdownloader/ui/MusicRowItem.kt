@@ -26,7 +26,8 @@ fun MusicRowItem(
     isPlaying: Boolean,
     isCurrentSong: Boolean,
     duration: String = "",
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: () -> Unit = {}
 ) {
     // Sleek, full-width row without Card borders
     Surface(
@@ -103,7 +104,16 @@ fun MusicRowItem(
                 )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Delete Button
+            IconButton(onClick = onDelete) {
+                Icon(
+                    painter = painterResource(android.R.drawable.ic_menu_delete), // Fallback, better to use Material Icons if available
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

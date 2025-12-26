@@ -27,6 +27,24 @@ fun SettingsScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // Help Section
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "How to Use",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("• Swipe Right: Add song to Queue", style = MaterialTheme.typography.bodyMedium)
+                Text("• Trash Icon: Delete song permanently", style = MaterialTheme.typography.bodyMedium)
+                Text("• Background: Downloads continue even if you close the app.", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+
         Text(
             text = "Settings",
             style = MaterialTheme.typography.headlineMedium,

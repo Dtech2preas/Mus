@@ -25,9 +25,11 @@ fun LibraryScreen(
 ) {
     val songs by viewModel.librarySongs.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
+    val sortOption by viewModel.sortOption.collectAsState()
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var showSortMenu by remember { mutableStateOf(false) }
 
     // Observe active downloads
     val workManager = remember { WorkManager.getInstance(context) }
@@ -39,11 +41,40 @@ fun LibraryScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Text(
-            text = "Downloaded Music",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(vertical = 16.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Downloaded Music",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+
+            Box {
+                IconButton(onClick = { showSortMenu = true }) {
+                    Text("⇅", style = MaterialTheme.typography.titleLarge)
+                }
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Newest First") },
+                        onClick = { viewModel.setSortOption(SortOption.NEWEST_FIRST); showSortMenu = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("A-Z (Title)") },
+                        onClick = { viewModel.setSortOption(SortOption.A_Z); showSortMenu = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Z-A (Title)") },
+                        onClick = { viewModel.setSortOption(SortOption.Z_A); showSortMenu = false }
+                    )
+                }
+            }
+        }
 
         // Downloads Section
         if (downloadingInfos.isNotEmpty()) {
@@ -82,23 +113,15 @@ fun LibraryScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(songs, key = { it.id }) { song ->
+                    // Swipe to Queue (Start to End)
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = {
-                            if (it == SwipeToDismissBoxValue.EndToStart) {
-                                viewModel.deleteSong(song)
+                            if (it == SwipeToDismissBoxValue.StartToEnd) {
+                                viewModel.addToQueue(song)
                                 scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = "Deleted ${song.title}",
-                                        actionLabel = "Undo",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.restoreSong(song)
-                                    } else if (result == SnackbarResult.Dismissed) {
-                                        viewModel.finalizeDelete(song)
-                                    }
+                                    snackbarHostState.showSnackbar("Added to Queue")
                                 }
-                                true
+                                false // Don't dismiss the item, just trigger action
                             } else {
                                 false
                             }
@@ -112,17 +135,18 @@ fun LibraryScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(vertical = 8.dp)
-                                    .background(MaterialTheme.colorScheme.errorContainer),
-                                contentAlignment = Alignment.CenterEnd
+                                    .background(androidx.compose.ui.graphics.Color.Green),
+                                contentAlignment = Alignment.CenterStart
                             ) {
                                 Text(
-                                    text = "Delete",
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.padding(end = 16.dp)
+                                    text = "Add to Queue",
+                                    color = androidx.compose.ui.graphics.Color.Black,
+                                    modifier = Modifier.padding(start = 16.dp),
+                                    style = MaterialTheme.typography.titleMedium
                                 )
                             }
                         },
-                        enableDismissFromStartToEnd = false
+                        enableDismissFromEndToStart = false
                     ) {
                          MusicRowItem(
                             title = song.title,
@@ -138,6 +162,21 @@ fun LibraryScreen(
                                     artist = song.artist,
                                     thumbnailUrl = song.thumbnailUrl
                                 )
+                            },
+                            onDelete = {
+                                viewModel.deleteSong(song)
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "Deleted ${song.title}",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restoreSong(song)
+                                    } else if (result == SnackbarResult.Dismissed) {
+                                        viewModel.finalizeDelete(song)
+                                    }
+                                }
                             }
                         )
                     }
