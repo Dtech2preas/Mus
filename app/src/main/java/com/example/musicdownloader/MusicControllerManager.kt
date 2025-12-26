@@ -142,6 +142,25 @@ object MusicControllerManager {
         }
     }
 
+    fun addToQueue(song: Song) {
+        AppLogger.log("[Controller] addToQueue: ${song.title}")
+        if (mediaController == null) return
+
+        val metadata = MediaMetadata.Builder()
+            .setTitle(song.title)
+            .setArtist(song.artist)
+            .setArtworkUri(Uri.parse(song.thumbnailUrl))
+            .build()
+
+        val mediaItem = MediaItem.Builder()
+            .setUri(Uri.fromFile(File(song.filePath)))
+            .setMediaId(song.id)
+            .setMediaMetadata(metadata)
+            .build()
+
+        mediaController?.addMediaItem(mediaItem)
+    }
+
     fun play() {
         AppLogger.log("[Controller] play()")
         mediaController?.play()

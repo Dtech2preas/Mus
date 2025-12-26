@@ -14,10 +14,17 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+
+enum class SortOption {
+    NEWEST_FIRST,
+    A_Z,
+    Z_A
+}
 
 data class MusicUiState(
     val results: List<VideoItem> = emptyList(),
@@ -38,9 +45,19 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val currentPosition = MusicControllerManager.currentPosition
     val duration = MusicControllerManager.duration
 
+    private val _sortOption = MutableStateFlow(SortOption.NEWEST_FIRST)
+    val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
+
     // Library Flow
-    val librarySongs: StateFlow<List<Song>> = AppDatabase.getDatabase(application).songDao().getAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _rawSongs = AppDatabase.getDatabase(application).songDao().getAll()
+
+    val librarySongs: StateFlow<List<Song>> = combine(_rawSongs, _sortOption) { songs, sort ->
+        when (sort) {
+            SortOption.NEWEST_FIRST -> songs.reversed()
+            SortOption.A_Z -> songs.sortedBy { it.title.lowercase() }
+            SortOption.Z_A -> songs.sortedByDescending { it.title.lowercase() }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         // Initialize the controller connection
@@ -112,6 +129,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val allSongs = librarySongs.value
         val index = allSongs.indexOfFirst { it.id == id }
 
+        AppLogger.log("[ViewModel] Playing song $title from sorted list (${allSongs.size} items)")
+
         if (index != -1) {
             MusicControllerManager.playPlaylist(allSongs, index)
         } else {
@@ -135,6 +154,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
              MusicControllerManager.playMedia(mediaItem)
         }
+    }
+
+    fun setSortOption(option: SortOption) {
+        _sortOption.value = option
+    }
+
+    fun addToQueue(song: Song) {
+        MusicControllerManager.addToQueue(song)
     }
 
     fun deleteSong(song: Song) {

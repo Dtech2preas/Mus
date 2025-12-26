@@ -48,6 +48,10 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         AppLogger.log("[Service] onCreate")
+
+        // DTECH Notification Icon
+        setMediaNotificationProvider(CustomNotificationProvider())
+
         CookieManager.checkAndLogCookies(this)
 
         // 1. Base DataSource Factory (Global)
@@ -98,6 +102,12 @@ class MusicService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         AppLogger.log("[Service] onGetSession for package: ${controllerInfo.packageName}")
         return mediaSession
+    }
+
+    private inner class CustomNotificationProvider : androidx.media3.session.DefaultMediaNotificationProvider(this) {
+        override fun getSmallIconId(context: android.content.Context): Int {
+            return R.drawable.dtech_logo
+        }
     }
 
     override fun onDestroy() {
