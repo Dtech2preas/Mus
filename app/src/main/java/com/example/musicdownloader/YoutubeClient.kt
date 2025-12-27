@@ -4,8 +4,11 @@ import android.content.Context
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.regex.Pattern
 
 data class VideoItem(
     val id: String,
@@ -17,6 +20,12 @@ data class VideoItem(
 )
 
 object YoutubeClient {
+
+    private val _downloadProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val downloadProgress: StateFlow<Map<String, Float>> = _downloadProgress
+
+    // Regex to capture percentage from yt-dlp output like "[download] 45.0% of..."
+    private val progressRegex = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)%")
 
     suspend fun searchVideos(context: Context, query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
@@ -78,6 +87,9 @@ object YoutubeClient {
 
     suspend fun downloadAudio(context: Context, videoId: String, outputDir: File): File = withContext(Dispatchers.IO) {
         try {
+            // Reset progress for this video
+            updateProgress(videoId, 0f)
+
             val url = "https://www.youtube.com/watch?v=$videoId"
             val request = YoutubeDLRequest(url)
 
@@ -99,9 +111,22 @@ object YoutubeClient {
                 request.addOption("--cookies", cookieFile.absolutePath)
             }
 
-            YoutubeDL.getInstance().execute(request) { _, _, line ->
+            YoutubeDL.getInstance().execute(request) { progress, _, line ->
                 if (line.isNotBlank()) {
                     AppLogger.log("[yt-dlp] $line")
+
+                    // Parse progress from line
+                    val matcher = progressRegex.matcher(line)
+                    if (matcher.find()) {
+                        val percentStr = matcher.group(1)
+                        val percent = percentStr?.toFloatOrNull()
+                        if (percent != null) {
+                            updateProgress(videoId, percent)
+                        }
+                    } else if (progress > 0) {
+                         // Fallback to library progress if available
+                         updateProgress(videoId, progress)
+                    }
                 }
             }
 
@@ -114,11 +139,23 @@ object YoutubeClient {
                  throw java.io.FileNotFoundException("Downloaded file not found in ${outputDir.absolutePath}")
             }
 
+            // Clear progress on success
+            updateProgress(videoId, 100f)
+            // Optional: remove from map after a delay? For now, 100% is fine.
+
             return@withContext foundFile
         } catch (e: Exception) {
             e.printStackTrace()
+            // Clear progress on failure
+            updateProgress(videoId, 0f)
             throw e
         }
+    }
+
+    private fun updateProgress(videoId: String, percent: Float) {
+        val current = _downloadProgress.value.toMutableMap()
+        current[videoId] = percent
+        _downloadProgress.value = current
     }
 
     suspend fun getStreamUrl(context: Context, url: String): StreamInfo = withContext(Dispatchers.IO) {

@@ -1,5 +1,7 @@
 package com.example.musicdownloader
 
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -22,17 +25,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.media3.common.Player
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.palette.graphics.Palette
+import coil.ImageLoader
+import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import com.example.musicdownloader.ui.AddToPlaylistSheet
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.ui.ElectricPurple
+import com.example.musicdownloader.utils.HapticUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,28 +63,55 @@ fun FullScreenPlayer(
     val shuffleModeEnabled by viewModel.shuffleModeEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
     val likedSongs by viewModel.likedSongIds.collectAsState()
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     val currentSongId = currentMediaItem?.mediaId
     val isLiked = currentSongId != null && likedSongs.contains(currentSongId)
 
+    // Dynamic Background State
+    var dominantColor by remember { mutableStateOf(DeepBlue) }
+
+    // Add to Playlist State
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+
     if (currentMediaItem == null) return
 
+    val artworkUri = currentMediaItem?.mediaMetadata?.artworkUri
+
+    // Extract Palette
+    LaunchedEffect(artworkUri) {
+        if (artworkUri != null) {
+            withContext(Dispatchers.IO) {
+                val loader = ImageLoader(context)
+                val req = ImageRequest.Builder(context)
+                    .data(artworkUri)
+                    .allowHardware(false) // Required for Palette
+                    .build()
+                val result = loader.execute(req)
+                val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
+                if (bitmap != null) {
+                    val p = Palette.from(bitmap).generate()
+                    val colorInt = p.getDarkVibrantColor(DeepBlue.toArgb())
+                    dominantColor = Color(colorInt)
+                }
+            }
+        }
+    }
+
     Scaffold(
-        containerColor = DeepBlue,
+        containerColor = dominantColor, // Dynamic Background
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "PLAYING FROM LIBRARY",
+                            "NOW PLAYING",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.7f),
                             letterSpacing = 2.sp
-                        )
-                        Text(
-                            "Liked Songs", // Placeholder or Dynamic Playlist Name
-                            style = MaterialTheme.typography.titleSmall,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
                         )
                     }
                 },
@@ -79,15 +120,6 @@ fun FullScreenPlayer(
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = "Collapse",
-                            tint = Color.White
-                        )
-                    }
-                },
-                actions = {
-                     IconButton(onClick = { /* Menu */ }) {
-                        Icon(
-                            painter = androidx.compose.ui.res.painterResource(android.R.drawable.ic_menu_more),
-                            contentDescription = "Menu",
                             tint = Color.White
                         )
                     }
@@ -103,8 +135,8 @@ fun FullScreenPlayer(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            DeepBlue,
-                            Color(0xFF2A2A35) // Slightly lighter at bottom
+                            dominantColor,
+                            Color(0xFF0F0F13) // Fade to black at bottom
                         )
                     )
                 )
@@ -127,7 +159,7 @@ fun FullScreenPlayer(
                         .background(Color.DarkGray)
                 ) {
                     Image(
-                        painter = rememberAsyncImagePainter(currentMediaItem?.mediaMetadata?.artworkUri),
+                        painter = rememberAsyncImagePainter(artworkUri),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -136,13 +168,26 @@ fun FullScreenPlayer(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Title & Artist Row
+                // Title, Artist, and Add/Like buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    // Add Button (Left)
+                    IconButton(onClick = { showAddToPlaylistDialog = true }) {
+                         Icon(
+                             imageVector = Icons.Default.Add, // Or PlaylistAdd if available, but Add is requested
+                             contentDescription = "Add to Playlist",
+                             tint = Color.White,
+                             modifier = Modifier.size(28.dp)
+                         )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
                             text = currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown Title",
                             style = MaterialTheme.typography.headlineMedium,
@@ -159,14 +204,17 @@ fun FullScreenPlayer(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    // Like Button (Right)
                     IconButton(onClick = {
+                        HapticUtils.performHapticFeedback(context)
                         currentSongId?.let { viewModel.toggleLike(it) }
                     }) {
                          Icon(
                              imageVector = Icons.Default.ThumbUp,
                              contentDescription = "Like",
                              tint = if (isLiked) ElectricPurple else Color.White,
-                             modifier = Modifier.size(32.dp)
+                             modifier = Modifier.size(28.dp)
                          )
                     }
                 }
@@ -182,17 +230,17 @@ fun FullScreenPlayer(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
-                        thumbColor = ElectricPurple,
-                        activeTrackColor = ElectricPurple,
-                        inactiveTrackColor = Color.DarkGray
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                     )
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(formatTime(currentPosition), color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                    Text(formatTime(duration), color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                    Text(formatTime(currentPosition), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
+                    Text(formatTime(duration), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -230,7 +278,10 @@ fun FullScreenPlayer(
                             .size(72.dp)
                             .clip(CircleShape)
                             .background(Color.White)
-                            .clickable { viewModel.togglePlayPause() }
+                            .clickable {
+                                HapticUtils.performHapticFeedback(context)
+                                viewModel.togglePlayPause()
+                            }
                     ) {
                         if (uiState.isLoadingPlayer) {
                             CircularProgressIndicator(
@@ -239,7 +290,7 @@ fun FullScreenPlayer(
                             )
                         } else {
                             if (isPlaying) {
-                                Text("⏸", style = MaterialTheme.typography.headlineLarge, color = DeepBlue, fontWeight = FontWeight.Bold)
+                                Text("II", style = MaterialTheme.typography.headlineLarge, color = DeepBlue, fontWeight = FontWeight.Bold) // Pause Icon Text
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
@@ -264,7 +315,7 @@ fun FullScreenPlayer(
                     // Repeat
                     IconButton(onClick = { viewModel.toggleRepeatMode() }) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
+                            imageVector = Icons.Default.Refresh, // Recycle icon as repeat
                             contentDescription = "Repeat",
                             tint = when (repeatMode) {
                                 androidx.media3.common.Player.REPEAT_MODE_ONE,
@@ -284,6 +335,37 @@ fun FullScreenPlayer(
                 Spacer(modifier = Modifier.weight(0.1f))
             }
         }
+    }
+
+    // Add to Playlist Sheet
+    if (showAddToPlaylistDialog) {
+        // Construct a temp song object from metadata (since we might be playing from non-library source)
+        // Ideally we should resolve the actual Song object.
+        // If it's downloaded, it's in Library.
+        val songTitle = currentMediaItem?.mediaMetadata?.title?.toString() ?: ""
+        // We can try to find it in library via title/id, or just assume ID matches.
+        val songId = currentSongId ?: ""
+
+        // We need a Song object to pass to sheet.
+        // Let's create a transient one.
+        val currentSong = com.example.musicdownloader.data.Song(
+            id = songId,
+            title = songTitle,
+            artist = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "",
+            thumbnailUrl = artworkUri?.toString() ?: "",
+            filePath = "" // Not needed for adding to playlist logic (only ID matters)
+        )
+
+        AddToPlaylistSheet(
+            playlists = playlists,
+            songs = listOf(currentSong),
+            onDismiss = { showAddToPlaylistDialog = false },
+            onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
+            onAddToPlaylist = { playlist, _ ->
+                viewModel.addSongToPlaylist(playlist.id.toInt(), songId)
+                showAddToPlaylistDialog = false
+            }
+        )
     }
 }
 

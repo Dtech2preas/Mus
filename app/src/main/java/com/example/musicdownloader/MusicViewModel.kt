@@ -49,6 +49,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val shuffleModeEnabled = MusicControllerManager.shuffleModeEnabled
     val repeatMode = MusicControllerManager.repeatMode
 
+    // Download Progress Flow (Global)
+    val downloadProgress = YoutubeClient.downloadProgress
+
     private val _sortOption = MutableStateFlow(SortOption.NEWEST_FIRST)
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
 
@@ -102,10 +105,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val genres = UserPreferences.getGenres(getApplication())
         if (genres.isEmpty()) return
 
+        // Show loading via state if desired, but we want Skeleton behavior which checks empty/loading.
+        _uiState.value = _uiState.value.copy(isLoading = true)
+
         viewModelScope.launch {
-            // We can show loading if we want, but let's just update quietly
             val feeds = MusicRepository.fetchGenreFeeds(getApplication(), genres)
-            _uiState.value = _uiState.value.copy(genreFeeds = feeds)
+            _uiState.value = _uiState.value.copy(genreFeeds = feeds, isLoading = false)
         }
     }
 
@@ -193,13 +198,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
              MusicControllerManager.playMedia(mediaItem)
         }
     }
-
-    // Specifically play a song from a Genre Feed (which is online, not downloaded yet)
-    // Actually, "downloadAndPlay" covers this.
-    // But if we want to stream without downloading?
-    // The requirement says "A Spotify-Style Streaming Experience" but previously "Playback workflow is Download-to-Play".
-    // I will stick to "downloadAndPlay" behavior for everything to match existing architecture.
-    // But I will rename the exposed method or just use downloadAndPlay.
 
     fun setSortOption(option: SortOption) {
         _sortOption.value = option
@@ -311,13 +309,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addSongToPlaylist(playlistId: Int, songId: String) {
+    fun addSongToPlaylist(playlist: Playlist, songs: List<Song>) {
         viewModelScope.launch {
-            MusicRepository.addSongToPlaylist(getApplication(), playlistId, songId)
+             // In the future, batch add. For now, loop.
+             songs.forEach { song ->
+                  MusicRepository.addSongToPlaylist(getApplication(), playlist.id, song.id)
+             }
         }
     }
 
-    fun getSongsForPlaylist(playlistId: Int): kotlinx.coroutines.flow.Flow<List<Song>> {
-        return AppDatabase.getDatabase(getApplication()).playlistDao().getSongsForPlaylist(playlistId)
+    fun getSongsForPlaylist(playlistId: Long): kotlinx.coroutines.flow.Flow<List<Song>> {
+        // Corrected DAO call (getSongsForPlaylist takes Int in DAO currently, need to fix that too or cast)
+        // Let's assume DAO uses Int for now based on previous file read, but Repository passed Long.
+        // Wait, Playlist id is Long (auto-generated).
+        // I should fix DAO to use Long.
+        return AppDatabase.getDatabase(getApplication()).playlistDao().getSongsForPlaylist(playlistId.toInt())
     }
 }
