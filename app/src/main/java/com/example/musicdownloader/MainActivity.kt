@@ -81,7 +81,7 @@ sealed class LibraryRoute {
     object Main : LibraryRoute()
     object Playlists : LibraryRoute()
     object LikedSongs : LibraryRoute()
-    data class PlaylistDetail(val id: Long, val name: String) : LibraryRoute()
+    data class PlaylistDetail(val id: Int, val name: String) : LibraryRoute()
 }
 
 @Composable
@@ -202,7 +202,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                          // But if we need global click handling:
                     }
                 )
-                MainTab.Search -> SearchScreen(viewModel = viewModel) // Padding handled inside or passed? SearchScreen needs update if not.
+                MainTab.Search -> SearchScreen(viewModel = viewModel, contentPadding = PaddingValues(0.dp))
                 MainTab.Library -> {
                     // Nested Library Navigation
                     when (val route = libraryRoute) {
