@@ -228,7 +228,7 @@ object MusicRepository {
         return AppDatabase.getDatabase(context).playlistDao().getAllPlaylists()
     }
 
-    suspend fun addSongToPlaylist(context: Context, playlistId: Long, songId: String) {
+    suspend fun addSongToPlaylist(context: Context, playlistId: Int, songId: String) {
         AppDatabase.getDatabase(context).playlistDao().addSongToPlaylist(PlaylistEntry(playlistId, songId))
     }
 }
