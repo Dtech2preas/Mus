@@ -1,11 +1,14 @@
 package com.example.musicdownloader
 
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -28,12 +31,14 @@ fun LibraryScreen(
 ) {
     val songs by viewModel.librarySongs.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
-    val sortOption by viewModel.sortOption.collectAsState()
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var showSortMenu by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // View Mode State
+    var selectedArtist by remember { mutableStateOf<String?>(null) } // null = All Songs
+    var showingArtistsMode by remember { mutableStateOf(false) }
 
     // Observe active downloads
     val workManager = remember { WorkManager.getInstance(context) }
@@ -45,56 +50,57 @@ fun LibraryScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Downloaded Music",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-
-            Box {
-                IconButton(onClick = { showSortMenu = true }) {
-                    Text("⇅", style = MaterialTheme.typography.titleLarge)
-                }
-                DropdownMenu(
-                    expanded = showSortMenu,
-                    onDismissRequest = { showSortMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Newest First") },
-                        onClick = { viewModel.setSortOption(SortOption.NEWEST_FIRST); showSortMenu = false }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("A-Z (Title)") },
-                        onClick = { viewModel.setSortOption(SortOption.A_Z); showSortMenu = false }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Z-A (Title)") },
-                        onClick = { viewModel.setSortOption(SortOption.Z_A); showSortMenu = false }
-                    )
-                }
-            }
-        }
+        // 1. Top Bar Area: Search & Chips
+        Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            label = { Text("Search Library") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
+            label = { Text("Find in library") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
 
-        // Downloads Section
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Chips Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Playlists Chip
+            FilterChip(
+                selected = false,
+                onClick = {
+                    // Placeholder UI
+                     Toast.makeText(context, "Playlists: Coming Soon", Toast.LENGTH_SHORT).show()
+                },
+                label = { Text("Playlists") }
+            )
+
+            // Artists Chip
+            FilterChip(
+                selected = showingArtistsMode,
+                onClick = {
+                    showingArtistsMode = !showingArtistsMode
+                    selectedArtist = null // Reset filter when toggling mode
+                },
+                label = { Text("Artists") }
+            )
+
+            if (selectedArtist != null) {
+                // Clear Filter Chip
+                InputChip(
+                    selected = true,
+                    onClick = { selectedArtist = null },
+                    label = { Text("Filter: $selectedArtist X") }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Downloads Section (always visible if active)
         if (downloadingInfos.isNotEmpty()) {
             Text(
                 text = "Downloading...",
@@ -102,115 +108,138 @@ fun LibraryScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 100.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(downloadingInfos) { workInfo ->
                     val title = workInfo.progress.getString("title") ?: "Downloading song..."
-
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(title, style = MaterialTheme.typography.bodyMedium)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
-                    }
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text(title, style = MaterialTheme.typography.bodySmall)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        val filteredSongs = remember(songs, searchQuery) {
-            if (searchQuery.isBlank()) songs
-            else songs.filter {
-                it.title.contains(searchQuery, ignoreCase = true) ||
-                        it.artist.contains(searchQuery, ignoreCase = true)
-            }
-        }
+        // Main Content Switcher
+        if (showingArtistsMode && selectedArtist == null) {
+            // SHOW ARTIST LIST
+            val artists = remember(songs) { songs.map { it.artist }.distinct().sorted() }
 
-        if (filteredSongs.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(if (searchQuery.isEmpty()) "No downloaded songs yet." else "No matches found.")
-            }
-        } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = contentPadding,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                contentPadding = contentPadding
             ) {
-                items(filteredSongs, key = { it.id }) { song ->
-                    // Swipe to Queue (Start to End)
-                    val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = {
-                            if (it == SwipeToDismissBoxValue.StartToEnd) {
-                                viewModel.addToQueue(song)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Added to Queue")
-                                }
-                                false // Don't dismiss the item, just trigger action
-                            } else {
-                                false
-                            }
+                items(artists) { artist ->
+                    ListItem(
+                        headlineContent = { Text(artist) },
+                        modifier = Modifier.clickable {
+                            selectedArtist = artist
+                            showingArtistsMode = false // Switch back to song list with filter
                         }
                     )
+                }
+            }
+        } else {
+            // SHOW SONG LIST (Filtered)
+            val filteredSongs = remember(songs, searchQuery, selectedArtist) {
+                songs.filter { song ->
+                    val matchesSearch = if (searchQuery.isBlank()) true else
+                        (song.title.contains(searchQuery, ignoreCase = true) || song.artist.contains(searchQuery, ignoreCase = true))
+                    val matchesArtist = if (selectedArtist == null) true else song.artist == selectedArtist
 
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(vertical = 8.dp)
-                                    .background(Color(0xFF006064))
-                                    .padding(start = 24.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Queue",
-                                    tint = Color.White
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Queue",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                            }
-                        },
-                        enableDismissFromEndToStart = false
-                    ) {
-                         MusicRowItem(
-                            title = song.title,
-                            artist = song.artist,
-                            thumbnailUrl = song.thumbnailUrl,
-                            isPlaying = isPlaying,
-                            isCurrentSong = currentMediaItem?.mediaId == song.id,
-                            duration = song.duration,
-                            onClick = {
-                                viewModel.playLocalSong(
-                                    id = song.id,
-                                    title = song.title,
-                                    artist = song.artist,
-                                    thumbnailUrl = song.thumbnailUrl
-                                )
-                            },
-                            onDelete = {
-                                viewModel.deleteSong(song)
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = "Deleted ${song.title}",
-                                        actionLabel = "Undo",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.restoreSong(song)
-                                    } else if (result == SnackbarResult.Dismissed) {
-                                        viewModel.finalizeDelete(song)
+                    matchesSearch && matchesArtist
+                }
+            }
+
+            if (filteredSongs.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No music found.")
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(0.dp), // Compact
+                    contentPadding = contentPadding,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Static "Liked Songs" item if not filtering and search empty
+                    if (searchQuery.isEmpty() && selectedArtist == null) {
+                         item {
+                             ListItem(
+                                 headlineContent = { Text("Liked Songs") },
+                                 leadingContent = {
+                                     Icon(Icons.Default.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                 },
+                                 modifier = Modifier.clickable { Toast.makeText(context, "Liked Songs (Coming Soon)", Toast.LENGTH_SHORT).show() }
+                             )
+                             Divider(color = MaterialTheme.colorScheme.surfaceVariant)
+                         }
+                    }
+
+                    items(filteredSongs, key = { it.id }) { song ->
+                        // Swipe to Queue
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = {
+                                if (it == SwipeToDismissBoxValue.StartToEnd) {
+                                    viewModel.addToQueue(song)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Added to Queue")
                                     }
+                                    false
+                                } else {
+                                    false
                                 }
                             }
                         )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFF006064))
+                                        .padding(horizontal = 24.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Queue", tint = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Queue", color = Color.White)
+                                }
+                            },
+                            enableDismissFromEndToStart = false
+                        ) {
+                             MusicRowItem(
+                                title = song.title,
+                                artist = song.artist,
+                                thumbnailUrl = song.thumbnailUrl,
+                                isPlaying = isPlaying,
+                                isCurrentSong = currentMediaItem?.mediaId == song.id,
+                                isLibrary = true,
+                                onClick = {
+                                    viewModel.playLocalSong(
+                                        id = song.id,
+                                        title = song.title,
+                                        artist = song.artist,
+                                        thumbnailUrl = song.thumbnailUrl
+                                    )
+                                },
+                                onAction = {
+                                    viewModel.deleteSong(song)
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "Deleted ${song.title}",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.restoreSong(song)
+                                        } else if (result == SnackbarResult.Dismissed) {
+                                            viewModel.finalizeDelete(song)
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
