@@ -136,8 +136,7 @@ fun PlaylistDetailScreen(
     viewModel: MusicViewModel,
     playlistId: Int,
     playlistName: String,
-    onBack: () -> Unit,
-    onSongClick: (String) -> Unit
+    onBack: () -> Unit
 ) {
     // Note: In a real app we'd pass ID and fetch name, or pass obj.
     // For now assuming name passed for UI.
@@ -178,7 +177,15 @@ fun PlaylistDetailScreen(
                         artist = song.artist,
                         thumbnailUrl = song.thumbnailUrl,
                         isLibrary = true, // Hide download button
-                        onClick = { onSongClick(song.id) }
+                        onClick = {
+                            viewModel.playSong(
+                                id = song.id,
+                                title = song.title,
+                                artist = song.artist,
+                                thumbnailUrl = song.thumbnailUrl,
+                                contextQueue = songs
+                            )
+                        }
                     )
                 }
             }
