@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.rounded.ArrowCircleDown
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -94,7 +94,7 @@ fun MusicRowItem(
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Rounded.ArrowCircleDown,
+                        imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = "Download",
                         tint = ElectricPurple
                     )

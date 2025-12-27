@@ -12,11 +12,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.*
@@ -31,6 +26,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.ui.DeepBlue
@@ -65,7 +61,7 @@ fun FullScreenPlayer(
                             "PLAYING FROM LIBRARY",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.7f),
-                            letterSpacing = androidx.compose.ui.unit.sp(2)
+                            letterSpacing = 2.sp
                         )
                         Text(
                             "Liked Songs", // Placeholder or Dynamic Playlist Name
@@ -162,7 +158,7 @@ fun FullScreenPlayer(
                     }
                     IconButton(onClick = { /* Like Logic */ }) {
                          Icon(
-                             imageVector = androidx.compose.material.icons.Icons.Default.FavoriteBorder, // Or Filled if liked
+                             imageVector = Icons.Default.ThumbUp,
                              contentDescription = "Like",
                              tint = Color.White,
                              modifier = Modifier.size(32.dp)
@@ -205,20 +201,10 @@ fun FullScreenPlayer(
                     // Shuffle
                     IconButton(onClick = { viewModel.toggleShuffle() }) {
                         Icon(
-                            imageVector = Icons.Default.Shuffle,
+                            imageVector = Icons.Default.Refresh,
                             contentDescription = "Shuffle",
                             tint = if (shuffleModeEnabled) ElectricPurple else Color.White,
                             modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    // Prev
-                    IconButton(onClick = { MusicControllerManager.skipToPrevious() }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Shuffle",
-                            tint = if (shuffleModeEnabled) ElectricPurple else Color.Gray,
-                            modifier = Modifier.size(24.dp)
                         )
                     }
 
@@ -261,20 +247,6 @@ fun FullScreenPlayer(
                     }
 
                     // Next
-                    IconButton(onClick = { MusicControllerManager.skipToNext() }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(36.dp))
-                    }
-
-                    // Repeat
-                    IconButton(onClick = { viewModel.toggleRepeat() }) {
-                        val icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat
-                        val tint = if (repeatMode != Player.REPEAT_MODE_OFF) ElectricPurple else Color.White
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = "Repeat",
-                            tint = tint,
-                            modifier = Modifier.size(28.dp)
-                        )
                     IconButton(onClick = { viewModel.skipToNext() }, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Default.ArrowForward,
@@ -296,7 +268,6 @@ fun FullScreenPlayer(
                             },
                             modifier = Modifier.size(24.dp)
                         )
-                        // Optional: Small overlay to indicate '1' vs 'All' if desired, but color distinction is start
                     }
                 }
 

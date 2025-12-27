@@ -15,7 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -148,7 +148,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                     NavigationBarItem(
                         selected = currentTab == MainTab.Library,
                         onClick = { currentTab = MainTab.Library },
-                        icon = { Icon(Icons.Default.LibraryMusic, contentDescription = "Library") },
+                        icon = { Icon(Icons.Default.List, contentDescription = "Library") },
                         label = { Text("Library") }
                     )
                     NavigationBarItem(
