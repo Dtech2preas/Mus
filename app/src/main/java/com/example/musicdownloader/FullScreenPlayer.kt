@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -15,6 +17,8 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -211,6 +215,21 @@ fun FullScreenPlayer(
                     // Prev
                     IconButton(onClick = { MusicControllerManager.skipToPrevious() }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Shuffle",
+                            tint = if (shuffleModeEnabled) ElectricPurple else Color.Gray,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Previous
+                    IconButton(onClick = { viewModel.skipToPrevious() }, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Previous",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
                     }
 
                     // Play/Pause (Big White Circle)
@@ -256,6 +275,28 @@ fun FullScreenPlayer(
                             tint = tint,
                             modifier = Modifier.size(28.dp)
                         )
+                    IconButton(onClick = { viewModel.skipToNext() }, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = "Next",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    // Repeat
+                    IconButton(onClick = { viewModel.toggleRepeatMode() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Repeat",
+                            tint = when (repeatMode) {
+                                androidx.media3.common.Player.REPEAT_MODE_ONE,
+                                androidx.media3.common.Player.REPEAT_MODE_ALL -> ElectricPurple
+                                else -> Color.Gray
+                            },
+                            modifier = Modifier.size(24.dp)
+                        )
+                        // Optional: Small overlay to indicate '1' vs 'All' if desired, but color distinction is start
                     }
                 }
 

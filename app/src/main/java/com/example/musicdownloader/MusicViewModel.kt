@@ -248,6 +248,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun toggleShuffle() {
+        MusicControllerManager.toggleShuffleMode()
+    }
+
+    fun toggleRepeatMode() {
+        MusicControllerManager.toggleRepeatMode()
+    }
+
+    fun skipToPrevious() {
+        MusicControllerManager.skipToPrevious()
+    }
+
+    fun skipToNext() {
+        MusicControllerManager.skipToNext()
+    }
+
     fun seekTo(position: Long) {
         MusicControllerManager.seekTo(position)
     }
