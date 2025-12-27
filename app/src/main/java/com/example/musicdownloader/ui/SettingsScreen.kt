@@ -9,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.example.musicdownloader.CookieDialog
 import com.example.musicdownloader.CookieManager
 
 @Composable

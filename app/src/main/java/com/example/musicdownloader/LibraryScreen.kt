@@ -187,6 +187,7 @@ fun LibraryScreen(
                             isPlaying = isPlaying,
                             isCurrentSong = currentMediaItem?.mediaId == song.id,
                             duration = song.duration,
+                            isLibrary = true,
                             onClick = {
                                 viewModel.playLocalSong(
                                     id = song.id,

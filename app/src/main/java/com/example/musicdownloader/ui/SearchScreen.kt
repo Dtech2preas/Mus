@@ -73,6 +73,7 @@ fun SearchScreen(
                         isPlaying = false,
                         isCurrentSong = false,
                         duration = video.duration,
+                        isLibrary = false,
                         onClick = {
                             Toast.makeText(context, "Downloading ${video.title}... Check Library", Toast.LENGTH_SHORT).show()
                             viewModel.downloadAndPlay(video)

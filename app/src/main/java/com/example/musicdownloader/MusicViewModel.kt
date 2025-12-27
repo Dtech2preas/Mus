@@ -44,6 +44,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val currentMediaItem = MusicControllerManager.currentMediaItem
     val currentPosition = MusicControllerManager.currentPosition
     val duration = MusicControllerManager.duration
+    val shuffleMode = MusicControllerManager.shuffleMode
+    val repeatMode = MusicControllerManager.repeatMode
 
     private val _sortOption = MutableStateFlow(SortOption.NEWEST_FIRST)
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
@@ -210,6 +212,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             MusicControllerManager.play()
         }
+    }
+
+    fun toggleShuffle() {
+        MusicControllerManager.toggleShuffle()
+    }
+
+    fun toggleRepeatMode() {
+        MusicControllerManager.toggleRepeatMode()
     }
 
     fun seekTo(position: Long) {
