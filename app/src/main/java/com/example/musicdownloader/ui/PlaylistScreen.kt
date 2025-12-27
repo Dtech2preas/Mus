@@ -134,7 +134,7 @@ fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
 @Composable
 fun PlaylistDetailScreen(
     viewModel: MusicViewModel,
-    playlistId: Long,
+    playlistId: Int,
     playlistName: String,
     onBack: () -> Unit,
     onSongClick: (String) -> Unit
