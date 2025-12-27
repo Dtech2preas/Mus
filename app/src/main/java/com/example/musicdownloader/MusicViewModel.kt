@@ -185,13 +185,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Specifically play a song from a Genre Feed (which is online, not downloaded yet)
-    // Actually, "downloadAndPlay" covers this.
-    // But if we want to stream without downloading?
-    // The requirement says "A Spotify-Style Streaming Experience" but previously "Playback workflow is Download-to-Play".
-    // I will stick to "downloadAndPlay" behavior for everything to match existing architecture.
-    // But I will rename the exposed method or just use downloadAndPlay.
-
     fun setSortOption(option: SortOption) {
         _sortOption.value = option
     }
@@ -249,11 +242,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleShuffle() {
-        MusicControllerManager.toggleShuffleMode()
+        MusicControllerManager.toggleShuffle()
     }
 
-    fun toggleRepeatMode() {
-        MusicControllerManager.toggleRepeatMode()
+    fun toggleRepeat() {
+        MusicControllerManager.toggleRepeat()
     }
 
     fun skipToPrevious() {
@@ -267,9 +260,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun seekTo(position: Long) {
         MusicControllerManager.seekTo(position)
     }
-
-    fun toggleShuffle() = MusicControllerManager.toggleShuffle()
-    fun toggleRepeat() = MusicControllerManager.toggleRepeat()
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
