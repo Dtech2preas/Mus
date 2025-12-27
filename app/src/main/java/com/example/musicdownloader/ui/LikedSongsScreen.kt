@@ -47,7 +47,13 @@ fun LikedSongsScreen(
             ExtendedFloatingActionButton(
                 onClick = {
                    if (likedSongs.isNotEmpty()) {
-                       onSongClick(likedSongs.first().id)
+                       viewModel.playSong(
+                           id = likedSongs.first().id,
+                           title = likedSongs.first().title,
+                           artist = likedSongs.first().artist,
+                           thumbnailUrl = likedSongs.first().thumbnailUrl,
+                           contextQueue = likedSongs
+                       )
                    }
                 },
                 containerColor = com.example.musicdownloader.ui.ElectricPurple,
@@ -74,7 +80,15 @@ fun LikedSongsScreen(
                              artist = song.artist,
                              thumbnailUrl = song.thumbnailUrl,
                              isLibrary = true,
-                             onClick = { onSongClick(song.id) }
+                             onClick = {
+                                 viewModel.playSong(
+                                     id = song.id,
+                                     title = song.title,
+                                     artist = song.artist,
+                                     thumbnailUrl = song.thumbnailUrl,
+                                     contextQueue = likedSongs
+                                 )
+                             }
                          )
                      }
                  }

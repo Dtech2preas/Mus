@@ -11,10 +11,12 @@ import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -40,6 +42,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(MusicUiState())
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
+
+    // Toast Events Channel
+    private val _toastEvent = MutableSharedFlow<String>()
+    val toastEvent = _toastEvent.asSharedFlow()
 
     // Expose Player State from Manager
     val isPlaying = MusicControllerManager.isPlaying
@@ -139,45 +145,64 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         AppLogger.log("[ViewModel] downloadAndPlay called for ${video.id}")
 
         // Track history immediately
-        viewModelScope.launch {
-            MusicRepository.addToHistory(getApplication(), video)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                MusicRepository.addToHistory(getApplication(), video)
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Error adding to history: ${e.message}")
+            }
         }
 
         _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
 
-        viewModelScope.launch {
-             // Enqueue download via WorkManager
-             val result = MusicRepository.downloadSong(getApplication(), video)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _toastEvent.emit("Download started for ${video.title}")
+                // Enqueue download via WorkManager
+                val result = MusicRepository.downloadSong(getApplication(), video)
 
-             result.onSuccess { msg ->
-                 _uiState.value = _uiState.value.copy(downloadMessage = msg)
+                result.onSuccess { msg ->
+                    _uiState.value = _uiState.value.copy(downloadMessage = msg)
 
-                 // If file already exists, play it now
-                 if (msg == "File already exists") {
-                    playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)
-                 }
-             }
+                    // If file already exists, play it now
+                    if (msg == "File already exists") {
+                        // Switch to Main thread for playback logic if needed, but playSong handles it
+                        withContext(Dispatchers.Main) {
+                             playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                        }
+                    }
+                }.onFailure { e ->
+                    _toastEvent.emit("Download failed: ${e.message}")
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Download Error: ${e.message}")
+                _toastEvent.emit("Error starting download: ${e.message}")
+            }
         }
     }
 
-    fun playLocalSong(id: String, title: String, artist: String, thumbnailUrl: String) {
+    fun playSong(id: String, title: String, artist: String, thumbnailUrl: String, contextQueue: List<Song>? = null) {
         // Track history
-        viewModelScope.launch {
-            MusicRepository.addToHistory(getApplication(),
-                VideoItem(id, title, "", artist, thumbnailUrl, "")
-            )
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                MusicRepository.addToHistory(getApplication(),
+                    VideoItem(id, title, "", artist, thumbnailUrl, "")
+                )
+            } catch (e: Exception) {
+                 e.printStackTrace()
+            }
         }
 
-        // Use the Library Playlist feature instead of single track
-        val allSongs = librarySongs.value
-        val index = allSongs.indexOfFirst { it.id == id }
+        // Use the contextQueue if provided, otherwise default to Library (All Songs)
+        val queueToUse = contextQueue ?: librarySongs.value
+        val index = queueToUse.indexOfFirst { it.id == id }
 
-        AppLogger.log("[ViewModel] Playing song $title from sorted list (${allSongs.size} items)")
+        AppLogger.log("[ViewModel] Playing song $title from list (${queueToUse.size} items)")
 
         if (index != -1) {
-            MusicControllerManager.playPlaylist(allSongs, index)
+            MusicControllerManager.playPlaylist(queueToUse, index)
         } else {
-            // Fallback for non-library play
+            // Fallback for non-library play (e.g. search result not in library yet)
              val file = File(getApplication<Application>().filesDir, "music_downloads/$id")
              val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
              val existingFiles = outputDir.listFiles { _, name -> name.startsWith(id) }
@@ -199,12 +224,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @Deprecated("Use playSong instead")
+    fun playLocalSong(id: String, title: String, artist: String, thumbnailUrl: String) {
+        playSong(id, title, artist, thumbnailUrl, null)
+    }
+
     fun setSortOption(option: SortOption) {
         _sortOption.value = option
     }
 
     fun addToQueue(song: Song) {
-        MusicControllerManager.addToQueue(song)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                MusicControllerManager.addToQueue(song)
+                _toastEvent.emit("Added to queue: ${song.title}")
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Error adding to queue: ${e.message}")
+                _toastEvent.emit("Failed to add to queue")
+            }
+        }
     }
 
     fun deleteSong(song: Song) {
@@ -297,8 +335,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // --- Favorites Logic ---
     fun toggleLike(songId: String) {
         val isLiked = likedSongIds.value.contains(songId)
-        viewModelScope.launch {
-            MusicRepository.setLikeStatus(getApplication(), songId, !isLiked)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                MusicRepository.setLikeStatus(getApplication(), songId, !isLiked)
+                val msg = if (isLiked) "Removed from Liked Songs" else "Added to Liked Songs"
+                _toastEvent.emit(msg)
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Error toggling like: ${e.message}")
+                _toastEvent.emit("Failed to update favorites")
+            }
         }
     }
 

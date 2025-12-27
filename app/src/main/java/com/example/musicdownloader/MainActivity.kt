@@ -130,6 +130,13 @@ fun MainScreen(viewModel: MusicViewModel) {
         }
     }
 
+    // Single Toast Event Channel
+    LaunchedEffect(viewModel.toastEvent) {
+        viewModel.toastEvent.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     LaunchedEffect(uiState.downloadMessage) {
         uiState.downloadMessage?.let {
              if (it.startsWith("Downloaded") || it.startsWith("Failed")) {
@@ -226,8 +233,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                             viewModel = viewModel,
                             playlistId = route.id,
                             playlistName = route.name,
-                            onBack = { libraryRoute = LibraryRoute.Playlists },
-                            onSongClick = { id -> viewModel.playLocalSong(id, "Unknown", "Unknown", "") }
+                            onBack = { libraryRoute = LibraryRoute.Playlists }
                         )
                     }
                 }
