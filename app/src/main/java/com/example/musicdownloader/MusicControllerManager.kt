@@ -41,10 +41,6 @@ object MusicControllerManager {
     private val _shuffleModeEnabled = MutableStateFlow(false)
     val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
 
-    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
-    private val _shuffleModeEnabled = MutableStateFlow(false)
-    val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
-
     private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
@@ -224,26 +220,6 @@ object MusicControllerManager {
         mediaController?.seekTo(positionMs)
     }
 
-    fun toggleShuffle() {
-        mediaController?.let {
-            val newMode = !it.shuffleModeEnabled
-            it.shuffleModeEnabled = newMode
-            _shuffleModeEnabled.value = newMode
-        }
-    }
-
-    fun toggleRepeat() {
-        mediaController?.let {
-            val nextMode = when (it.repeatMode) {
-                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_OFF
-                else -> Player.REPEAT_MODE_OFF
-            }
-            it.repeatMode = nextMode
-            _repeatMode.value = nextMode
-        }
-    }
 
     fun release() {
         mediaControllerFuture?.let { MediaController.releaseFuture(it) }

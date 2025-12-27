@@ -268,9 +268,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         MusicControllerManager.seekTo(position)
     }
 
-    fun toggleShuffle() = MusicControllerManager.toggleShuffle()
-    fun toggleRepeat() = MusicControllerManager.toggleRepeat()
-
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
