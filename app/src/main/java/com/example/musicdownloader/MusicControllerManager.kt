@@ -36,6 +36,12 @@ object MusicControllerManager {
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+    private val _shuffleModeEnabled = MutableStateFlow(false)
+    val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
+    val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
     fun initialize(context: Context) {
         AppLogger.log("[Controller] initialize called")
         if (mediaController != null) {
@@ -88,6 +94,14 @@ object MusicControllerManager {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 AppLogger.log("[Player] Error: ${error.errorCodeName} - ${error.message}")
                 error.printStackTrace()
+            }
+
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                _shuffleModeEnabled.value = shuffleModeEnabled
+            }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                _repeatMode.value = repeatMode
             }
         })
     }
@@ -177,6 +191,25 @@ object MusicControllerManager {
 
     fun skipToPrevious() {
         mediaController?.seekToPrevious()
+    }
+
+    fun toggleShuffleMode() {
+        mediaController?.let {
+            it.shuffleModeEnabled = !it.shuffleModeEnabled
+        }
+    }
+
+    fun toggleRepeatMode() {
+        mediaController?.let {
+            val currentMode = it.repeatMode
+            val newMode = when (currentMode) {
+                androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                androidx.media3.common.Player.REPEAT_MODE_ONE -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+            }
+            it.repeatMode = newMode
+        }
     }
 
     fun seekTo(positionMs: Long) {
