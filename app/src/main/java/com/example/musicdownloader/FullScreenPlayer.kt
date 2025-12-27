@@ -353,7 +353,8 @@ fun FullScreenPlayer(
             title = songTitle,
             artist = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "",
             thumbnailUrl = artworkUri?.toString() ?: "",
-            filePath = "" // Not needed for adding to playlist logic (only ID matters)
+            filePath = "", // Not needed for adding to playlist logic (only ID matters)
+            duration = ""
         )
 
         AddToPlaylistSheet(

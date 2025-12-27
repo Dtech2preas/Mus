@@ -70,6 +70,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.runtime:runtime-livedata")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
 
     // YoutubeDL-Android
     implementation("io.github.junkfood02.youtubedl-android:library:0.18.1") {

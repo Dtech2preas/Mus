@@ -318,11 +318,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun getSongsForPlaylist(playlistId: Long): kotlinx.coroutines.flow.Flow<List<Song>> {
-        // Corrected DAO call (getSongsForPlaylist takes Int in DAO currently, need to fix that too or cast)
-        // Let's assume DAO uses Int for now based on previous file read, but Repository passed Long.
-        // Wait, Playlist id is Long (auto-generated).
-        // I should fix DAO to use Long.
-        return AppDatabase.getDatabase(getApplication()).playlistDao().getSongsForPlaylist(playlistId.toInt())
+    fun addSongToPlaylist(playlistId: Int, songId: String) {
+        viewModelScope.launch {
+            MusicRepository.addSongToPlaylist(getApplication(), playlistId, songId)
+        }
+    }
+
+    fun getSongsForPlaylist(playlistId: Int): kotlinx.coroutines.flow.Flow<List<Song>> {
+        return AppDatabase.getDatabase(getApplication()).playlistDao().getSongsForPlaylist(playlistId)
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.musicdownloader.MusicViewModel
 
 @Composable
@@ -18,8 +19,13 @@ fun SearchScreen(
     contentPadding: PaddingValues
 ) {
     var query by remember { mutableStateOf("") }
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
+    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
+
+    val downloadedIds = remember(librarySongs) { librarySongs.map { it.id }.toSet() }
 
     Column(
         modifier = Modifier
@@ -70,17 +76,20 @@ fun SearchScreen(
                         title = video.title,
                         artist = video.uploader,
                         thumbnailUrl = video.thumbnailUrl,
-                        isPlaying = false,
-                        isCurrentSong = false,
-                        isLibrary = false, // Critical: Show Download Icon
-                        duration = video.duration,
+                        isLibrary = false,
+                        isDownloaded = downloadedIds.contains(video.id),
+                        downloadProgress = downloadProgress[video.id],
                         onClick = {
-                            Toast.makeText(context, "Downloading ${video.title}... Check Library", Toast.LENGTH_SHORT).show()
-                            viewModel.downloadAndPlay(video)
+                            if (downloadedIds.contains(video.id)) {
+                                viewModel.playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                            } else {
+                                Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
+                                viewModel.downloadAndPlay(video)
+                            }
                         },
-                        onAction = {
-                            Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
-                            viewModel.downloadAndPlay(video)
+                        onDownloadClick = {
+                             Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
+                             viewModel.downloadAndPlay(video)
                         }
                     )
                 }
