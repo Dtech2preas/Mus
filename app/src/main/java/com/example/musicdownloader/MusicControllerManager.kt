@@ -36,6 +36,12 @@ object MusicControllerManager {
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+    private val _shuffleMode = MutableStateFlow(false)
+    val shuffleMode: StateFlow<Boolean> = _shuffleMode.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
+    val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
     fun initialize(context: Context) {
         AppLogger.log("[Controller] initialize called")
         if (mediaController != null) {
@@ -83,6 +89,14 @@ object MusicControllerManager {
             override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
                 _duration.value = player.duration
                 // Position updates are not event-driven in the same way, usually polled
+            }
+
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                _shuffleMode.value = shuffleModeEnabled
+            }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                _repeatMode.value = repeatMode
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -181,6 +195,23 @@ object MusicControllerManager {
 
     fun seekTo(positionMs: Long) {
         mediaController?.seekTo(positionMs)
+    }
+
+    fun toggleShuffle() {
+        mediaController?.let {
+            it.shuffleModeEnabled = !it.shuffleModeEnabled
+        }
+    }
+
+    fun toggleRepeatMode() {
+        mediaController?.let {
+            val nextMode = when (it.repeatMode) {
+                androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+            }
+            it.repeatMode = nextMode
+        }
     }
 
     fun release() {

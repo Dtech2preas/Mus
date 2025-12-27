@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.ui.ElectricPurple
@@ -41,6 +42,8 @@ fun FullScreenPlayer(
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val shuffleMode by viewModel.shuffleMode.collectAsState()
+    val repeatMode by viewModel.repeatMode.collectAsState()
 
     if (currentMediaItem == null) return
 
@@ -165,8 +168,22 @@ fun FullScreenPlayer(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Shuffle
+                    IconButton(onClick = { viewModel.toggleShuffle() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Shuffle",
+                            tint = if (shuffleMode) ElectricPurple else Color.White
+                        )
+                    }
+
                     IconButton(onClick = { /* Previous not implemented */ }, modifier = Modifier.size(48.dp)) {
-                        Text("⏮", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Previous",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
                     }
 
                     // Play/Pause (Bigger & Purple)
@@ -185,7 +202,12 @@ fun FullScreenPlayer(
                             )
                         } else {
                             if (isPlaying) {
-                                Text("⏸", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource(android.R.drawable.ic_media_pause),
+                                    contentDescription = "Pause",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(40.dp)
+                                )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
@@ -198,7 +220,22 @@ fun FullScreenPlayer(
                     }
 
                     IconButton(onClick = { /* Next not implemented */ }, modifier = Modifier.size(48.dp)) {
-                        Text("⏭", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = "Next",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    // Repeat
+                    IconButton(onClick = { viewModel.toggleRepeatMode() }) {
+                         val isRepeatOn = repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF
+                         Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Repeat",
+                            tint = if (isRepeatOn) ElectricPurple else Color.White
+                        )
                     }
                 }
 

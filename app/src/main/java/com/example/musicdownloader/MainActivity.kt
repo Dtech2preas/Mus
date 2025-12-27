@@ -13,6 +13,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -120,7 +121,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                     NavigationBarItem(
                         selected = currentTab == MainTab.Library,
                         onClick = { currentTab = MainTab.Library },
-                        icon = { Icon(Icons.Default.Home, contentDescription = "Library") },
+                        icon = { Icon(Icons.Default.List, contentDescription = "Library") },
                         label = { Text("Library") }
                     )
                     NavigationBarItem(
@@ -163,37 +164,4 @@ fun MainScreen(viewModel: MusicViewModel) {
     if (showLogs) {
         LogConsoleOverlay(onClose = { showLogs = false })
     }
-}
-
-// CookieDialog moved to ui/SettingsScreen.kt or kept here if needed for others.
-@Composable
-fun CookieDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var cookieText by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Set YouTube Cookie") },
-        text = {
-            Column {
-                Text("Paste your cookie string here to bypass 403 errors:")
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = cookieText,
-                    onValueChange = { cookieText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 5
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onSave(cookieText) }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
