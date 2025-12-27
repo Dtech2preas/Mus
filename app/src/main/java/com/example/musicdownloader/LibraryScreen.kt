@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -39,11 +40,84 @@ fun LibraryScreen(
     // View Mode State
     var selectedArtist by remember { mutableStateOf<String?>(null) } // null = All Songs
     var showingArtistsMode by remember { mutableStateOf(false) }
+    var showingPlaylistsMode by remember { mutableStateOf(false) } // Playlist Mode
+    var showingLikedOnly by remember { mutableStateOf(false) } // Liked Filter
+
+    // Dialog States
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistDialog by remember { mutableStateOf<com.example.musicdownloader.data.Song?>(null) }
+
+    // Data from ViewModel
+    val playlists by viewModel.playlists.collectAsState()
+    val likedSongIds by viewModel.likedSongIds.collectAsState()
 
     // Observe active downloads
     val workManager = remember { WorkManager.getInstance(context) }
     val workInfos by workManager.getWorkInfosByTagLiveData("download").observeAsState(emptyList())
     val downloadingInfos = workInfos.filter { it.state == WorkInfo.State.RUNNING }
+
+    // Create Playlist Dialog
+    if (showCreatePlaylistDialog) {
+        var newPlaylistName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylistDialog = false },
+            title = { Text("Create New Playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    label = { Text("Playlist Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPlaylistName.isNotBlank()) {
+                            viewModel.createPlaylist(newPlaylistName)
+                            showCreatePlaylistDialog = false
+                        }
+                    }
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlaylistDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Add To Playlist Dialog
+    if (showAddToPlaylistDialog != null) {
+        val songToAdd = showAddToPlaylistDialog!!
+        AlertDialog(
+            onDismissRequest = { showAddToPlaylistDialog = null },
+            title = { Text("Add to Playlist") },
+            text = {
+                if (playlists.isEmpty()) {
+                    Text("No playlists found. Create one first!")
+                } else {
+                    LazyColumn {
+                        items(playlists) { playlist ->
+                            ListItem(
+                                headlineContent = { Text(playlist.name) },
+                                modifier = Modifier.clickable {
+                                    viewModel.addSongToPlaylist(playlist.id, songToAdd.id)
+                                    showAddToPlaylistDialog = null
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Added to ${playlist.name}")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAddToPlaylistDialog = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -70,10 +144,15 @@ fun LibraryScreen(
         ) {
             // Playlists Chip
             FilterChip(
-                selected = false,
+                selected = showingPlaylistsMode,
                 onClick = {
-                    // Placeholder UI
-                     Toast.makeText(context, "Playlists: Coming Soon", Toast.LENGTH_SHORT).show()
+                    showingPlaylistsMode = !showingPlaylistsMode
+                    // Reset other modes
+                    if (showingPlaylistsMode) {
+                        showingArtistsMode = false
+                        showingLikedOnly = false
+                        selectedArtist = null
+                    }
                 },
                 label = { Text("Playlists") }
             )
@@ -83,17 +162,32 @@ fun LibraryScreen(
                 selected = showingArtistsMode,
                 onClick = {
                     showingArtistsMode = !showingArtistsMode
-                    selectedArtist = null // Reset filter when toggling mode
+                    if (showingArtistsMode) {
+                        showingPlaylistsMode = false
+                        // Keep Liked Filter? Maybe. Let's reset for simplicity.
+                        showingLikedOnly = false
+                        selectedArtist = null
+                    } else {
+                         selectedArtist = null // Reset filter when toggling mode off
+                    }
                 },
                 label = { Text("Artists") }
             )
 
+            // Show Active Filter Chips (Artist or Liked)
             if (selectedArtist != null) {
-                // Clear Filter Chip
                 InputChip(
                     selected = true,
                     onClick = { selectedArtist = null },
-                    label = { Text("Filter: $selectedArtist X") }
+                    label = { Text("Artist: $selectedArtist X") }
+                )
+            }
+            if (showingLikedOnly) {
+                 InputChip(
+                    selected = true,
+                    onClick = { showingLikedOnly = false },
+                    label = { Text("Liked Songs X") },
+                    leadingIcon = { Icon(Icons.Default.Favorite, null, modifier = Modifier.size(16.dp)) }
                 )
             }
         }
@@ -121,7 +215,36 @@ fun LibraryScreen(
         }
 
         // Main Content Switcher
-        if (showingArtistsMode && selectedArtist == null) {
+        if (showingPlaylistsMode) {
+             // SHOW PLAYLISTS
+             Box(modifier = Modifier.weight(1f)) {
+                 if (playlists.isEmpty()) {
+                     Text("No playlists yet.", modifier = Modifier.align(Alignment.Center))
+                 } else {
+                     LazyColumn(contentPadding = contentPadding) {
+                         items(playlists) { playlist ->
+                             ListItem(
+                                 headlineContent = { Text(playlist.name) },
+                                 leadingContent = { Icon(Icons.Default.List, contentDescription = null) },
+                                 modifier = Modifier.clickable {
+                                     // Placeholder: Play playlist or Show songs
+                                     // For now just toast as per requirements we only need to Create and List them
+                                     // But likely we want to view them. For now, basic implementation.
+                                     Toast.makeText(context, "Playing Playlist ${playlist.name}", Toast.LENGTH_SHORT).show()
+                                 }
+                             )
+                         }
+                     }
+                 }
+                 FloatingActionButton(
+                     onClick = { showCreatePlaylistDialog = true },
+                     modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+                 ) {
+                     Icon(Icons.Default.Add, contentDescription = "Create Playlist")
+                 }
+             }
+
+        } else if (showingArtistsMode && selectedArtist == null) {
             // SHOW ARTIST LIST
             val artists = remember(songs) { songs.map { it.artist }.distinct().sorted() }
 
@@ -141,13 +264,14 @@ fun LibraryScreen(
             }
         } else {
             // SHOW SONG LIST (Filtered)
-            val filteredSongs = remember(songs, searchQuery, selectedArtist) {
+            val filteredSongs = remember(songs, searchQuery, selectedArtist, showingLikedOnly, likedSongIds) {
                 songs.filter { song ->
                     val matchesSearch = if (searchQuery.isBlank()) true else
                         (song.title.contains(searchQuery, ignoreCase = true) || song.artist.contains(searchQuery, ignoreCase = true))
                     val matchesArtist = if (selectedArtist == null) true else song.artist == selectedArtist
+                    val matchesLiked = if (showingLikedOnly) likedSongIds.contains(song.id) else true
 
-                    matchesSearch && matchesArtist
+                    matchesSearch && matchesArtist && matchesLiked
                 }
             }
 
@@ -162,14 +286,16 @@ fun LibraryScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     // Static "Liked Songs" item if not filtering and search empty
-                    if (searchQuery.isEmpty() && selectedArtist == null) {
+                    if (searchQuery.isEmpty() && selectedArtist == null && !showingLikedOnly) {
                          item {
                              ListItem(
                                  headlineContent = { Text("Liked Songs") },
                                  leadingContent = {
                                      Icon(Icons.Default.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                  },
-                                 modifier = Modifier.clickable { Toast.makeText(context, "Liked Songs (Coming Soon)", Toast.LENGTH_SHORT).show() }
+                                 modifier = Modifier.clickable {
+                                     showingLikedOnly = true
+                                 }
                              )
                              Divider(color = MaterialTheme.colorScheme.surfaceVariant)
                          }
@@ -191,6 +317,9 @@ fun LibraryScreen(
                             }
                         )
 
+                        // Menu State for "More"
+                        var showMenu by remember { mutableStateOf(false) }
+
                         SwipeToDismissBox(
                             state = dismissState,
                             backgroundContent = {
@@ -208,37 +337,57 @@ fun LibraryScreen(
                             },
                             enableDismissFromEndToStart = false
                         ) {
-                             MusicRowItem(
-                                title = song.title,
-                                artist = song.artist,
-                                thumbnailUrl = song.thumbnailUrl,
-                                isPlaying = isPlaying,
-                                isCurrentSong = currentMediaItem?.mediaId == song.id,
-                                isLibrary = true,
-                                onClick = {
-                                    viewModel.playLocalSong(
-                                        id = song.id,
-                                        title = song.title,
-                                        artist = song.artist,
-                                        thumbnailUrl = song.thumbnailUrl
-                                    )
-                                },
-                                onAction = {
-                                    viewModel.deleteSong(song)
-                                    scope.launch {
-                                        val result = snackbarHostState.showSnackbar(
-                                            message = "Deleted ${song.title}",
-                                            actionLabel = "Undo",
-                                            duration = SnackbarDuration.Short
+                             Box {
+                                 MusicRowItem(
+                                    title = song.title,
+                                    artist = song.artist,
+                                    thumbnailUrl = song.thumbnailUrl,
+                                    isPlaying = isPlaying,
+                                    isCurrentSong = currentMediaItem?.mediaId == song.id,
+                                    isLibrary = true,
+                                    onClick = {
+                                        viewModel.playLocalSong(
+                                            id = song.id,
+                                            title = song.title,
+                                            artist = song.artist,
+                                            thumbnailUrl = song.thumbnailUrl
                                         )
-                                        if (result == SnackbarResult.ActionPerformed) {
-                                            viewModel.restoreSong(song)
-                                        } else if (result == SnackbarResult.Dismissed) {
-                                            viewModel.finalizeDelete(song)
+                                    },
+                                    onAction = { showMenu = true } // Open Menu instead of deleting immediately
+                                )
+
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Add to Playlist") },
+                                        onClick = {
+                                            showMenu = false
+                                            showAddToPlaylistDialog = song
                                         }
-                                    }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        onClick = {
+                                            showMenu = false
+                                            viewModel.deleteSong(song)
+                                            scope.launch {
+                                                val result = snackbarHostState.showSnackbar(
+                                                    message = "Deleted ${song.title}",
+                                                    actionLabel = "Undo",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                                if (result == SnackbarResult.ActionPerformed) {
+                                                    viewModel.restoreSong(song)
+                                                } else if (result == SnackbarResult.Dismissed) {
+                                                    viewModel.finalizeDelete(song)
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
-                            )
+                             }
                         }
                     }
                 }

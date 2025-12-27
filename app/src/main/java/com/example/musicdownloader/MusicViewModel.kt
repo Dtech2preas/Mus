@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.example.musicdownloader.data.AppDatabase
 import com.example.musicdownloader.data.PlayHistory
+import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -64,6 +65,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // History Flow
     val playHistory: StateFlow<List<PlayHistory>> = MusicRepository.getRecentHistory(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Favorites Flow
+    val likedSongIds: StateFlow<List<String>> = MusicRepository.getLikedSongIds(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Playlists Flow
+    val playlists: StateFlow<List<Playlist>> = MusicRepository.getPlaylists(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -285,5 +294,30 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun removeGenre(genre: String) {
         UserPreferences.removeGenre(getApplication(), genre)
         loadGenreFeeds()
+    }
+
+    // --- Favorites Logic ---
+    fun toggleLike(songId: String) {
+        val isLiked = likedSongIds.value.contains(songId)
+        viewModelScope.launch {
+            MusicRepository.setLikeStatus(getApplication(), songId, !isLiked)
+        }
+    }
+
+    // --- Playlist Logic ---
+    fun createPlaylist(name: String) {
+        viewModelScope.launch {
+            MusicRepository.createPlaylist(getApplication(), name)
+        }
+    }
+
+    fun addSongToPlaylist(playlistId: Int, songId: String) {
+        viewModelScope.launch {
+            MusicRepository.addSongToPlaylist(getApplication(), playlistId, songId)
+        }
+    }
+
+    fun getSongsForPlaylist(playlistId: Int): kotlinx.coroutines.flow.Flow<List<Song>> {
+        return AppDatabase.getDatabase(getApplication()).playlistDao().getSongsForPlaylist(playlistId)
     }
 }

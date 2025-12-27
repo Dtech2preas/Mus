@@ -48,6 +48,9 @@ fun FullScreenPlayer(
     val uiState by viewModel.uiState.collectAsState()
     val shuffleModeEnabled by viewModel.shuffleModeEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
+    val likedSongs by viewModel.likedSongIds.collectAsState()
+    val currentSongId = currentMediaItem?.mediaId
+    val isLiked = currentSongId != null && likedSongs.contains(currentSongId)
 
     if (currentMediaItem == null) return
 
@@ -156,11 +159,13 @@ fun FullScreenPlayer(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    IconButton(onClick = { /* Like Logic */ }) {
+                    IconButton(onClick = {
+                        currentSongId?.let { viewModel.toggleLike(it) }
+                    }) {
                          Icon(
                              imageVector = Icons.Default.ThumbUp,
                              contentDescription = "Like",
-                             tint = Color.White,
+                             tint = if (isLiked) ElectricPurple else Color.White,
                              modifier = Modifier.size(32.dp)
                          )
                     }
