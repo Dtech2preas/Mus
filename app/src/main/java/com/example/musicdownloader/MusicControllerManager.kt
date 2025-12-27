@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
@@ -36,6 +37,11 @@ object MusicControllerManager {
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+    // Shuffle & Repeat State
+    private val _shuffleModeEnabled = MutableStateFlow(false)
+    val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     private val _shuffleModeEnabled = MutableStateFlow(false)
     val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
 
@@ -88,7 +94,9 @@ object MusicControllerManager {
 
             override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
                 _duration.value = player.duration
-                // Position updates are not event-driven in the same way, usually polled
+                // Update shuffle/repeat states
+                _shuffleModeEnabled.value = player.shuffleModeEnabled
+                _repeatMode.value = player.repeatMode
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -214,6 +222,27 @@ object MusicControllerManager {
 
     fun seekTo(positionMs: Long) {
         mediaController?.seekTo(positionMs)
+    }
+
+    fun toggleShuffle() {
+        mediaController?.let {
+            val newMode = !it.shuffleModeEnabled
+            it.shuffleModeEnabled = newMode
+            _shuffleModeEnabled.value = newMode
+        }
+    }
+
+    fun toggleRepeat() {
+        mediaController?.let {
+            val nextMode = when (it.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_OFF
+                else -> Player.REPEAT_MODE_OFF
+            }
+            it.repeatMode = nextMode
+            _repeatMode.value = nextMode
+        }
     }
 
     fun release() {

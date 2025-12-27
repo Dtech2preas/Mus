@@ -12,6 +12,11 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.*
@@ -26,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.ui.ElectricPurple
@@ -52,8 +58,23 @@ fun FullScreenPlayer(
     Scaffold(
         containerColor = DeepBlue,
         topBar = {
-            TopAppBar(
-                title = { },
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "PLAYING FROM LIBRARY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.7f),
+                            letterSpacing = androidx.compose.ui.unit.sp(2)
+                        )
+                        Text(
+                            "Liked Songs", // Placeholder or Dynamic Playlist Name
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onCollapse) {
                         Icon(
@@ -63,7 +84,16 @@ fun FullScreenPlayer(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                actions = {
+                     IconButton(onClick = { /* Menu */ }) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(android.R.drawable.ic_menu_more),
+                            contentDescription = "Menu",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
         }
     ) { paddingValues ->
@@ -103,42 +133,44 @@ fun FullScreenPlayer(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-
-                    // Simulated Blur / Overlay
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                                    startY = 0.0f,
-                                    endY = Float.POSITIVE_INFINITY
-                                )
-                            )
-                    )
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Title & Artist
-                Text(
-                    text = currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown Title",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown Artist",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.LightGray,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // Title & Artist Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown Title",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown Artist",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.LightGray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(onClick = { /* Like Logic */ }) {
+                         Icon(
+                             imageVector = androidx.compose.material.icons.Icons.Default.FavoriteBorder, // Or Filled if liked
+                             contentDescription = "Like",
+                             tint = Color.White,
+                             modifier = Modifier.size(32.dp)
+                         )
+                    }
+                }
 
-                Spacer(modifier = Modifier.weight(0.1f))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // Seek Bar
                 Slider(
@@ -162,17 +194,27 @@ fun FullScreenPlayer(
                     Text(formatTime(duration), color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Controls
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Shuffle
                     IconButton(onClick = { viewModel.toggleShuffle() }) {
                         Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (shuffleModeEnabled) ElectricPurple else Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    // Prev
+                    IconButton(onClick = { MusicControllerManager.skipToPrevious() }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Shuffle",
                             tint = if (shuffleModeEnabled) ElectricPurple else Color.Gray,
@@ -190,28 +232,28 @@ fun FullScreenPlayer(
                         )
                     }
 
-                    // Play/Pause (Bigger & Purple)
+                    // Play/Pause (Big White Circle)
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(ElectricPurple)
+                            .background(Color.White)
                             .clickable { viewModel.togglePlayPause() }
                     ) {
                         if (uiState.isLoadingPlayer) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(36.dp),
-                                color = Color.White
+                                color = DeepBlue
                             )
                         } else {
                             if (isPlaying) {
-                                Text("⏸", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+                                Text("⏸", style = MaterialTheme.typography.headlineLarge, color = DeepBlue, fontWeight = FontWeight.Bold)
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
                                     contentDescription = "Play",
-                                    tint = Color.White,
+                                    tint = DeepBlue,
                                     modifier = Modifier.size(40.dp)
                                 )
                             }
@@ -219,6 +261,20 @@ fun FullScreenPlayer(
                     }
 
                     // Next
+                    IconButton(onClick = { MusicControllerManager.skipToNext() }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(36.dp))
+                    }
+
+                    // Repeat
+                    IconButton(onClick = { viewModel.toggleRepeat() }) {
+                        val icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat
+                        val tint = if (repeatMode != Player.REPEAT_MODE_OFF) ElectricPurple else Color.White
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = "Repeat",
+                            tint = tint,
+                            modifier = Modifier.size(28.dp)
+                        )
                     IconButton(onClick = { viewModel.skipToNext() }, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Default.ArrowForward,
@@ -244,11 +300,12 @@ fun FullScreenPlayer(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
+                // Cyberpunk Visualizer (Footer)
                 CyberpunkVisualizer(isPlaying = isPlaying)
 
-                Spacer(modifier = Modifier.weight(0.2f))
+                Spacer(modifier = Modifier.weight(0.1f))
             }
         }
     }
@@ -259,11 +316,11 @@ fun CyberpunkVisualizer(isPlaying: Boolean, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(40.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+            .height(32.dp), // Slightly shorter for footer look
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom
     ) {
-        repeat(16) {
+        repeat(24) { // More bars
             VisualizerBar(isPlaying = isPlaying)
         }
     }
@@ -276,8 +333,8 @@ fun VisualizerBar(isPlaying: Boolean) {
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
             while (isActive) {
-                targetHeight = Random.nextFloat().coerceIn(0.15f, 1f)
-                delay(100 + Random.nextLong(0, 150))
+                targetHeight = Random.nextFloat().coerceIn(0.1f, 1f)
+                delay(80 + Random.nextLong(0, 100))
             }
         } else {
             targetHeight = 0.1f
@@ -290,10 +347,10 @@ fun VisualizerBar(isPlaying: Boolean) {
 
     Box(
         modifier = Modifier
-            .width(6.dp)
+            .width(4.dp) // Thinner bars
             .fillMaxHeight(animatedHeight)
-            .clip(RoundedCornerShape(4.dp))
-            .background(color)
+            .clip(RoundedCornerShape(2.dp))
+            .background(color.copy(alpha = 0.8f))
     )
 }
 

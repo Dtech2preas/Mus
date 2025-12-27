@@ -7,12 +7,19 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.musicdownloader.data.AppDatabase
+import com.example.musicdownloader.data.PlayHistory
 import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.workers.MusicDownloadWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+
+data class GenreFeed(val genreName: String, val songs: List<VideoItem>)
 
 object MusicRepository {
 
@@ -49,15 +56,19 @@ object MusicRepository {
         }
     }
 
+    suspend fun fetchGenreFeeds(context: Context, genres: Set<String>): List<GenreFeed> = coroutineScope {
+        // Fetch feeds in parallel
+        genres.map { genre ->
+            async {
+                val results = searchVideos(context, genre).getOrDefault(emptyList())
+                // Limit to 10 items for the feed
+                GenreFeed(genre, results.take(10))
+            }
+        }.awaitAll()
+    }
+
     /**
      * Enqueues a download request to WorkManager.
-     * Returns true if queued, or if file exists, returns existing file wrapped in success result logic (handled by UI).
-     *
-     * Note: WorkManager is asynchronous. This function initiates the download.
-     * For "play immediately", we might need to observe the database or wait for work info.
-     * But for now, let's keep the signature similar or adjust for the new flow.
-     *
-     * Actually, if we use WorkManager, we can't return a File immediately unless it's already there.
      */
     suspend fun downloadSong(context: Context, video: VideoItem): Result<String> {
         val outputDir = File(context.filesDir, "music_downloads")
@@ -142,5 +153,30 @@ object MusicRepository {
                 database.songDao().insert(song)
             }
         }
+    }
+
+    // History Methods
+    fun getRecentHistory(context: Context): Flow<List<PlayHistory>> {
+        return AppDatabase.getDatabase(context).playHistoryDao().getRecentHistory(6)
+    }
+
+    suspend fun addToHistory(context: Context, video: VideoItem) {
+        val history = PlayHistory(
+            songId = video.id,
+            title = video.title,
+            artist = video.uploader,
+            thumbnailUrl = video.thumbnailUrl
+        )
+        AppDatabase.getDatabase(context).playHistoryDao().insert(history)
+    }
+
+    suspend fun addToHistory(context: Context, song: Song) {
+        val history = PlayHistory(
+            songId = song.id,
+            title = song.title,
+            artist = song.artist,
+            thumbnailUrl = song.thumbnailUrl
+        )
+        AppDatabase.getDatabase(context).playHistoryDao().insert(history)
     }
 }

@@ -15,12 +15,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.example.musicdownloader.ui.GenreSelectionScreen
+import com.example.musicdownloader.ui.HomeScreen
 import com.example.musicdownloader.ui.MusicAppTheme
 import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
@@ -35,7 +38,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MusicAppTheme {
                 RequestNotificationPermission()
-                MainScreen(viewModel)
+                AppNavigation(viewModel)
             }
         }
     }
@@ -64,13 +67,32 @@ fun RequestNotificationPermission() {
 }
 
 enum class MainTab {
-    Search, Library, Settings
+    Home, Search, Library, Settings
+}
+
+@Composable
+fun AppNavigation(viewModel: MusicViewModel) {
+    val context = LocalContext.current
+    var isFirstRun by remember { mutableStateOf(UserPreferences.isFirstRun(context)) }
+
+    if (isFirstRun) {
+        GenreSelectionScreen(
+            onDone = { genres ->
+                UserPreferences.saveGenres(context, genres)
+                UserPreferences.setFirstRunCompleted(context)
+                isFirstRun = false
+                viewModel.loadGenreFeeds()
+            }
+        )
+    } else {
+        MainScreen(viewModel)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MusicViewModel) {
-    var currentTab by remember { mutableStateOf(MainTab.Search) }
+    var currentTab by remember { mutableStateOf(MainTab.Home) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
@@ -112,6 +134,12 @@ fun MainScreen(viewModel: MusicViewModel) {
 
                 NavigationBar {
                     NavigationBarItem(
+                        selected = currentTab == MainTab.Home,
+                        onClick = { currentTab = MainTab.Home },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                        label = { Text("Home") }
+                    )
+                    NavigationBarItem(
                         selected = currentTab == MainTab.Search,
                         onClick = { currentTab = MainTab.Search },
                         icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
@@ -120,7 +148,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                     NavigationBarItem(
                         selected = currentTab == MainTab.Library,
                         onClick = { currentTab = MainTab.Library },
-                        icon = { Icon(Icons.Default.Home, contentDescription = "Library") },
+                        icon = { Icon(Icons.Default.LibraryMusic, contentDescription = "Library") },
                         label = { Text("Library") }
                     )
                     NavigationBarItem(
@@ -136,6 +164,14 @@ fun MainScreen(viewModel: MusicViewModel) {
         // Content Area
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentTab) {
+                MainTab.Home -> HomeScreen(
+                    viewModel = viewModel,
+                    onNavigateToSearch = { query ->
+                        currentTab = MainTab.Search
+                        viewModel.search(query)
+                    },
+                    contentPadding = paddingValues
+                )
                 MainTab.Search -> SearchScreen(viewModel = viewModel, contentPadding = paddingValues)
                 MainTab.Library -> LibraryScreen(
                     viewModel = viewModel,
@@ -163,37 +199,4 @@ fun MainScreen(viewModel: MusicViewModel) {
     if (showLogs) {
         LogConsoleOverlay(onClose = { showLogs = false })
     }
-}
-
-// CookieDialog moved to ui/SettingsScreen.kt or kept here if needed for others.
-@Composable
-fun CookieDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var cookieText by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Set YouTube Cookie") },
-        text = {
-            Column {
-                Text("Paste your cookie string here to bypass 403 errors:")
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = cookieText,
-                    onValueChange = { cookieText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 5
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onSave(cookieText) }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }

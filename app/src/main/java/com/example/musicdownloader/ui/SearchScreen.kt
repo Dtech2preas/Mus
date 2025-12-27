@@ -72,9 +72,14 @@ fun SearchScreen(
                         thumbnailUrl = video.thumbnailUrl,
                         isPlaying = false,
                         isCurrentSong = false,
+                        isLibrary = false, // Critical: Show Download Icon
                         duration = video.duration,
                         onClick = {
                             Toast.makeText(context, "Downloading ${video.title}... Check Library", Toast.LENGTH_SHORT).show()
+                            viewModel.downloadAndPlay(video)
+                        },
+                        onAction = {
+                            Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
                             viewModel.downloadAndPlay(video)
                         }
                     )

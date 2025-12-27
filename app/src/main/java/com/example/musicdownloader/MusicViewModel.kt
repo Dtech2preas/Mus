@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.example.musicdownloader.data.AppDatabase
+import com.example.musicdownloader.data.PlayHistory
 import com.example.musicdownloader.data.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -31,7 +31,8 @@ data class MusicUiState(
     val isLoading: Boolean = false,
     val isLoadingPlayer: Boolean = false,
     val errorMessage: String? = null,
-    val downloadMessage: String? = null
+    val downloadMessage: String? = null,
+    val genreFeeds: List<GenreFeed> = emptyList()
 )
 
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
@@ -61,6 +62,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // History Flow
+    val playHistory: StateFlow<List<PlayHistory>> = MusicRepository.getRecentHistory(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
         // Initialize the controller connection
         MusicControllerManager.initialize(application)
@@ -70,14 +75,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             MusicRepository.syncFilesWithDatabase(application)
         }
 
+        // Load Genre Feeds
+        loadGenreFeeds()
+
         // Polling loop for position updates
         viewModelScope.launch {
-            while (isActive) {
+            while (true) { // Use true with delay
                 if (isPlaying.value) {
                     MusicControllerManager.updatePosition()
                 }
                 delay(1000)
             }
+        }
+    }
+
+    fun loadGenreFeeds() {
+        val genres = UserPreferences.getGenres(getApplication())
+        if (genres.isEmpty()) return
+
+        viewModelScope.launch {
+            // We can show loading if we want, but let's just update quietly
+            val feeds = MusicRepository.fetchGenreFeeds(getApplication(), genres)
+            _uiState.value = _uiState.value.copy(genreFeeds = feeds)
         }
     }
 
@@ -105,12 +124,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun downloadAndPlay(video: VideoItem) {
         AppLogger.log("[ViewModel] downloadAndPlay called for ${video.id}")
 
+        // Track history immediately
+        viewModelScope.launch {
+            MusicRepository.addToHistory(getApplication(), video)
+        }
+
         _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
 
         viewModelScope.launch {
              // Enqueue download via WorkManager
-             // Note: This just starts the download.
-             // Ideally we would play immediately if possible, but now we are async.
              val result = MusicRepository.downloadSong(getApplication(), video)
 
              result.onSuccess { msg ->
@@ -120,13 +142,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                  if (msg == "File already exists") {
                     playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)
                  }
-                 // If queued, user will see it in Library when done.
-                 // We could listen to WorkManager to auto-play, but simple is better for now.
              }
         }
     }
 
     fun playLocalSong(id: String, title: String, artist: String, thumbnailUrl: String) {
+        // Track history
+        viewModelScope.launch {
+            MusicRepository.addToHistory(getApplication(),
+                VideoItem(id, title, "", artist, thumbnailUrl, "")
+            )
+        }
+
         // Use the Library Playlist feature instead of single track
         val allSongs = librarySongs.value
         val index = allSongs.indexOfFirst { it.id == id }
@@ -157,6 +184,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
              MusicControllerManager.playMedia(mediaItem)
         }
     }
+
+    // Specifically play a song from a Genre Feed (which is online, not downloaded yet)
+    // Actually, "downloadAndPlay" covers this.
+    // But if we want to stream without downloading?
+    // The requirement says "A Spotify-Style Streaming Experience" but previously "Playback workflow is Download-to-Play".
+    // I will stick to "downloadAndPlay" behavior for everything to match existing architecture.
+    // But I will rename the exposed method or just use downloadAndPlay.
 
     fun setSortOption(option: SortOption) {
         _sortOption.value = option
@@ -234,11 +268,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         MusicControllerManager.seekTo(position)
     }
 
+    fun toggleShuffle() = MusicControllerManager.toggleShuffle()
+    fun toggleRepeat() = MusicControllerManager.toggleRepeat()
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
     fun clearDownloadMessage() {
         _uiState.value = _uiState.value.copy(downloadMessage = null)
+    }
+
+    // Genre Management
+    fun addGenre(genre: String) {
+        UserPreferences.addGenre(getApplication(), genre)
+        loadGenreFeeds()
+    }
+
+    fun removeGenre(genre: String) {
+        UserPreferences.removeGenre(getApplication(), genre)
+        loadGenreFeeds()
     }
 }
