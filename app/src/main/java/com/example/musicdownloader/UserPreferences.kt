@@ -8,6 +8,7 @@ object UserPreferences {
     private const val PREF_NAME = "user_prefs"
     private const val KEY_IS_FIRST_RUN = "is_first_run"
     private const val KEY_GENRES = "saved_genres"
+    private const val KEY_LAST_REFRESHED = "last_genre_refreshed"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -43,5 +44,15 @@ object UserPreferences {
         val current = getGenres(context).toMutableSet()
         current.remove(genre)
         saveGenres(context, current)
+    }
+
+    fun getLastGenreRefreshTime(context: Context): Long {
+        return getPrefs(context).getLong(KEY_LAST_REFRESHED, 0L)
+    }
+
+    fun setLastGenreRefreshTime(context: Context, timestamp: Long) {
+        getPrefs(context).edit {
+            putLong(KEY_LAST_REFRESHED, timestamp)
+        }
     }
 }

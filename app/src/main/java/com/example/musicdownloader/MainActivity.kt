@@ -22,11 +22,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.ui.GenreSelectionScreen
 import com.example.musicdownloader.ui.HomeScreen
+import com.example.musicdownloader.ui.LibraryScreen
+import com.example.musicdownloader.ui.LikedSongsScreen
 import com.example.musicdownloader.ui.MusicAppTheme
+import com.example.musicdownloader.ui.PlaylistDetailScreen
+import com.example.musicdownloader.ui.PlaylistScreen
 import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
+import com.example.musicdownloader.ui.DeepBlue
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -70,6 +76,14 @@ enum class MainTab {
     Home, Search, Library, Settings
 }
 
+// Sub-navigation for Library
+sealed class LibraryRoute {
+    object Main : LibraryRoute()
+    object Playlists : LibraryRoute()
+    object LikedSongs : LibraryRoute()
+    data class PlaylistDetail(val id: Long, val name: String) : LibraryRoute()
+}
+
 @Composable
 fun AppNavigation(viewModel: MusicViewModel) {
     val context = LocalContext.current
@@ -98,10 +112,15 @@ fun MainScreen(viewModel: MusicViewModel) {
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // Bottom Sheet Player State
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // Library Navigation State
+    var libraryRoute by remember { mutableStateOf<LibraryRoute>(LibraryRoute.Main) }
 
     // Error/Message Toasts
     LaunchedEffect(uiState.errorMessage) {
@@ -132,7 +151,9 @@ fun MainScreen(viewModel: MusicViewModel) {
                     )
                 }
 
-                NavigationBar {
+                NavigationBar(
+                    containerColor = DeepBlue // Match theme
+                ) {
                     NavigationBarItem(
                         selected = currentTab == MainTab.Home,
                         onClick = { currentTab = MainTab.Home },
@@ -147,7 +168,14 @@ fun MainScreen(viewModel: MusicViewModel) {
                     )
                     NavigationBarItem(
                         selected = currentTab == MainTab.Library,
-                        onClick = { currentTab = MainTab.Library },
+                        onClick = {
+                            if (currentTab == MainTab.Library) {
+                                // Reset library stack if tapped again
+                                libraryRoute = LibraryRoute.Main
+                            } else {
+                                currentTab = MainTab.Library
+                            }
+                        },
                         icon = { Icon(Icons.Default.List, contentDescription = "Library") },
                         label = { Text("Library") }
                     )
@@ -162,23 +190,48 @@ fun MainScreen(viewModel: MusicViewModel) {
         }
     ) { paddingValues ->
         // Content Area
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+        ) {
             when (currentTab) {
                 MainTab.Home -> HomeScreen(
                     viewModel = viewModel,
-                    onNavigateToSearch = { query ->
-                        currentTab = MainTab.Search
-                        viewModel.search(query)
-                    },
-                    contentPadding = paddingValues
+                    onSongClick = { id ->
+                         // Handled in HomeScreen now via playLocalSong/downloadAndPlay
+                         // But if we need global click handling:
+                    }
                 )
-                MainTab.Search -> SearchScreen(viewModel = viewModel, contentPadding = paddingValues)
-                MainTab.Library -> LibraryScreen(
-                    viewModel = viewModel,
-                    contentPadding = paddingValues,
-                    snackbarHostState = snackbarHostState
-                )
-                MainTab.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = paddingValues)
+                MainTab.Search -> SearchScreen(viewModel = viewModel) // Padding handled inside or passed? SearchScreen needs update if not.
+                MainTab.Library -> {
+                    // Nested Library Navigation
+                    when (val route = libraryRoute) {
+                        LibraryRoute.Main -> LibraryScreen(
+                            viewModel = viewModel,
+                            snackbarHostState = snackbarHostState,
+                            onNavigateToPlaylists = { libraryRoute = LibraryRoute.Playlists },
+                            onNavigateToLiked = { libraryRoute = LibraryRoute.LikedSongs }
+                        )
+                        LibraryRoute.Playlists -> PlaylistScreen(
+                            viewModel = viewModel,
+                            onBack = { libraryRoute = LibraryRoute.Main },
+                            onPlaylistClick = { playlist -> libraryRoute = LibraryRoute.PlaylistDetail(playlist.id, playlist.name) }
+                        )
+                        LibraryRoute.LikedSongs -> LikedSongsScreen(
+                            viewModel = viewModel,
+                            onBack = { libraryRoute = LibraryRoute.Main },
+                            onSongClick = { id -> viewModel.playLocalSong(id, "Unknown", "Unknown", "") } // Re-fetch info or just play
+                        )
+                        is LibraryRoute.PlaylistDetail -> PlaylistDetailScreen(
+                            viewModel = viewModel,
+                            playlistId = route.id,
+                            playlistName = route.name,
+                            onBack = { libraryRoute = LibraryRoute.Playlists },
+                            onSongClick = { id -> viewModel.playLocalSong(id, "Unknown", "Unknown", "") }
+                        )
+                    }
+                }
+                MainTab.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = PaddingValues(0.dp))
             }
         }
     }
@@ -187,7 +240,9 @@ fun MainScreen(viewModel: MusicViewModel) {
     if (isPlayerExpanded) {
         ModalBottomSheet(
             onDismissRequest = { isPlayerExpanded = false },
-            sheetState = sheetState
+            sheetState = sheetState,
+            containerColor = androidx.compose.ui.graphics.Color.Transparent, // Let Player handle bg
+            dragHandle = null // Custom handle or none
         ) {
             FullScreenPlayer(
                 viewModel = viewModel,

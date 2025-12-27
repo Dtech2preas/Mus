@@ -30,6 +30,9 @@ object MusicRepository {
     // Simple In-Memory Cache
     private val searchCache = ConcurrentHashMap<String, List<VideoItem>>()
 
+    // Cache duration constant
+    private const val CACHE_DURATION_MS = 24 * 60 * 60 * 1000L // 24 hours
+
     suspend fun searchVideos(context: Context, query: String): Result<List<VideoItem>> {
         // 1. Check Cache
         searchCache[query]?.let {
@@ -61,6 +64,16 @@ object MusicRepository {
     }
 
     suspend fun fetchGenreFeeds(context: Context, genres: Set<String>): List<GenreFeed> = coroutineScope {
+        val lastRefreshed = UserPreferences.getLastGenreRefreshTime(context)
+        val currentTime = System.currentTimeMillis()
+        val shouldRefresh = (currentTime - lastRefreshed) > CACHE_DURATION_MS
+
+        if (shouldRefresh) {
+            // Clear memory cache if we are due for a refresh
+            searchCache.clear()
+            UserPreferences.setLastGenreRefreshTime(context, currentTime)
+        }
+
         // Fetch feeds in parallel
         genres.map { genre ->
             async {
@@ -208,14 +221,14 @@ object MusicRepository {
 
     // Playlist Methods
     suspend fun createPlaylist(context: Context, name: String) {
-        AppDatabase.getDatabase(context).playlistDao().createPlaylist(Playlist(name = name))
+        AppDatabase.getDatabase(context).playlistDao().insertPlaylist(Playlist(name = name))
     }
 
     fun getPlaylists(context: Context): Flow<List<Playlist>> {
         return AppDatabase.getDatabase(context).playlistDao().getAllPlaylists()
     }
 
-    suspend fun addSongToPlaylist(context: Context, playlistId: Int, songId: String) {
+    suspend fun addSongToPlaylist(context: Context, playlistId: Long, songId: String) {
         AppDatabase.getDatabase(context).playlistDao().addSongToPlaylist(PlaylistEntry(playlistId, songId))
     }
 }

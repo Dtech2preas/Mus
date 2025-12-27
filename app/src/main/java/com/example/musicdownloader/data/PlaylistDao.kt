@@ -9,10 +9,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PlaylistDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun createPlaylist(playlist: Playlist): Long
+    suspend fun insertPlaylist(playlist: Playlist): Long
 
     @Query("SELECT * FROM playlists")
     fun getAllPlaylists(): Flow<List<Playlist>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPlaylistEntry(entry: PlaylistEntry)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addSongToPlaylist(entry: PlaylistEntry)
