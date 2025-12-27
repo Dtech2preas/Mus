@@ -1,4 +1,4 @@
-package com.example.musicdownloader
+package com.example.musicdownloader.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -10,8 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,10 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.data.Song
-import com.example.musicdownloader.ui.MusicRowItem
-import com.example.musicdownloader.ui.AddToPlaylistSheet
-import com.example.musicdownloader.ui.ElectricPurple
 import com.example.musicdownloader.utils.HapticUtils
 import kotlinx.coroutines.launch
 
