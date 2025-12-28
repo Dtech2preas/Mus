@@ -193,7 +193,17 @@ object MusicControllerManager {
                 .build()
 
             // Await the result
-            val result = mediaController!!.addMediaItem(mediaItem).await()
+            val future = mediaController!!.addMediaItem(mediaItem)
+            val result = suspendCancellableCoroutine { cont ->
+                future.addListener({
+                    try {
+                        cont.resume(future.get())
+                    } catch (e: Exception) {
+                        cont.resumeWithException(e)
+                    }
+                }, MoreExecutors.directExecutor())
+            }
+
             if (result.resultCode != SessionResult.RESULT_SUCCESS) {
                 throw RuntimeException("Failed to add media item. Result Code: ${result.resultCode}")
             }
@@ -259,15 +269,4 @@ object MusicControllerManager {
         }
     }
 
-    private suspend fun <T> ListenableFuture<T>.await(): T {
-        return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
-            addListener({
-                try {
-                    cont.resume(get())
-                } catch (e: Exception) {
-                    cont.resumeWithException(e)
-                }
-            }, MoreExecutors.directExecutor())
-        }
-    }
 }
