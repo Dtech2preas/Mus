@@ -125,6 +125,7 @@ fun MainScreen(viewModel: MusicViewModel) {
 
     // --- Ad System Integration ---
     var showAdDialog by remember { mutableStateOf(false) }
+    var adDialogMessage by remember { mutableStateOf("Please watch a short ad to keep this app free.") }
 
     LaunchedEffect(Unit) {
         // Check Trigger on App Start
@@ -132,7 +133,31 @@ fun MainScreen(viewModel: MusicViewModel) {
 
         // Observe Ad Dialog Requests
         AdManager.showAdDialogEvent.collect {
+            adDialogMessage = "Please watch a short ad to keep this app free."
             showAdDialog = true
+        }
+    }
+
+    // Lifecycle Observer for Ad Timer Logic
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (AdManager.lastAdClickTime > 0) {
+                    val diff = System.currentTimeMillis() - AdManager.lastAdClickTime
+                    if (diff < 7000) {
+                        // User returned too quickly (< 7 seconds)
+                        adDialogMessage = "Please view the ad for at least 7 seconds before closing."
+                        showAdDialog = true
+                    }
+                    // Reset timer so next click is fresh
+                    AdManager.lastAdClickTime = 0
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -140,7 +165,7 @@ fun MainScreen(viewModel: MusicViewModel) {
         AlertDialog(
             onDismissRequest = { showAdDialog = false },
             title = { Text("Support D-TECH") },
-            text = { Text("Please watch a short ad to keep this app free.") },
+            text = { Text(adDialogMessage) },
             confirmButton = {
                 Button(
                     onClick = {

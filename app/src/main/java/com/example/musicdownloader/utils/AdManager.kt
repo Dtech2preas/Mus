@@ -23,15 +23,24 @@ object AdManager {
     private val _showAdDialogEvent = Channel<Unit>(Channel.CONFLATED)
     val showAdDialogEvent = _showAdDialogEvent.receiveAsFlow()
 
+    // Track when the ad was clicked to enforce viewing duration
+    var lastAdClickTime: Long = 0L
+
     fun showRandomAd(context: Context) {
         try {
             val url = adLinks.random()
             val customTabsIntent = CustomTabsIntent.Builder().build()
+
+            // Record timestamp before launch
+            lastAdClickTime = System.currentTimeMillis()
+
             customTabsIntent.launchUrl(context, Uri.parse(url))
             UserPreferences.setAdShownToday(context)
-            AppLogger.log("[AdManager] Showing Ad: $url")
+            AppLogger.log("[AdManager] Showing Ad: $url at $lastAdClickTime")
         } catch (e: Exception) {
             AppLogger.log("[AdManager] Failed to show ad: ${e.message}")
+            // Reset if failed
+            lastAdClickTime = 0L
         }
     }
 

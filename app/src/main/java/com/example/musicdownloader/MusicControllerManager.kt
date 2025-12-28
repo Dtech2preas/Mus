@@ -9,6 +9,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.example.musicdownloader.data.Song
 import com.google.common.util.concurrent.ListenableFuture
@@ -16,7 +17,10 @@ import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 // Singleton to manage MediaController
 object MusicControllerManager {
@@ -160,23 +164,44 @@ object MusicControllerManager {
         }
     }
 
-    fun addToQueue(song: Song) {
+    suspend fun addToQueue(song: Song) {
         AppLogger.log("[Controller] addToQueue: ${song.title}")
-        if (mediaController == null) return
 
-        val metadata = MediaMetadata.Builder()
-            .setTitle(song.title)
-            .setArtist(song.artist)
-            .setArtworkUri(Uri.parse(song.thumbnailUrl))
-            .build()
+        if (mediaController == null) {
+            AppLogger.log("[Controller] MediaController is null, cannot add to queue")
+            throw IllegalStateException("Player not initialized")
+        }
 
-        val mediaItem = MediaItem.Builder()
-            .setUri(Uri.fromFile(File(song.filePath)))
-            .setMediaId(song.id)
-            .setMediaMetadata(metadata)
-            .build()
+        // Validate File
+        val file = File(song.filePath)
+        if (!file.exists()) {
+            AppLogger.log("[Controller] File does not exist: ${song.filePath}")
+            throw java.io.FileNotFoundException("File not found: ${song.filePath}")
+        }
 
-        mediaController?.addMediaItem(mediaItem)
+        try {
+            val metadata = MediaMetadata.Builder()
+                .setTitle(song.title)
+                .setArtist(song.artist)
+                .setArtworkUri(Uri.parse(song.thumbnailUrl))
+                .build()
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(Uri.fromFile(file))
+                .setMediaId(song.id)
+                .setMediaMetadata(metadata)
+                .build()
+
+            // Await the result
+            val result = mediaController!!.addMediaItem(mediaItem).await()
+            if (result.resultCode != SessionResult.RESULT_SUCCESS) {
+                throw RuntimeException("Failed to add media item. Result Code: ${result.resultCode}")
+            }
+            AppLogger.log("[Controller] Successfully added to queue")
+        } catch (e: Exception) {
+            AppLogger.log("[Controller] Exception adding to queue: ${e.message}")
+            throw e
+        }
     }
 
     fun play() {
@@ -231,6 +256,18 @@ object MusicControllerManager {
         mediaController?.let {
             _currentPosition.value = it.currentPosition
             _duration.value = it.duration.coerceAtLeast(0L)
+        }
+    }
+
+    private suspend fun <T> ListenableFuture<T>.await(): T {
+        return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            addListener({
+                try {
+                    cont.resume(get())
+                } catch (e: Exception) {
+                    cont.resumeWithException(e)
+                }
+            }, MoreExecutors.directExecutor())
         }
     }
 }
