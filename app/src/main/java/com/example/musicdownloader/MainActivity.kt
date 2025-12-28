@@ -33,6 +33,7 @@ import com.example.musicdownloader.ui.PlaylistScreen
 import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
 import com.example.musicdownloader.ui.DeepBlue
+import com.example.musicdownloader.utils.AdManager
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -121,6 +122,43 @@ fun MainScreen(viewModel: MusicViewModel) {
 
     // Library Navigation State
     var libraryRoute by remember { mutableStateOf<LibraryRoute>(LibraryRoute.Main) }
+
+    // --- Ad System Integration ---
+    var showAdDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        // Check Trigger on App Start
+        AdManager.checkSmartTrigger(context)
+
+        // Observe Ad Dialog Requests
+        AdManager.showAdDialogEvent.collect {
+            showAdDialog = true
+        }
+    }
+
+    if (showAdDialog) {
+        AlertDialog(
+            onDismissRequest = { showAdDialog = false },
+            title = { Text("Support D-TECH") },
+            text = { Text("Please watch a short ad to keep this app free.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAdDialog = false
+                        AdManager.showRandomAd(context)
+                    }
+                ) {
+                    Text("Support")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAdDialog = false }) {
+                    Text("Maybe Later")
+                }
+            }
+        )
+    }
+    // -----------------------------
 
     // Error/Message Toasts
     LaunchedEffect(uiState.errorMessage) {

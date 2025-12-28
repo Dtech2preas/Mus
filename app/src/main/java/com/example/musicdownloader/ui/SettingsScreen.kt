@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.musicdownloader.CookieManager
 import com.example.musicdownloader.UserPreferences
+import com.example.musicdownloader.utils.AdManager
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -122,7 +124,36 @@ fun SettingsScreen(
             }
         }
 
-        // 3. Developer Tools
+        // 3. Support Section
+        Text(
+            text = "Support",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Button(
+                    onClick = { AdManager.showRandomAd(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Support",
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text("Support D-TECH (Watch Ad)")
+                }
+            }
+        }
+
+        // 4. Developer Tools
         Text(
             text = "Developer Tools",
             style = MaterialTheme.typography.titleLarge,
