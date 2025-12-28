@@ -1,14 +1,22 @@
 package com.example.musicdownloader.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.musicdownloader.MusicViewModel
@@ -30,53 +38,53 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0xFF0F0F13))
             .padding(horizontal = 16.dp)
             .padding(top = 16.dp)
     ) {
         // Search Bar
-        Row(
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("Search Song", color = Color.Gray) },
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Search Song") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                    unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = { viewModel.search(query) },
-                enabled = !uiState.isLoading
-            ) {
-                Text("Search")
-            }
-        }
+            singleLine = true,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ElectricPurple,
+                unfocusedBorderColor = Color.Gray,
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                cursorColor = ElectricPurple
+            ),
+            trailingIcon = {
+                IconButton(onClick = { viewModel.search(query) }) {
+                    Icon(Icons.Default.Search, contentDescription = "Search", tint = ElectricPurple)
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { viewModel.search(query) })
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = ElectricPurple)
             }
         } else {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = contentPadding
+                contentPadding = contentPadding,
+                modifier = Modifier.weight(1f)
             ) {
                 items(uiState.results) { video ->
-                    MusicRowItem(
+                    MusicCard(
                         title = video.title,
                         artist = video.uploader,
                         thumbnailUrl = video.thumbnailUrl,
-                        isLibrary = false,
                         isDownloaded = downloadedIds.contains(video.id),
                         downloadProgress = downloadProgress[video.id],
                         onClick = {
@@ -87,10 +95,11 @@ fun SearchScreen(
                                 viewModel.downloadAndPlay(video)
                             }
                         },
-                        onDownloadClick = {
+                        onDownload = {
                              Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
                              viewModel.downloadAndPlay(video)
-                        }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(220.dp)
                     )
                 }
             }

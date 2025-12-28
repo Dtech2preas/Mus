@@ -40,7 +40,6 @@ fun MusicRowItem(
 ) {
     val context = LocalContext.current
 
-    // Softer Look: More padding, rounded background if selected (not implemented here but structure supports it)
     Surface(
         color = Color.Transparent,
         modifier = Modifier
@@ -51,15 +50,14 @@ fun MusicRowItem(
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 8.dp) // Increased padding
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Thumbnail with Smart Overlay
             Box(
                 modifier = Modifier
-                    .size(56.dp) // Slightly larger
-                    .clip(RoundedCornerShape(8.dp)) // Softer corners
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Image(
@@ -69,7 +67,6 @@ fun MusicRowItem(
                     contentScale = ContentScale.Crop
                 )
 
-                // Progress Overlay
                 if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
                     Box(
                         modifier = Modifier
@@ -89,11 +86,10 @@ fun MusicRowItem(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Text Info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge, // Larger text
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -107,7 +103,6 @@ fun MusicRowItem(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Progress Text
                 if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
                      Text(
                         text = "${downloadProgress.toInt()}%",
@@ -119,9 +114,7 @@ fun MusicRowItem(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Smart Action Icon
             if (isLibrary) {
-                // In Library, usually just More options.
                 IconButton(onClick = onOptionClick) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
@@ -130,11 +123,6 @@ fun MusicRowItem(
                     )
                 }
             } else {
-                // In Home/Search: Smart Logic
-                // If downloaded -> Play Icon (or nothing, just click row)
-                // If downloading -> Progress (handled in thumb/text, but maybe show nothing here or cancel)
-                // If not downloaded -> Download Icon
-
                 if (isDownloaded) {
                      Icon(
                         imageVector = Icons.Default.PlayArrow,
@@ -148,12 +136,111 @@ fun MusicRowItem(
                         onDownloadClick()
                     }) {
                         Icon(
-                            imageVector = Icons.Default.ArrowDropDown, // Using ArrowDropDown as Download
+                            imageVector = Icons.Default.ArrowDropDown,
                             contentDescription = "Download",
                             tint = ElectricPurple
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun MusicCard(
+    title: String,
+    artist: String,
+    thumbnailUrl: String,
+    isDownloaded: Boolean,
+    downloadProgress: Float?,
+    onClick: () -> Unit,
+    onDownload: () -> Unit,
+    modifier: Modifier = Modifier
+        .width(160.dp)
+        .height(220.dp)
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C26)),
+        onClick = onClick
+    ) {
+        Column {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Image(
+                    painter = rememberAsyncImagePainter(thumbnailUrl),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.6f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                             CircularProgressIndicator(
+                                 progress = { downloadProgress / 100f },
+                                 modifier = Modifier.size(32.dp),
+                                 color = ElectricPurple,
+                                 trackColor = Color.White.copy(alpha = 0.3f),
+                             )
+                             Spacer(modifier = Modifier.height(4.dp))
+                             Text("${downloadProgress.toInt()}%", color = Color.White, fontSize = 12.sp)
+                         }
+                    }
+                } else if (isDownloaded) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp),
+                        contentAlignment = Alignment.BottomEnd
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(Color.Black.copy(alpha = 0.6f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                } else {
+                     Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp),
+                        contentAlignment = Alignment.BottomEnd
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(Color.Black.copy(alpha = 0.6f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Download",
+                                tint = ElectricPurple,
+                                modifier = Modifier.size(24.dp).align(Alignment.Center)
+                            )
+                        }
+                    }
+                }
+            }
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 14.sp)
+                Text(artist, color = Color.Gray, maxLines = 1, fontSize = 12.sp)
             }
         }
     }
