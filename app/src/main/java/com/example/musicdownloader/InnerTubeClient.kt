@@ -103,6 +103,73 @@ object InnerTubeClient {
         }
     }
 
+    suspend fun fetchMetadata(context: android.content.Context, videoId: String): VideoItem = withContext(Dispatchers.IO) {
+        val jsonBody = JSONObject().apply {
+            put("videoId", videoId)
+            put("context", JSONObject().apply {
+                put("client", JSONObject().apply {
+                    put("clientName", "IOS")
+                    put("clientVersion", "19.45.4")
+                    put("platform", "MOBILE")
+                    put("osName", "iOS")
+                    put("osVersion", "17.5.1")
+                    put("deviceMake", "Apple")
+                    put("deviceModel", "iPhone14,5")
+                    put("hl", "en")
+                    put("gl", "US")
+                })
+            })
+        }
+
+        val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
+        val cookie = CookieManager.getCookie(context)
+
+        val requestBuilder = Request.Builder()
+            .url(PLAYER_URL)
+            .post(requestBody)
+            .addHeader("User-Agent", NetworkUtils.USER_AGENT)
+
+        if (cookie.isNotEmpty()) {
+            requestBuilder.addHeader("Cookie", cookie)
+        }
+
+        val request = requestBuilder.build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("Metadata fetch failed: ${response.code}")
+
+            val responseString = response.body?.string() ?: throw IOException("Empty response")
+            val json = JSONObject(responseString)
+
+            val videoDetails = json.optJSONObject("videoDetails") ?: throw IOException("No videoDetails")
+            val title = videoDetails.optString("title")
+            val author = videoDetails.optString("author")
+            val lengthSeconds = videoDetails.optLong("lengthSeconds")
+
+            // Format seconds to mm:ss
+            val minutes = lengthSeconds / 60
+            val seconds = lengthSeconds % 60
+            val durationStr = String.format("%02d:%02d", minutes, seconds)
+
+            // Thumbnails
+            val thumbnails = videoDetails.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+            val thumbnailUrl = if (thumbnails != null && thumbnails.length() > 0) {
+                 thumbnails.optJSONObject(thumbnails.length() - 1).optString("url")
+            } else {
+                 "https://i.ytimg.com/vi/$videoId/mqdefault.jpg"
+            }
+
+            return@withContext VideoItem(
+                id = videoId,
+                title = title,
+                uploader = author,
+                duration = durationStr,
+                thumbnailUrl = thumbnailUrl,
+                webUrl = "https://www.youtube.com/watch?v=$videoId"
+            )
+        }
+    }
+
     private fun parseInnerTubeResponse(json: JSONObject): List<VideoItem> {
         val videos = mutableListOf<VideoItem>()
 
