@@ -17,10 +17,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 // Singleton to manage MediaController
 object MusicControllerManager {
@@ -192,21 +189,10 @@ object MusicControllerManager {
                 .setMediaMetadata(metadata)
                 .build()
 
-            // Await the result
-            val future = mediaController!!.addMediaItem(mediaItem)
-            val result = suspendCancellableCoroutine { cont ->
-                future.addListener({
-                    try {
-                        cont.resume(future.get())
-                    } catch (e: Exception) {
-                        cont.resumeWithException(e)
-                    }
-                }, MoreExecutors.directExecutor())
-            }
+            // Just add the item. MediaController implementation of Player returns void/Unit.
+            // Operations are asynchronous but we assume command is sent.
+            mediaController!!.addMediaItem(mediaItem)
 
-            if (result.resultCode != SessionResult.RESULT_SUCCESS) {
-                throw RuntimeException("Failed to add media item. Result Code: ${result.resultCode}")
-            }
             AppLogger.log("[Controller] Successfully added to queue")
         } catch (e: Exception) {
             AppLogger.log("[Controller] Exception adding to queue: ${e.message}")
