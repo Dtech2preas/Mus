@@ -76,7 +76,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                 duration = "",
                                 uploader = historyItem.artist,
                                 thumbnailUrl = historyItem.thumbnailUrl,
-                                viewCount = ""
+                                webUrl = "https://www.youtube.com/watch?v=${historyItem.songId}"
                             )
                             MusicCard(
                                 title = song.title,
