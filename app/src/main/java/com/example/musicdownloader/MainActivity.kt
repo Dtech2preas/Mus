@@ -163,7 +163,11 @@ fun MainScreen(viewModel: MusicViewModel) {
 
     if (showAdDialog) {
         AlertDialog(
-            onDismissRequest = { showAdDialog = false },
+            onDismissRequest = { /* No-op to prevent dismissal */ },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            ),
             title = { Text("Support D-TECH") },
             text = { Text(adDialogMessage) },
             confirmButton = {
@@ -175,12 +179,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                 ) {
                     Text("Support")
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdDialog = false }) {
-                    Text("Maybe Later")
-                }
             }
+            // dismissedButton removed to force support
         )
     }
     // -----------------------------

@@ -170,6 +170,32 @@ object MusicRepository {
                 database.songDao().insert(song)
             }
         }
+
+        fixUnknownSongs(context)
+    }
+
+    private suspend fun fixUnknownSongs(context: Context) = withContext(Dispatchers.IO) {
+        val database = AppDatabase.getDatabase(context)
+        val songs = database.songDao().getAllSongsSync() // Need a synchronous fetch or flow collection
+
+        songs.filter { it.title.startsWith("Unknown Song") }.forEach { song ->
+            try {
+                AppLogger.log("[Repo] Attempting to recover metadata for ${song.id}")
+                val metadata = InnerTubeClient.fetchMetadata(context, song.id)
+
+                val updatedSong = song.copy(
+                    title = metadata.title,
+                    artist = metadata.uploader,
+                    duration = metadata.duration,
+                    thumbnailUrl = metadata.thumbnailUrl
+                )
+
+                database.songDao().insert(updatedSong) // Insert with same ID replaces
+                AppLogger.log("[Repo] Recovered metadata for ${song.id}: ${metadata.title}")
+            } catch (e: Exception) {
+                AppLogger.log("[Repo] Failed to recover metadata for ${song.id}: ${e.message}")
+            }
+        }
     }
 
     // History Methods
