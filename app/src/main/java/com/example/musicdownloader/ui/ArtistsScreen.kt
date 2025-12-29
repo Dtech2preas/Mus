@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -24,21 +23,24 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.MusicViewModel
-import com.example.musicdownloader.data.Song
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumsScreen(
+fun ArtistsScreen(
     viewModel: MusicViewModel,
-    onNavigateToAlbum: (String) -> Unit,
+    onNavigateToArtist: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
 
-    // Group songs by album
-    val albums = remember(songs) {
-        songs.groupBy { it.album }
-             .filterKeys { it != null && it.isNotBlank() } // Filter out bad keys if any
+    // Group songs by artist
+    val artists = remember(songs) {
+        songs.groupBy { it.artist }
+             .filterKeys {
+                 // Filter out bad keys, "Unknown Artist" (and variants), and empty strings
+                 it.isNotBlank() &&
+                 !it.equals("Unknown Artist", ignoreCase = true)
+             }
              .toList()
              .sortedBy { it.first.lowercase() } // A-Z
     }
@@ -46,7 +48,7 @@ fun AlbumsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Albums", color = Color.White) },
+                title = { Text("Artists", color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -64,12 +66,12 @@ fun AlbumsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(albums) { (albumName, albumSongs) ->
-                AlbumCard(
-                    name = albumName,
-                    songCount = albumSongs.size,
-                    thumbnailUrl = albumSongs.firstOrNull()?.thumbnailUrl ?: "",
-                    onClick = { onNavigateToAlbum(albumName) }
+            items(artists) { (artistName, artistSongs) ->
+                ArtistCard(
+                    name = artistName,
+                    songCount = artistSongs.size,
+                    thumbnailUrl = artistSongs.firstOrNull()?.thumbnailUrl ?: "",
+                    onClick = { onNavigateToArtist(artistName) }
                 )
             }
         }
@@ -77,7 +79,7 @@ fun AlbumsScreen(
 }
 
 @Composable
-fun AlbumCard(
+fun ArtistCard(
     name: String,
     songCount: Int,
     thumbnailUrl: String,

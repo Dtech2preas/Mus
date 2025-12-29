@@ -30,8 +30,8 @@ import com.example.musicdownloader.ui.LikedSongsScreen
 import com.example.musicdownloader.ui.MusicAppTheme
 import com.example.musicdownloader.ui.PlaylistDetailScreen
 import com.example.musicdownloader.ui.PlaylistScreen
-import com.example.musicdownloader.ui.AlbumsScreen
-import com.example.musicdownloader.ui.AlbumDetailScreen
+import com.example.musicdownloader.ui.ArtistsScreen
+import com.example.musicdownloader.ui.ArtistDetailScreen
 import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
 import com.example.musicdownloader.ui.DeepBlue
@@ -84,9 +84,9 @@ sealed class LibraryRoute {
     object Main : LibraryRoute()
     object Playlists : LibraryRoute()
     object LikedSongs : LibraryRoute()
-    object Albums : LibraryRoute()
+    object Artists : LibraryRoute()
     data class PlaylistDetail(val id: Int, val name: String) : LibraryRoute()
-    data class AlbumDetail(val name: String) : LibraryRoute()
+    data class ArtistDetail(val name: String) : LibraryRoute()
 }
 
 @Composable
@@ -285,7 +285,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                             snackbarHostState = snackbarHostState,
                             onNavigateToPlaylists = { libraryRoute = LibraryRoute.Playlists },
                             onNavigateToLiked = { libraryRoute = LibraryRoute.LikedSongs },
-                            onNavigateToAlbums = { libraryRoute = LibraryRoute.Albums }
+                            onNavigateToArtists = { libraryRoute = LibraryRoute.Artists }
                         )
                         LibraryRoute.Playlists -> PlaylistScreen(
                             viewModel = viewModel,
@@ -297,15 +297,15 @@ fun MainScreen(viewModel: MusicViewModel) {
                             onBack = { libraryRoute = LibraryRoute.Main },
                             onSongClick = { id -> viewModel.playLocalSong(id, "Unknown", "Unknown", "") } // Re-fetch info or just play
                         )
-                        LibraryRoute.Albums -> AlbumsScreen(
+                        LibraryRoute.Artists -> ArtistsScreen(
                             viewModel = viewModel,
-                            onNavigateToAlbum = { name -> libraryRoute = LibraryRoute.AlbumDetail(name) },
+                            onNavigateToArtist = { name -> libraryRoute = LibraryRoute.ArtistDetail(name) },
                             onBack = { libraryRoute = LibraryRoute.Main }
                         )
-                        is LibraryRoute.AlbumDetail -> AlbumDetailScreen(
-                            albumName = route.name,
+                        is LibraryRoute.ArtistDetail -> ArtistDetailScreen(
+                            artistName = route.name,
                             viewModel = viewModel,
-                            onBack = { libraryRoute = LibraryRoute.Albums }
+                            onBack = { libraryRoute = LibraryRoute.Artists }
                         )
                         is LibraryRoute.PlaylistDetail -> PlaylistDetailScreen(
                             viewModel = viewModel,
