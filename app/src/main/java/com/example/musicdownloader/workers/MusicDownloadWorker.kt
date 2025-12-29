@@ -22,6 +22,7 @@ class MusicDownloadWorker(
         val artist = inputData.getString("artist") ?: "Unknown Artist"
         val thumbnailUrl = inputData.getString("thumbnailUrl") ?: ""
         val duration = inputData.getString("duration") ?: ""
+        val album = inputData.getString("album") ?: "Unknown Album"
 
         val context = applicationContext
         val outputDir = File(context.filesDir, "music_downloads")
@@ -43,7 +44,8 @@ class MusicDownloadWorker(
                 artist = artist,
                 thumbnailUrl = thumbnailUrl,
                 filePath = file.absolutePath,
-                duration = duration
+                duration = duration,
+                album = album
             )
             database.songDao().insert(song)
 

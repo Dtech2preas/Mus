@@ -10,5 +10,6 @@ data class Song(
     val artist: String,
     val thumbnailUrl: String,
     val filePath: String,
-    val duration: String
+    val duration: String,
+    val album: String = "Unknown Album"
 )
