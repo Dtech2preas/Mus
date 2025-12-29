@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,7 +35,7 @@ fun LibraryScreen(
     snackbarHostState: SnackbarHostState,
     onNavigateToPlaylists: () -> Unit,
     onNavigateToLiked: () -> Unit,
-    onNavigateToAlbums: () -> Unit
+    onNavigateToArtists: () -> Unit
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -95,14 +96,13 @@ fun LibraryScreen(
                 onClick = onNavigateToPlaylists
             )
 
-            // Albums Card (New)
+            // Artists Card (Replaced Albums)
             NavigationCard(
-                title = "Albums",
-                // Using List icon as fallback since we don't have Album icon in Core, or maybe generic Box/Square
-                icon = Icons.Default.List, // Or maybe a different icon if available? List is fine.
+                title = "Artists",
+                icon = Icons.Default.Person, // User requested Person icon
                 color = Color(0xFFFFAB40), // Orange Accent
                 modifier = Modifier.weight(1f),
-                onClick = onNavigateToAlbums
+                onClick = onNavigateToArtists
             )
         }
 
@@ -162,6 +162,7 @@ fun LibraryScreen(
                     enableDismissFromEndToStart = false
                 ) {
                      Box(modifier = Modifier.background(Color(0xFF0F0F13))) {
+                         // Subtitle display logic remains the same as requested
                          val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
                          MusicRowItem(
                             title = song.title,
