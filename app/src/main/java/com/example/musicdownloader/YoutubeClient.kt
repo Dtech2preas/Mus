@@ -28,15 +28,19 @@ object YoutubeClient {
     // Regex to capture percentage from yt-dlp output like "[download] 45.0% of..."
     private val progressRegex = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)%")
 
+    // Regex for cleaning titles
+    // Matches (...) or [...] containing specific keywords, case insensitive
+    private val junkRegex = Regex("(?i)(\\(|\\[).*(official|video|audio|lyrics|4k|hd).*(]|\\))")
+
     suspend fun searchVideos(context: Context, query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
         try {
-            // New command: ytmusicsearch5:[QUERY] --flat-playlist --print "%(id)s::%(title)s::%(uploader)s::%(duration)s::%(album)s"
+            // New command: ytmusicsearch5:[QUERY] --flat-playlist --print "%(id)s::%(title)s::%(uploader)s::%(duration)s::%(album)s::%(track)s::%(artist)s"
             // Note: ytmusicsearch queries YouTube Music.
             val request = YoutubeDLRequest("ytmusicsearch5:$query")
             request.addOption("--flat-playlist")
-            // We append a custom separator for album, handling potential nulls by checking part size
-            request.addOption("--print", "%(id)s::%(title)s::%(uploader)s::%(duration)s::%(album)s")
+            // We append a custom separator for album, track, artist
+            request.addOption("--print", "%(id)s::%(title)s::%(uploader)s::%(duration)s::%(album)s::%(track)s::%(artist)s")
             request.addOption("--force-ipv4")
 
             val cookieFile = CookieManager.getCookieFile(context)
@@ -56,12 +60,32 @@ object YoutubeClient {
                         val parts = line.split("::")
                         if (parts.size >= 4) {
                             val id = parts[0]
-                            val title = parts[1]
+                            val rawTitle = parts[1]
                             val uploader = parts[2]
                             val durationRaw = parts[3]
                             // Album might be "NA" or empty if missing
                             val albumRaw = if (parts.size >= 5) parts[4] else "Unknown Album"
+                            val trackRaw = if (parts.size >= 6) parts[5] else ""
+                            val artistRaw = if (parts.size >= 7) parts[6] else ""
+
                             val album = if (albumRaw == "NA" || albumRaw.isBlank()) "Unknown Album" else albumRaw
+                            val track = if (trackRaw == "NA" || trackRaw.isBlank()) "" else trackRaw
+                            val artist = if (artistRaw == "NA" || artistRaw.isBlank()) "" else artistRaw
+
+                            // Metadata Cleaning Logic
+                            // 1. Title: Prioritize 'track'. If missing, clean 'title'.
+                            val finalTitle = if (track.isNotBlank()) {
+                                track
+                            } else {
+                                cleanTitle(rawTitle)
+                            }
+
+                            // 2. Artist: Prioritize 'artist'. If missing, use 'uploader'.
+                            val finalArtist = if (artist.isNotBlank()) {
+                                artist
+                            } else {
+                                uploader // Uploader is usually the channel name, which is often the artist
+                            }
 
                             val duration = formatDuration(durationRaw)
 
@@ -87,9 +111,9 @@ object YoutubeClient {
                                 videos.add(
                                     VideoItem(
                                         id = id,
-                                        title = title,
+                                        title = finalTitle,
                                         duration = duration,
-                                        uploader = uploader,
+                                        uploader = finalArtist,
                                         thumbnailUrl = thumb,
                                         webUrl = webUrl,
                                         album = album
@@ -107,6 +131,21 @@ object YoutubeClient {
             return@withContext emptyList()
         }
         return@withContext videos
+    }
+
+    private fun cleanTitle(title: String): String {
+        var cleaned = title
+
+        // 1. Remove anything after |
+        if (cleaned.contains("|")) {
+            cleaned = cleaned.split("|")[0]
+        }
+
+        // 2. Remove junk regex
+        cleaned = junkRegex.replace(cleaned, "")
+
+        // 3. Trim
+        return cleaned.trim()
     }
 
     suspend fun downloadAudio(context: Context, videoId: String, outputDir: File): File = withContext(Dispatchers.IO) {

@@ -11,7 +11,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,7 +29,7 @@ import com.example.musicdownloader.utils.HapticUtils
 @Composable
 fun MusicRowItem(
     title: String,
-    artist: String,
+    subtitle: String, // Changed from artist to subtitle to support "Artist • Album"
     thumbnailUrl: String,
     isLibrary: Boolean = true,
     isDownloaded: Boolean = false,
@@ -90,13 +90,13 @@ fun MusicRowItem(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
+                    fontWeight = FontWeight.Bold, // Bold as requested
+                    maxLines = 1, // Max 1 line as requested
                     overflow = TextOverflow.Ellipsis,
                     color = Color.White
                 )
                 Text(
-                    text = artist,
+                    text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray,
                     maxLines = 1,
@@ -150,7 +150,7 @@ fun MusicRowItem(
 @Composable
 fun MusicCard(
     title: String,
-    artist: String,
+    subtitle: String, // Changed from artist to subtitle
     thumbnailUrl: String,
     isDownloaded: Boolean,
     downloadProgress: Float?,
@@ -240,7 +240,7 @@ fun MusicCard(
             }
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 14.sp)
-                Text(artist, color = Color.Gray, maxLines = 1, fontSize = 12.sp)
+                Text(subtitle, color = Color.Gray, maxLines = 1, fontSize = 12.sp)
             }
         }
     }
