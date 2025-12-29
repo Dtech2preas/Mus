@@ -23,6 +23,7 @@ import java.io.File
 object MusicControllerManager {
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
+    private var applicationContext: Context? = null
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -47,6 +48,7 @@ object MusicControllerManager {
 
     fun initialize(context: Context) {
         AppLogger.log("[Controller] initialize called")
+        this.applicationContext = context.applicationContext
         if (mediaController != null) {
             AppLogger.log("[Controller] Already initialized")
             return
@@ -171,29 +173,32 @@ object MusicControllerManager {
 
         // Validate File with Smart Discovery
         val file = File(song.filePath)
-        val context = this.mediaController?.context // MediaController doesn't expose context easily, but we can assume standard path
-        // Actually, we initialized with a context, but we are inside an Object.
-        // Best bet: we know the structure: filesDir/music_downloads/{id}.*
 
         var targetFile = file
         if (!targetFile.exists()) {
             AppLogger.log("[Controller] File not found at path: ${song.filePath}, attempting smart discovery...")
-            // We need to guess the parent directory. Usually it's the parent of the saved path.
+            // Strategy 1: Check parent directory of stored path
             val parentDir = file.parentFile
+            var found: File? = null
+
             if (parentDir != null && parentDir.exists()) {
-                 val found = parentDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
-                 if (found != null) {
-                     AppLogger.log("[Controller] Smart discovery found file: ${found.absolutePath}")
-                     targetFile = found
-                 } else {
-                     AppLogger.log("[Controller] Smart discovery failed.")
-                     throw java.io.FileNotFoundException("File not found for ${song.title}")
+                 found = parentDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
+            }
+
+            // Strategy 2: Check standard directory using applicationContext
+            if (found == null && applicationContext != null) {
+                 val musicDir = File(applicationContext!!.filesDir, "music_downloads")
+                 if (musicDir.exists()) {
+                     found = musicDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
                  }
+            }
+
+            if (found != null) {
+                AppLogger.log("[Controller] Smart discovery found file: ${found.absolutePath}")
+                targetFile = found
             } else {
-                 // Try hardcoded path as fallback if parent is totally wrong
-                 // This requires a Context to get filesDir, which we don't readily have in this scope without passing it.
-                 // However, we can try to assume the path structure if the stored path was absolute.
-                 throw java.io.FileNotFoundException("File path invalid and cannot be recovered: ${song.filePath}")
+                AppLogger.log("[Controller] Smart discovery failed.")
+                throw java.io.FileNotFoundException("File not found for ${song.title} (ID: ${song.id})")
             }
         }
 
