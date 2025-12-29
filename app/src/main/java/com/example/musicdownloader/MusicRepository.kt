@@ -106,7 +106,8 @@ object MusicRepository {
                     artist = video.uploader,
                     thumbnailUrl = video.thumbnailUrl,
                     filePath = existingFiles.first().absolutePath,
-                    duration = video.duration
+                    duration = video.duration,
+                    album = video.album ?: "Unknown Album"
                 )
                 database.songDao().insert(song)
             }
@@ -120,7 +121,8 @@ object MusicRepository {
             "title" to video.title,
             "artist" to video.uploader,
             "thumbnailUrl" to video.thumbnailUrl,
-            "duration" to video.duration
+            "duration" to video.duration,
+            "album" to (video.album ?: "Unknown Album")
         )
 
         val constraints = Constraints.Builder()

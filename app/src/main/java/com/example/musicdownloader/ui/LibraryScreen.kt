@@ -33,7 +33,8 @@ fun LibraryScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     snackbarHostState: SnackbarHostState,
     onNavigateToPlaylists: () -> Unit,
-    onNavigateToLiked: () -> Unit
+    onNavigateToLiked: () -> Unit,
+    onNavigateToAlbums: () -> Unit
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -78,7 +79,7 @@ fun LibraryScreen(
         ) {
             // Liked Songs Card
             NavigationCard(
-                title = "Liked Songs",
+                title = "Liked",
                 icon = Icons.Default.Favorite,
                 color = ElectricPurple,
                 modifier = Modifier.weight(1f),
@@ -92,6 +93,16 @@ fun LibraryScreen(
                 color = Color(0xFF00E5FF), // Cyan Accent
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToPlaylists
+            )
+
+            // Albums Card (New)
+            NavigationCard(
+                title = "Albums",
+                // Using List icon as fallback since we don't have Album icon in Core, or maybe generic Box/Square
+                icon = Icons.Default.List, // Or maybe a different icon if available? List is fine.
+                color = Color(0xFFFFAB40), // Orange Accent
+                modifier = Modifier.weight(1f),
+                onClick = onNavigateToAlbums
             )
         }
 

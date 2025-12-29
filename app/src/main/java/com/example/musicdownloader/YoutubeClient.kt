@@ -16,7 +16,8 @@ data class VideoItem(
     val duration: String,
     val uploader: String,
     val thumbnailUrl: String,
-    val webUrl: String
+    val webUrl: String,
+    val album: String? = null
 )
 
 object YoutubeClient {
@@ -30,10 +31,12 @@ object YoutubeClient {
     suspend fun searchVideos(context: Context, query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
         try {
-            // New command: ytsearch5:[QUERY] --flat-playlist --print "%(id)s::%(title)s::%(uploader)s::%(duration)s"
-            val request = YoutubeDLRequest("ytsearch5:$query")
+            // New command: ytmusicsearch5:[QUERY] --flat-playlist --print "%(id)s::%(title)s::%(uploader)s::%(duration)s::%(album)s"
+            // Note: ytmusicsearch queries YouTube Music.
+            val request = YoutubeDLRequest("ytmusicsearch5:$query")
             request.addOption("--flat-playlist")
-            request.addOption("--print", "%(id)s::%(title)s::%(uploader)s::%(duration)s")
+            // We append a custom separator for album, handling potential nulls by checking part size
+            request.addOption("--print", "%(id)s::%(title)s::%(uploader)s::%(duration)s::%(album)s")
             request.addOption("--force-ipv4")
 
             val cookieFile = CookieManager.getCookieFile(context)
@@ -56,22 +59,43 @@ object YoutubeClient {
                             val title = parts[1]
                             val uploader = parts[2]
                             val durationRaw = parts[3]
+                            // Album might be "NA" or empty if missing
+                            val albumRaw = if (parts.size >= 5) parts[4] else "Unknown Album"
+                            val album = if (albumRaw == "NA" || albumRaw.isBlank()) "Unknown Album" else albumRaw
 
                             val duration = formatDuration(durationRaw)
 
-                            val webUrl = "https://www.youtube.com/watch?v=$id"
-                            val thumb = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
+                            // Filter: Skip shorts (< 60s)
+                            val durationSeconds = try {
+                                when {
+                                    durationRaw.contains(":") -> {
+                                        val p = durationRaw.split(":").map { it.toLong() }
+                                        if (p.size == 2) p[0] * 60 + p[1]
+                                        else if (p.size == 3) p[0] * 3600 + p[1] * 60 + p[2]
+                                        else 0L
+                                    }
+                                    else -> durationRaw.toDoubleOrNull()?.toLong() ?: 0L
+                                }
+                            } catch (e: Exception) {
+                                0L
+                            }
 
-                            videos.add(
-                                VideoItem(
-                                    id = id,
-                                    title = title,
-                                    duration = duration,
-                                    uploader = uploader,
-                                    thumbnailUrl = thumb,
-                                    webUrl = webUrl
+                            if (durationSeconds >= 60) {
+                                val webUrl = "https://www.youtube.com/watch?v=$id"
+                                val thumb = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
+
+                                videos.add(
+                                    VideoItem(
+                                        id = id,
+                                        title = title,
+                                        duration = duration,
+                                        uploader = uploader,
+                                        thumbnailUrl = thumb,
+                                        webUrl = webUrl,
+                                        album = album
+                                    )
                                 )
-                            )
+                            }
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()

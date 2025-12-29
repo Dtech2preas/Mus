@@ -169,11 +169,32 @@ object MusicControllerManager {
             throw IllegalStateException("Player not initialized")
         }
 
-        // Validate File
+        // Validate File with Smart Discovery
         val file = File(song.filePath)
-        if (!file.exists()) {
-            AppLogger.log("[Controller] File does not exist: ${song.filePath}")
-            throw java.io.FileNotFoundException("File not found: ${song.filePath}")
+        val context = this.mediaController?.context // MediaController doesn't expose context easily, but we can assume standard path
+        // Actually, we initialized with a context, but we are inside an Object.
+        // Best bet: we know the structure: filesDir/music_downloads/{id}.*
+
+        var targetFile = file
+        if (!targetFile.exists()) {
+            AppLogger.log("[Controller] File not found at path: ${song.filePath}, attempting smart discovery...")
+            // We need to guess the parent directory. Usually it's the parent of the saved path.
+            val parentDir = file.parentFile
+            if (parentDir != null && parentDir.exists()) {
+                 val found = parentDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
+                 if (found != null) {
+                     AppLogger.log("[Controller] Smart discovery found file: ${found.absolutePath}")
+                     targetFile = found
+                 } else {
+                     AppLogger.log("[Controller] Smart discovery failed.")
+                     throw java.io.FileNotFoundException("File not found for ${song.title}")
+                 }
+            } else {
+                 // Try hardcoded path as fallback if parent is totally wrong
+                 // This requires a Context to get filesDir, which we don't readily have in this scope without passing it.
+                 // However, we can try to assume the path structure if the stored path was absolute.
+                 throw java.io.FileNotFoundException("File path invalid and cannot be recovered: ${song.filePath}")
+            }
         }
 
         try {
@@ -184,7 +205,7 @@ object MusicControllerManager {
                 .build()
 
             val mediaItem = MediaItem.Builder()
-                .setUri(Uri.fromFile(file))
+                .setUri(Uri.fromFile(targetFile))
                 .setMediaId(song.id)
                 .setMediaMetadata(metadata)
                 .build()
