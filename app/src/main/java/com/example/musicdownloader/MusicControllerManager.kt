@@ -23,6 +23,7 @@ import java.io.File
 object MusicControllerManager {
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
+    private var applicationContext: Context? = null
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -47,6 +48,8 @@ object MusicControllerManager {
 
     fun initialize(context: Context) {
         AppLogger.log("[Controller] initialize called")
+        this.applicationContext = context.applicationContext
+
         if (mediaController != null) {
             AppLogger.log("[Controller] Already initialized")
             return
@@ -171,9 +174,6 @@ object MusicControllerManager {
 
         // Validate File with Smart Discovery
         val file = File(song.filePath)
-        val context = this.mediaController?.context // MediaController doesn't expose context easily, but we can assume standard path
-        // Actually, we initialized with a context, but we are inside an Object.
-        // Best bet: we know the structure: filesDir/music_downloads/{id}.*
 
         var targetFile = file
         if (!targetFile.exists()) {
@@ -191,9 +191,19 @@ object MusicControllerManager {
                  }
             } else {
                  // Try hardcoded path as fallback if parent is totally wrong
-                 // This requires a Context to get filesDir, which we don't readily have in this scope without passing it.
-                 // However, we can try to assume the path structure if the stored path was absolute.
-                 throw java.io.FileNotFoundException("File path invalid and cannot be recovered: ${song.filePath}")
+                 val context = applicationContext
+                 if (context != null) {
+                      val downloadsDir = File(context.filesDir, "music_downloads")
+                      val found = downloadsDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
+                      if (found != null) {
+                           AppLogger.log("[Controller] Smart discovery (fallback) found file: ${found.absolutePath}")
+                           targetFile = found
+                      } else {
+                           throw java.io.FileNotFoundException("File path invalid and cannot be recovered: ${song.filePath}")
+                      }
+                 } else {
+                      throw java.io.FileNotFoundException("File path invalid and cannot be recovered: ${song.filePath}")
+                 }
             }
         }
 
