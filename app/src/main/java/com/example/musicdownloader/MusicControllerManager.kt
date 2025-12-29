@@ -45,8 +45,11 @@ object MusicControllerManager {
     private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    private var appContext: Context? = null
+
     fun initialize(context: Context) {
         AppLogger.log("[Controller] initialize called")
+        this.appContext = context.applicationContext
         if (mediaController != null) {
             AppLogger.log("[Controller] Already initialized")
             return
@@ -170,10 +173,27 @@ object MusicControllerManager {
         }
 
         // Validate File
-        val file = File(song.filePath)
+        var file = File(song.filePath)
         if (!file.exists()) {
             AppLogger.log("[Controller] File does not exist: ${song.filePath}")
-            throw java.io.FileNotFoundException("File not found: ${song.filePath}")
+
+            // Smart Discovery: Try to find the file in the downloads directory
+            var found = false
+            appContext?.let { ctx ->
+                val musicDir = File(ctx.filesDir, "music_downloads")
+                // Filename format: {id}.{ext}
+                // Try to find file starting with ID
+                val files = musicDir.listFiles { _, name -> name.startsWith(song.id) }
+                if (files != null && files.isNotEmpty()) {
+                    file = files[0]
+                    found = true
+                    AppLogger.log("[Controller] Smart Discovery found file: ${file.absolutePath}")
+                }
+            }
+
+            if (!found) {
+                throw java.io.FileNotFoundException("File not found: ${song.filePath}")
+            }
         }
 
         try {
