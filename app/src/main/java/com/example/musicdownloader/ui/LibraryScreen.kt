@@ -162,9 +162,10 @@ fun LibraryScreen(
                     enableDismissFromEndToStart = false
                 ) {
                      Box(modifier = Modifier.background(Color(0xFF0F0F13))) {
+                         val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
                          MusicRowItem(
                             title = song.title,
-                            artist = song.artist,
+                            subtitle = subtitle,
                             thumbnailUrl = song.thumbnailUrl,
                             isLibrary = true,
                             onClick = {

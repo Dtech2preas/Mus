@@ -67,9 +67,14 @@ fun AlbumDetailScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             items(albumSongs) { song ->
+                // Since this is Album Detail, redundant to show Album name in subtitle?
+                // But requested format is "Artist • Album".
+                // We can just show "Artist" if we are in Album context to save space, but consistency is key.
+                // Let's stick to the rule: "Line 2: Display 'Artist • Album'".
+                val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
                 MusicRowItem(
                     title = song.title,
-                    artist = song.artist,
+                    subtitle = subtitle,
                     thumbnailUrl = song.thumbnailUrl,
                     isLibrary = true,
                     onClick = {

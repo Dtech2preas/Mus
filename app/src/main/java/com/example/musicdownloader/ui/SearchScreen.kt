@@ -81,9 +81,10 @@ fun SearchScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(uiState.results) { video ->
+                    val subtitle = if (video.album != null && video.album != "Unknown Album") "${video.uploader} • ${video.album}" else video.uploader
                     MusicCard(
                         title = video.title,
-                        artist = video.uploader,
+                        subtitle = subtitle,
                         thumbnailUrl = video.thumbnailUrl,
                         isDownloaded = downloadedIds.contains(video.id),
                         downloadProgress = downloadProgress[video.id],

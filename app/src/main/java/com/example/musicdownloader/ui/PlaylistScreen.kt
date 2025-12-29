@@ -172,9 +172,10 @@ fun PlaylistDetailScreen(
         ) {
             LazyColumn {
                 items(songs) { song ->
+                    val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
                     MusicRowItem(
                         title = song.title,
-                        artist = song.artist,
+                        subtitle = subtitle,
                         thumbnailUrl = song.thumbnailUrl,
                         isLibrary = true, // Hide download button
                         onClick = {

@@ -70,6 +70,8 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(playHistory) { historyItem ->
                             // Convert History to VideoItem for Card
+                            // History item doesn't have album info usually, so we just use artist.
+                            // Unless we fetch it or store it. PlayHistory struct: songId, title, artist, thumbnailUrl.
                             val song = VideoItem(
                                 id = historyItem.songId,
                                 title = historyItem.title,
@@ -80,7 +82,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                             )
                             MusicCard(
                                 title = song.title,
-                                artist = song.uploader,
+                                subtitle = song.uploader,
                                 thumbnailUrl = song.thumbnailUrl,
                                 isDownloaded = downloadedIds.contains(song.id),
                                 downloadProgress = downloadProgress[song.id],
@@ -133,9 +135,10 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                      items(chunks) { chunk ->
                                          Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                              chunk.forEach { song ->
+                                                 val subtitle = if (song.album != null && song.album != "Unknown Album") "${song.uploader} • ${song.album}" else song.uploader
                                                  MusicCard(
                                                      title = song.title,
-                                                     artist = song.uploader,
+                                                     subtitle = subtitle,
                                                      thumbnailUrl = song.thumbnailUrl,
                                                      isDownloaded = downloadedIds.contains(song.id),
                                                      downloadProgress = downloadProgress[song.id],
@@ -174,9 +177,10 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                              ) {
                                  chunk.forEach { song ->
                                      Box(modifier = Modifier.weight(1f)) {
+                                         val subtitle = if (song.album != null && song.album != "Unknown Album") "${song.uploader} • ${song.album}" else song.uploader
                                          MusicCard(
                                              title = song.title,
-                                             artist = song.uploader,
+                                             subtitle = subtitle,
                                              thumbnailUrl = song.thumbnailUrl,
                                              isDownloaded = downloadedIds.contains(song.id),
                                              downloadProgress = downloadProgress[song.id],
