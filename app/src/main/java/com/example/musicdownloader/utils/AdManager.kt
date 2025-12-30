@@ -1,6 +1,8 @@
 package com.example.musicdownloader.utils
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import com.example.musicdownloader.AppLogger
@@ -26,8 +28,29 @@ object AdManager {
     // Track when the ad was clicked to enforce viewing duration
     var lastAdClickTime: Long = 0L
 
-    fun showRandomAd(context: Context) {
+    // Configuration for the currently running ad session
+    var currentAdThresholdMs: Long = 7000L
+    var shouldCheckDuration: Boolean = true
+
+    private fun isOnline(context: Context): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    fun showRandomAd(context: Context, thresholdMs: Long = 7000L, checkDuration: Boolean = true) {
+        if (!isOnline(context)) {
+            AppLogger.log("[AdManager] Device is offline. Skipping Ad.")
+            return
+        }
+
         try {
+            // Update session config
+            currentAdThresholdMs = thresholdMs
+            shouldCheckDuration = checkDuration
+
             val url = adLinks.random()
             val customTabsIntent = CustomTabsIntent.Builder().build()
 
@@ -36,7 +59,7 @@ object AdManager {
 
             customTabsIntent.launchUrl(context, Uri.parse(url))
             UserPreferences.setAdShownToday(context)
-            AppLogger.log("[AdManager] Showing Ad: $url at $lastAdClickTime")
+            AppLogger.log("[AdManager] Showing Ad: $url at $lastAdClickTime. Threshold: ${thresholdMs}ms, Check: $checkDuration")
         } catch (e: Exception) {
             AppLogger.log("[AdManager] Failed to show ad: ${e.message}")
             // Reset if failed
