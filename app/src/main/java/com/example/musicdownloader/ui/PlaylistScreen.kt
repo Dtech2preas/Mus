@@ -171,11 +171,6 @@ fun PlaylistDetailScreen(
             .padding(padding)
         ) {
             LazyColumn {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
-                        StartAppCoverAd()
-                    }
-                }
                 items(songs) { song ->
                     val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
                     MusicRowItem(

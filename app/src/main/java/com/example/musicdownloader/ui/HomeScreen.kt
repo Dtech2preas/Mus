@@ -48,13 +48,6 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
             .background(Color(0xFF0F0F13))
             .padding(16.dp)
     ) {
-        // Banner Ad at Top
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            StartAppBannerAd()
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         // Dynamic Header
         GreetingHeader()
 

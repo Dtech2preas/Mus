@@ -8,7 +8,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.AD_ID" />
 
     <application
         android:name=".MusicDownloaderApp"
@@ -21,10 +20,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MusicDownloader"
         tools:targetApi="31">
-
-        <meta-data
-            android:name="com.startapp.sdk.APPLICATION_ID"
-            android:value="211609946" />
 
         <activity
             android:name=".MainActivity"
