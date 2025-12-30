@@ -176,24 +176,38 @@ object MusicRepository {
         fixUnknownSongs(context)
     }
 
+    suspend fun rescanLibrary(context: Context) = withContext(Dispatchers.IO) {
+        AppLogger.log("[Repo] Starting library rescan...")
+        syncFilesWithDatabase(context)
+        fixUnknownSongs(context)
+        AppLogger.log("[Repo] Library rescan complete.")
+    }
+
     private suspend fun fixUnknownSongs(context: Context) = withContext(Dispatchers.IO) {
         val database = AppDatabase.getDatabase(context)
         val songs = database.songDao().getAllSongsSync() // Need a synchronous fetch or flow collection
 
-        songs.filter { it.title.startsWith("Unknown Song") }.forEach { song ->
+        // Filter for "Unknown Song" OR any song with "Unknown Artist" to be more thorough
+        songs.filter { it.title.startsWith("Unknown Song") || it.artist == "Unknown Artist" }.forEach { song ->
             try {
                 AppLogger.log("[Repo] Attempting to recover metadata for ${song.id}")
                 val metadata = InnerTubeClient.fetchMetadata(context, song.id)
 
-                val updatedSong = song.copy(
-                    title = metadata.title,
-                    artist = metadata.uploader,
-                    duration = metadata.duration,
-                    thumbnailUrl = metadata.thumbnailUrl
-                )
+                // Only update if we actually got valid data back
+                if (metadata.title.isNotBlank() && metadata.title != "Unknown Title") {
+                    val updatedSong = song.copy(
+                        title = metadata.title,
+                        artist = metadata.uploader,
+                        duration = metadata.duration,
+                        thumbnailUrl = metadata.thumbnailUrl,
+                        album = metadata.album ?: song.album
+                    )
 
-                database.songDao().insert(updatedSong) // Insert with same ID replaces
-                AppLogger.log("[Repo] Recovered metadata for ${song.id}: ${metadata.title}")
+                    database.songDao().insert(updatedSong) // Insert with same ID replaces
+                    AppLogger.log("[Repo] Recovered metadata for ${song.id}: ${metadata.title}")
+                } else {
+                    AppLogger.log("[Repo] Metadata fetch returned empty/invalid for ${song.id}")
+                }
             } catch (e: Exception) {
                 AppLogger.log("[Repo] Failed to recover metadata for ${song.id}: ${e.message}")
             }

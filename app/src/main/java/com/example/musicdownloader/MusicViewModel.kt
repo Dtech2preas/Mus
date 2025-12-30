@@ -372,4 +372,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun getSongsForPlaylist(playlistId: Int): kotlinx.coroutines.flow.Flow<List<Song>> {
         return AppDatabase.getDatabase(getApplication()).playlistDao().getSongsForPlaylist(playlistId)
     }
+
+    fun rescanLibrary() {
+        viewModelScope.launch {
+            _toastEvent.emit("Starting library scan...")
+            try {
+                MusicRepository.rescanLibrary(getApplication())
+                _toastEvent.emit("Scan complete. Metadata updated.")
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Scan failed: ${e.message}")
+                _toastEvent.emit("Scan failed: ${e.message}")
+            }
+        }
+    }
 }
