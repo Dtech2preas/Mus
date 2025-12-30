@@ -36,6 +36,7 @@ import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.utils.AdManager
+import com.startapp.sdk.adsbase.StartAppSDK
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -44,6 +45,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Initialize Start.io with the User's ID
+        StartAppSDK.init(this, "211609946", true)
+
         setContent {
             MusicAppTheme {
                 RequestNotificationPermission()
@@ -139,29 +143,6 @@ fun MainScreen(viewModel: MusicViewModel) {
         AdManager.showAdDialogEvent.collect {
             adDialogMessage = "Please watch a short ad to keep this app free."
             showAdDialog = true
-        }
-    }
-
-    // Lifecycle Observer for Ad Timer Logic
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                if (AdManager.lastAdClickTime > 0) {
-                    val diff = System.currentTimeMillis() - AdManager.lastAdClickTime
-                    if (diff < 7000) {
-                        // User returned too quickly (< 7 seconds)
-                        adDialogMessage = "Please view the ad for at least 7 seconds before closing."
-                        showAdDialog = true
-                    }
-                    // Reset timer so next click is fresh
-                    AdManager.lastAdClickTime = 0
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
