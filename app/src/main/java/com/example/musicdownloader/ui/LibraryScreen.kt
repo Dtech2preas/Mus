@@ -211,15 +211,6 @@ fun LibraryScreen(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // MRec Ad at Bottom
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            StartAppMrecAd()
-        }
-
-        Spacer(modifier = Modifier.height(80.dp)) // Extra space for Player/Nav
     }
 
     if (showAddToPlaylistForSong != null) {
