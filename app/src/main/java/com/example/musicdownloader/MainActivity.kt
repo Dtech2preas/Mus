@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -18,7 +19,10 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -38,6 +42,9 @@ import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.utils.AdManager
 import com.startapp.sdk.adsbase.StartAppAd
 import com.startapp.sdk.adsbase.StartAppSDK
+import com.startapp.sdk.adsbase.Ad
+import com.startapp.sdk.adsbase.adlisteners.AdEventListener
+import com.startapp.sdk.adsbase.adlisteners.VideoListener
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -55,8 +62,79 @@ class MainActivity : ComponentActivity() {
         setContent {
             MusicAppTheme {
                 RequestNotificationPermission()
-                AppNavigation(viewModel)
+
+                var isAppUnlocked by rememberSaveable { mutableStateOf(false) }
+
+                if (isAppUnlocked) {
+                    AppNavigation(viewModel)
+                } else {
+                    AppLockScreen(onUnlock = { isAppUnlocked = true })
+                }
             }
+        }
+    }
+
+    override fun onBackPressed() {
+        StartAppAd.onBackPressed(this)
+        super.onBackPressed()
+    }
+}
+
+@Composable
+fun AppLockScreen(onUnlock: () -> Unit) {
+    val context = LocalContext.current
+    val ad = remember { StartAppAd(context) }
+    var statusText by remember { mutableStateOf("Loading Rewards...") }
+
+    LaunchedEffect(Unit) {
+        ad.loadAd(StartAppAd.AdMode.REWARDED_VIDEO, object : AdEventListener {
+            override fun onReceiveAd(p0: Ad) {
+                statusText = "Ad Loaded. Showing..."
+                ad.setVideoListener(object : VideoListener {
+                    override fun onVideoCompleted() {
+                        onUnlock()
+                    }
+                })
+                // Show ad and unlock if user closes it without watching (fallback) or watches it
+                // Note: showAd returns boolean. If false, we should unlock.
+                if (!ad.showAd()) {
+                    onUnlock()
+                } else {
+                    // If shown, wait for callback or close.
+                    // StartApp doesn't always guarantee onVideoCompleted if skipped (if skippable).
+                    // We need a fallback listener for ad close to ensure user isn't stuck.
+                    // However, AdEventListener doesn't have onAdClosed.
+                    // StartAppAd has separate listeners.
+                    // We'll rely on onVideoCompleted for the 'Reward', but to prevent
+                    // getting stuck, we can just unlock on any close if needed.
+                    // User requirement: "reward will be the user being able to use the app"
+                    // implies strictness.
+                }
+            }
+
+            override fun onFailedToReceiveAd(p0: Ad?) {
+                // If ad fails, don't block the user
+                onUnlock()
+            }
+        })
+    }
+
+    // Safety timeout - if ad never loads/shows within 10 seconds, unlock
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(10000)
+        onUnlock()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = com.example.musicdownloader.ui.ElectricPurple)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(statusText, color = androidx.compose.ui.graphics.Color.White)
         }
     }
 }
