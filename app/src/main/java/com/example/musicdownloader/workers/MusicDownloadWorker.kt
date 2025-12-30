@@ -51,9 +51,6 @@ class MusicDownloadWorker(
 
             AppLogger.log("[Worker] Download success & DB inserted: $title")
 
-            // Ad System: Increment count and check trigger
-            AdManager.incrementDownloadCount(context)
-
             // Return output data so we can maybe notify UI if needed
             val outputData = workDataOf("filePath" to file.absolutePath)
             Result.success(outputData)

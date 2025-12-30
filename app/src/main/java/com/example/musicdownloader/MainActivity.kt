@@ -6,11 +6,11 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -19,14 +19,13 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.musicdownloader.data.Playlist
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.musicdownloader.ui.GenreSelectionScreen
 import com.example.musicdownloader.ui.HomeScreen
 import com.example.musicdownloader.ui.LibraryScreen
@@ -40,12 +39,13 @@ import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.utils.AdManager
-import com.startapp.sdk.adsbase.StartAppAd
-import com.startapp.sdk.adsbase.StartAppSDK
-import com.startapp.sdk.adsbase.Ad
-import com.startapp.sdk.adsbase.adlisteners.AdEventListener
-import com.startapp.sdk.adsbase.adlisteners.VideoListener
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.app.Activity
+import com.example.musicdownloader.AppLogger
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.content.Context
 
 class MainActivity : ComponentActivity() {
 
@@ -53,88 +53,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Initialize Start.io with the User's ID
-        StartAppSDK.init(this, "211609946", true)
-
-        // Force the Splash Ad to show immediately
-        StartAppAd.showSplash(this, savedInstanceState)
-
         setContent {
             MusicAppTheme {
                 RequestNotificationPermission()
-
-                var isAppUnlocked by rememberSaveable { mutableStateOf(false) }
-
-                if (isAppUnlocked) {
-                    AppNavigation(viewModel)
-                } else {
-                    AppLockScreen(onUnlock = { isAppUnlocked = true })
-                }
+                AppNavigation(viewModel)
             }
-        }
-    }
-
-    override fun onBackPressed() {
-        StartAppAd.onBackPressed(this)
-        super.onBackPressed()
-    }
-}
-
-@Composable
-fun AppLockScreen(onUnlock: () -> Unit) {
-    val context = LocalContext.current
-    val ad = remember { StartAppAd(context) }
-    var statusText by remember { mutableStateOf("Loading Rewards...") }
-
-    LaunchedEffect(Unit) {
-        ad.loadAd(StartAppAd.AdMode.REWARDED_VIDEO, object : AdEventListener {
-            override fun onReceiveAd(p0: Ad) {
-                statusText = "Ad Loaded. Showing..."
-                ad.setVideoListener(object : VideoListener {
-                    override fun onVideoCompleted() {
-                        onUnlock()
-                    }
-                })
-                // Show ad and unlock if user closes it without watching (fallback) or watches it
-                // Note: showAd returns boolean. If false, we should unlock.
-                if (!ad.showAd()) {
-                    onUnlock()
-                } else {
-                    // If shown, wait for callback or close.
-                    // StartApp doesn't always guarantee onVideoCompleted if skipped (if skippable).
-                    // We need a fallback listener for ad close to ensure user isn't stuck.
-                    // However, AdEventListener doesn't have onAdClosed.
-                    // StartAppAd has separate listeners.
-                    // We'll rely on onVideoCompleted for the 'Reward', but to prevent
-                    // getting stuck, we can just unlock on any close if needed.
-                    // User requirement: "reward will be the user being able to use the app"
-                    // implies strictness.
-                }
-            }
-
-            override fun onFailedToReceiveAd(p0: Ad?) {
-                // If ad fails, don't block the user
-                onUnlock()
-            }
-        })
-    }
-
-    // Safety timeout - if ad never loads/shows within 10 seconds, unlock
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(10000)
-        onUnlock()
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentAlignment = androidx.compose.ui.Alignment.Center
-    ) {
-        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = com.example.musicdownloader.ui.ElectricPurple)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(statusText, color = androidx.compose.ui.graphics.Color.White)
         }
     }
 }
@@ -203,6 +126,9 @@ fun MainScreen(viewModel: MusicViewModel) {
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
 
     // Bottom Sheet Player State
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -213,44 +139,91 @@ fun MainScreen(viewModel: MusicViewModel) {
     // Library Navigation State
     var libraryRoute by remember { mutableStateOf<LibraryRoute>(LibraryRoute.Main) }
 
-    // --- Ad System Integration ---
-    var showAdDialog by remember { mutableStateOf(false) }
-    var adDialogMessage by remember { mutableStateOf("Please watch a short ad to keep this app free.") }
+    // --- Monetag 2.0 Logic ---
 
-    LaunchedEffect(Unit) {
-        // Check Trigger on App Start
-        AdManager.checkSmartTrigger(context)
+    // 1. Exit Ad Logic
+    var hasShownExitAd by remember { mutableStateOf(false) }
 
-        // Observe Ad Dialog Requests
-        AdManager.showAdDialogEvent.collect {
-            adDialogMessage = "Please watch a short ad to keep this app free."
-            showAdDialog = true
+    // Logic: Only intercept back if we are at the "root" of navigation (Home, or other tabs base state)
+    // AND if we are not in a sub-route of Library.
+    // If Library is in sub-route, LibraryScreen handles back (implicitly or explicitly).
+    // But since we use a variable 'libraryRoute', 'Back' should conceptually go up the stack.
+    // We need to handle that first.
+
+    // We want to handle "App Exit" only when there's nowhere else to go.
+    // So if currentTab is Home, Back -> Exit Ad logic.
+    // If currentTab is Library, Back -> Go to Main Library -> Go to Home -> Exit.
+
+    // Let's implement a unified Back Handler for the MainScreen structure.
+    BackHandler(enabled = true) {
+        if (isPlayerExpanded) {
+            isPlayerExpanded = false
+            return@BackHandler
+        }
+
+        if (showLogs) {
+            showLogs = false
+            return@BackHandler
+        }
+
+        if (currentTab == MainTab.Library && libraryRoute !is LibraryRoute.Main) {
+             // Handle Library Back Navigation
+             when (libraryRoute) {
+                 is LibraryRoute.PlaylistDetail -> libraryRoute = LibraryRoute.Playlists
+                 is LibraryRoute.ArtistDetail -> libraryRoute = LibraryRoute.Artists
+                 else -> libraryRoute = LibraryRoute.Main
+             }
+             return@BackHandler
+        }
+
+        if (currentTab != MainTab.Home) {
+            // Go back to Home first
+            currentTab = MainTab.Home
+            return@BackHandler
+        }
+
+        // We are at Home. Trigger Exit Ad Logic.
+        if (!hasShownExitAd && isOnline(context)) {
+            hasShownExitAd = true
+            AdManager.openRandomAd(context)
+            // After showing ad, user stays on Home. Next back press closes app.
+        } else {
+            activity?.finish()
         }
     }
 
-    if (showAdDialog) {
-        AlertDialog(
-            onDismissRequest = { /* No-op to prevent dismissal */ },
-            properties = androidx.compose.ui.window.DialogProperties(
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false
-            ),
-            title = { Text("Support D-TECH") },
-            text = { Text(adDialogMessage) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showAdDialog = false
-                        AdManager.showRandomAd(context)
+    // 2. 30-Minute Active Timer
+    DisposableEffect(lifecycleOwner) {
+        var timerJob: kotlinx.coroutines.Job? = null
+
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // Start Timer
+                timerJob = scope.launch {
+                    AppLogger.log("[AdTimer] Starting 30-minute timer")
+                    delay(30 * 60 * 1000L) // 30 minutes
+                    if (isOnline(context)) {
+                        AppLogger.log("[AdTimer] Timer finished. Opening Ad.")
+                        AdManager.openRandomAd(context)
                     }
-                ) {
-                    Text("Support")
                 }
+            } else if (event == Lifecycle.Event.ON_PAUSE) {
+                // Cancel Timer
+                AppLogger.log("[AdTimer] App paused. Cancelling timer.")
+                timerJob?.cancel()
+                timerJob = null
             }
-            // dismissedButton removed to force support
-        )
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            timerJob?.cancel()
+        }
     }
-    // -----------------------------
+
+    // -------------------------
 
     // Error/Message Toasts
     LaunchedEffect(uiState.errorMessage) {
@@ -336,7 +309,6 @@ fun MainScreen(viewModel: MusicViewModel) {
                     viewModel = viewModel,
                     onSongClick = { id ->
                          // Handled in HomeScreen now via playLocalSong/downloadAndPlay
-                         // But if we need global click handling:
                     }
                 )
                 MainTab.Search -> SearchScreen(viewModel = viewModel, contentPadding = PaddingValues(0.dp))
@@ -401,4 +373,21 @@ fun MainScreen(viewModel: MusicViewModel) {
     if (showLogs) {
         LogConsoleOverlay(onClose = { showLogs = false })
     }
+}
+
+// Duplicate helper here because MainActivity can't see AdManager's private one,
+// and AdManager's is private. Or we can use AdManager's if we make it public?
+// AdManager.kt is in a different package (utils).
+// I'll just use a local helper or make AdManager's public.
+// I made AdManager's isOnline private in previous step.
+// I'll just implement it locally for MainScreen logic or assume AdManager handles it?
+// The requirement: "Exit Ad... IF !hasShownExitAd AND isOnline...".
+// So MainScreen needs to know if online.
+// I will replicate the check here to avoid changing AdManager again or make it public.
+
+fun isOnline(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val network = connectivityManager.activeNetwork ?: return false
+    val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 }
