@@ -36,6 +36,7 @@ import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.utils.AdManager
+import com.startapp.sdk.adsbase.StartAppAd
 import com.startapp.sdk.adsbase.StartAppSDK
 import kotlinx.coroutines.launch
 
@@ -47,6 +48,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Initialize Start.io with the User's ID
         StartAppSDK.init(this, "211609946", true)
+
+        // Force the Splash Ad to show immediately
+        StartAppAd.showSplash(this, savedInstanceState)
 
         setContent {
             MusicAppTheme {
