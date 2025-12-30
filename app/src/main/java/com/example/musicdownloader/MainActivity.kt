@@ -1,11 +1,13 @@
 package com.example.musicdownloader
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,6 +38,8 @@ import com.example.musicdownloader.ui.SearchScreen
 import com.example.musicdownloader.ui.SettingsScreen
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.utils.AdManager
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -117,6 +121,7 @@ fun MainScreen(viewModel: MusicViewModel) {
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val activity = LocalContext.current as? Activity
 
     // Bottom Sheet Player State
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -131,6 +136,9 @@ fun MainScreen(viewModel: MusicViewModel) {
     var showAdDialog by remember { mutableStateOf(false) }
     var adDialogMessage by remember { mutableStateOf("Please watch a short ad to keep this app free.") }
 
+    // Exit Ad State
+    var hasShownExitAd by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         // Check Trigger on App Start
         AdManager.checkSmartTrigger(context)
@@ -142,26 +150,59 @@ fun MainScreen(viewModel: MusicViewModel) {
         }
     }
 
-    // Lifecycle Observer for Ad Timer Logic
+    // Lifecycle Observer for Ad Timer Logic & Return Checks
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    // Active User Timer (30 minutes)
+    var activeTimerJob by remember { mutableStateOf<Job?>(null) }
+
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                if (AdManager.lastAdClickTime > 0) {
+                // 1. Start Active User Timer
+                activeTimerJob?.cancel()
+                activeTimerJob = scope.launch {
+                    delay(30 * 60 * 1000L) // 30 Minutes
+                    // Trigger Active Ad
+                    AdManager.showRandomAd(context, thresholdMs = 5000L)
+                }
+
+                // 2. Check Return from Ad (if needed)
+                if (AdManager.lastAdClickTime > 0 && AdManager.shouldCheckDuration) {
                     val diff = System.currentTimeMillis() - AdManager.lastAdClickTime
-                    if (diff < 7000) {
-                        // User returned too quickly (< 7 seconds)
-                        adDialogMessage = "Please view the ad for at least 7 seconds before closing."
+                    if (diff < AdManager.currentAdThresholdMs) {
+                        // User returned too quickly (< Threshold)
+                        val seconds = AdManager.currentAdThresholdMs / 1000
+                        adDialogMessage = "Please view the ad for at least $seconds seconds before closing."
                         showAdDialog = true
                     }
                     // Reset timer so next click is fresh
                     AdManager.lastAdClickTime = 0
                 }
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                // Cancel active timer when paused
+                activeTimerJob?.cancel()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            activeTimerJob?.cancel()
+        }
+    }
+
+    // Intercept Back Button for Exit Ad
+    // Only intercept if we are on Home Tab (Main Exit Point)
+    if (currentTab == MainTab.Home) {
+        BackHandler(enabled = true) {
+            if (!hasShownExitAd) {
+                // First Back Press -> Show Exit Ad
+                hasShownExitAd = true
+                AdManager.showRandomAd(context, thresholdMs = 0L, checkDuration = false)
+            } else {
+                // Second Back Press -> Actually Exit
+                activity?.finish()
+            }
         }
     }
 
@@ -178,7 +219,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                 Button(
                     onClick = {
                         showAdDialog = false
-                        AdManager.showRandomAd(context)
+                        // Re-launch Ad with the same threshold currently set in AdManager
+                        AdManager.showRandomAd(context, thresholdMs = AdManager.currentAdThresholdMs, checkDuration = true)
                     }
                 ) {
                     Text("Support")
