@@ -60,11 +60,11 @@ fun ArtistsScreen(
         containerColor = Color(0xFF0F0F13)
     ) { padding ->
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 160.dp),
+            columns = GridCells.Fixed(3),
             contentPadding = PaddingValues(16.dp),
             modifier = Modifier.padding(padding),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(artists) { (artistName, artistSongs) ->
                 ArtistCard(
@@ -106,7 +106,7 @@ fun ArtistCard(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Text(
             text = name,
@@ -114,12 +114,12 @@ fun ArtistCard(
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            fontSize = 16.sp
+            fontSize = 14.sp
         )
         Text(
             text = "$songCount Songs",
             color = Color.Gray,
-            fontSize = 12.sp
+            fontSize = 11.sp
         )
     }
 }

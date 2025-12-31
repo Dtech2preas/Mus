@@ -3,9 +3,8 @@ package com.example.musicdownloader.ui
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -73,19 +72,17 @@ fun SearchScreen(
                 CircularProgressIndicator(color = ElectricPurple)
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            LazyColumn(
                 contentPadding = contentPadding,
                 modifier = Modifier.weight(1f)
             ) {
                 items(uiState.results) { video ->
                     val subtitle = if (video.album != null && video.album != "Unknown Album") "${video.uploader} • ${video.album}" else video.uploader
-                    MusicCard(
+                    MusicRowItem(
                         title = video.title,
                         subtitle = subtitle,
                         thumbnailUrl = video.thumbnailUrl,
+                        isLibrary = false,
                         isDownloaded = downloadedIds.contains(video.id),
                         downloadProgress = downloadProgress[video.id],
                         onClick = {
@@ -96,11 +93,10 @@ fun SearchScreen(
                                 viewModel.downloadAndPlay(video)
                             }
                         },
-                        onDownload = {
+                        onDownloadClick = {
                              Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
                              viewModel.downloadAndPlay(video)
-                        },
-                        modifier = Modifier.fillMaxWidth().height(220.dp)
+                        }
                     )
                 }
             }

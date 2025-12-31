@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.musicdownloader.CookieManager
+import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.UserPreferences
 import com.example.musicdownloader.utils.AdManager
 
@@ -24,6 +27,7 @@ fun SettingsScreen(
     onShowLogs: () -> Unit,
     contentPadding: PaddingValues
 ) {
+    val viewModel: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val context = LocalContext.current
     var showCookieDialog by remember { mutableStateOf(false) }
 
@@ -136,6 +140,28 @@ fun SettingsScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                // Telegram
+                Button(
+                    onClick = {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/DTECHX24"))
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = "Telegram",
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text("Join our Telegram Channel")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Watch Ad
                 Button(
                     onClick = { AdManager.showRandomAd(context) },
                     modifier = Modifier.fillMaxWidth(),
@@ -153,7 +179,40 @@ fun SettingsScreen(
             }
         }
 
-        // 4. Developer Tools
+        // 4. Maintenance
+         Text(
+            text = "Maintenance",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Button(
+                    onClick = { viewModel.rescanLibrary() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                     Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Scan",
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text("Scan for Lost/Unknown Files")
+                }
+                Text(
+                    text = "Use this to fix 'Unknown Song' issues and find missing files. Ensure you have an active internet connection.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+
+        // 5. Developer Tools
         Text(
             text = "Developer Tools",
             style = MaterialTheme.typography.titleLarge,
