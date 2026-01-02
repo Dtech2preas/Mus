@@ -12,6 +12,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -25,18 +27,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.musicdownloader.data.Playlist
-import com.example.musicdownloader.ui.GenreSelectionScreen
-import com.example.musicdownloader.ui.HomeScreen
-import com.example.musicdownloader.ui.LibraryScreen
-import com.example.musicdownloader.ui.LikedSongsScreen
-import com.example.musicdownloader.ui.MusicAppTheme
-import com.example.musicdownloader.ui.PlaylistDetailScreen
-import com.example.musicdownloader.ui.PlaylistScreen
-import com.example.musicdownloader.ui.ArtistsScreen
-import com.example.musicdownloader.ui.ArtistDetailScreen
-import com.example.musicdownloader.ui.SearchScreen
-import com.example.musicdownloader.ui.SettingsScreen
-import com.example.musicdownloader.ui.DeepBlue
+import com.example.musicdownloader.ui.*
+import com.example.musicdownloader.ui.FullScreenPlayer
 import com.example.musicdownloader.utils.AdManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -79,20 +71,6 @@ fun RequestNotificationPermission() {
     }
 }
 
-enum class MainTab {
-    Home, Search, Library, Settings
-}
-
-// Sub-navigation for Library
-sealed class LibraryRoute {
-    object Main : LibraryRoute()
-    object Playlists : LibraryRoute()
-    object LikedSongs : LibraryRoute()
-    object Artists : LibraryRoute()
-    data class PlaylistDetail(val id: Int, val name: String) : LibraryRoute()
-    data class ArtistDetail(val name: String) : LibraryRoute()
-}
-
 @Composable
 fun AppNavigation(viewModel: MusicViewModel) {
     val context = LocalContext.current
@@ -115,7 +93,39 @@ fun AppNavigation(viewModel: MusicViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MusicViewModel) {
-    var currentTab by remember { mutableStateOf(MainTab.Home) }
+    // -------------------------------------------------------------
+    // NAVIGATION STATE (Custom Back Stack)
+    // -------------------------------------------------------------
+    val navigationStack = remember { mutableStateListOf<AppScreen>(AppScreen.Home) }
+
+    fun navigateTo(screen: AppScreen) {
+        navigationStack.add(screen)
+    }
+
+    fun popBackStack(): Boolean {
+        if (navigationStack.size > 1) {
+            navigationStack.removeAt(navigationStack.size - 1)
+            return true
+        }
+        return false
+    }
+
+    val currentScreen = navigationStack.lastOrNull() ?: AppScreen.Home
+
+    val currentTab = when (currentScreen) {
+        is AppScreen.Home -> 0
+        is AppScreen.Search -> 1
+        is AppScreen.Library,
+        is AppScreen.Playlists,
+        is AppScreen.LikedSongs,
+        is AppScreen.Artists,
+        is AppScreen.PlaylistDetail,
+        is AppScreen.ArtistDetail -> 2
+        is AppScreen.Settings -> 3
+    }
+
+    // -------------------------------------------------------------
+
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
@@ -129,58 +139,40 @@ fun MainScreen(viewModel: MusicViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // Library Navigation State
-    var libraryRoute by remember { mutableStateOf<LibraryRoute>(LibraryRoute.Main) }
-
     // --- Ad System Integration ---
     var showAdDialog by remember { mutableStateOf(false) }
     var adDialogMessage by remember { mutableStateOf("Please watch a short ad to keep this app free.") }
-
-    // Exit Ad State
     var hasShownExitAd by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // Check Trigger on App Start
         AdManager.checkSmartTrigger(context)
-
-        // Observe Ad Dialog Requests
         AdManager.showAdDialogEvent.collect {
             adDialogMessage = "Please watch a short ad to keep this app free."
             showAdDialog = true
         }
     }
 
-    // Lifecycle Observer for Ad Timer Logic & Return Checks
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-
-    // Active User Timer (30 minutes)
     var activeTimerJob by remember { mutableStateOf<Job?>(null) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                // 1. Start Active User Timer
                 activeTimerJob?.cancel()
                 activeTimerJob = scope.launch {
-                    delay(30 * 60 * 1000L) // 30 Minutes
-                    // Trigger Active Ad
+                    delay(30 * 60 * 1000L)
                     AdManager.showRandomAd(context, thresholdMs = 5000L)
                 }
-
-                // 2. Check Return from Ad (if needed)
                 if (AdManager.lastAdClickTime > 0 && AdManager.shouldCheckDuration) {
                     val diff = System.currentTimeMillis() - AdManager.lastAdClickTime
                     if (diff < AdManager.currentAdThresholdMs) {
-                        // User returned too quickly (< Threshold)
                         val seconds = AdManager.currentAdThresholdMs / 1000
                         adDialogMessage = "Please view the ad for at least $seconds seconds before closing."
                         showAdDialog = true
                     }
-                    // Reset timer so next click is fresh
                     AdManager.lastAdClickTime = 0
                 }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                // Cancel active timer when paused
                 activeTimerJob?.cancel()
             }
         }
@@ -191,24 +183,22 @@ fun MainScreen(viewModel: MusicViewModel) {
         }
     }
 
-    // Intercept Back Button for Exit Ad
-    // Only intercept if we are on Home Tab (Main Exit Point)
-    if (currentTab == MainTab.Home) {
-        BackHandler(enabled = true) {
-            if (!hasShownExitAd) {
-                // First Back Press -> Show Exit Ad
-                hasShownExitAd = true
-                AdManager.showRandomAd(context, thresholdMs = 0L, checkDuration = false)
-            } else {
-                // Second Back Press -> Actually Exit
-                activity?.finish()
-            }
+    // Intercept Back Button
+    BackHandler(enabled = true) {
+        if (popBackStack()) {
+            return@BackHandler
+        }
+        if (!hasShownExitAd) {
+            hasShownExitAd = true
+            AdManager.showRandomAd(context, thresholdMs = 0L, checkDuration = false)
+        } else {
+            activity?.finish()
         }
     }
 
     if (showAdDialog) {
         AlertDialog(
-            onDismissRequest = { /* No-op to prevent dismissal */ },
+            onDismissRequest = { },
             properties = androidx.compose.ui.window.DialogProperties(
                 dismissOnBackPress = false,
                 dismissOnClickOutside = false
@@ -219,19 +209,15 @@ fun MainScreen(viewModel: MusicViewModel) {
                 Button(
                     onClick = {
                         showAdDialog = false
-                        // Re-launch Ad with the same threshold currently set in AdManager
                         AdManager.showRandomAd(context, thresholdMs = AdManager.currentAdThresholdMs, checkDuration = true)
                     }
                 ) {
                     Text("Support")
                 }
             }
-            // dismissedButton removed to force support
         )
     }
-    // -----------------------------
 
-    // Error/Message Toasts
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
@@ -239,7 +225,6 @@ fun MainScreen(viewModel: MusicViewModel) {
         }
     }
 
-    // Single Toast Event Channel
     LaunchedEffect(viewModel.toastEvent) {
         viewModel.toastEvent.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -259,7 +244,6 @@ fun MainScreen(viewModel: MusicViewModel) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Column {
-                // MiniPlayer sits exactly on top of the BottomBar if a song is playing
                 if (currentMediaItem != null) {
                     MiniPlayer(
                         viewModel = viewModel,
@@ -268,36 +252,41 @@ fun MainScreen(viewModel: MusicViewModel) {
                 }
 
                 NavigationBar(
-                    containerColor = DeepBlue // Match theme
+                    containerColor = DeepBlue
                 ) {
                     NavigationBarItem(
-                        selected = currentTab == MainTab.Home,
-                        onClick = { currentTab = MainTab.Home },
+                        selected = currentTab == 0,
+                        onClick = {
+                            navigationStack.clear()
+                            navigationStack.add(AppScreen.Home)
+                        },
                         icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
                         label = { Text("Home") }
                     )
                     NavigationBarItem(
-                        selected = currentTab == MainTab.Search,
-                        onClick = { currentTab = MainTab.Search },
+                        selected = currentTab == 1,
+                        onClick = {
+                            navigationStack.clear()
+                            navigationStack.add(AppScreen.Search)
+                        },
                         icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                         label = { Text("Search") }
                     )
                     NavigationBarItem(
-                        selected = currentTab == MainTab.Library,
+                        selected = currentTab == 2,
                         onClick = {
-                            if (currentTab == MainTab.Library) {
-                                // Reset library stack if tapped again
-                                libraryRoute = LibraryRoute.Main
-                            } else {
-                                currentTab = MainTab.Library
-                            }
+                            navigationStack.clear()
+                            navigationStack.add(AppScreen.Library)
                         },
                         icon = { Icon(Icons.Default.List, contentDescription = "Library") },
                         label = { Text("Library") }
                     )
                     NavigationBarItem(
-                        selected = currentTab == MainTab.Settings,
-                        onClick = { currentTab = MainTab.Settings },
+                        selected = currentTab == 3,
+                        onClick = {
+                            navigationStack.clear()
+                            navigationStack.add(AppScreen.Settings)
+                        },
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                         label = { Text("Settings") }
                     )
@@ -305,70 +294,73 @@ fun MainScreen(viewModel: MusicViewModel) {
             }
         }
     ) { paddingValues ->
-        // Content Area
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
-        ) {
-            when (currentTab) {
-                MainTab.Home -> HomeScreen(
-                    viewModel = viewModel,
-                    onSongClick = { id ->
-                         // Handled in HomeScreen now via playLocalSong/downloadAndPlay
-                         // But if we need global click handling:
-                    }
-                )
-                MainTab.Search -> SearchScreen(viewModel = viewModel, contentPadding = PaddingValues(0.dp))
-                MainTab.Library -> {
-                    // Nested Library Navigation
-                    when (val route = libraryRoute) {
-                        LibraryRoute.Main -> LibraryScreen(
-                            viewModel = viewModel,
-                            snackbarHostState = snackbarHostState,
-                            onNavigateToPlaylists = { libraryRoute = LibraryRoute.Playlists },
-                            onNavigateToLiked = { libraryRoute = LibraryRoute.LikedSongs },
-                            onNavigateToArtists = { libraryRoute = LibraryRoute.Artists }
-                        )
-                        LibraryRoute.Playlists -> PlaylistScreen(
-                            viewModel = viewModel,
-                            onBack = { libraryRoute = LibraryRoute.Main },
-                            onPlaylistClick = { playlist -> libraryRoute = LibraryRoute.PlaylistDetail(playlist.id, playlist.name) }
-                        )
-                        LibraryRoute.LikedSongs -> LikedSongsScreen(
-                            viewModel = viewModel,
-                            onBack = { libraryRoute = LibraryRoute.Main },
-                            onSongClick = { id -> viewModel.playLocalSong(id, "Unknown", "Unknown", "") } // Re-fetch info or just play
-                        )
-                        LibraryRoute.Artists -> ArtistsScreen(
-                            viewModel = viewModel,
-                            onNavigateToArtist = { name -> libraryRoute = LibraryRoute.ArtistDetail(name) },
-                            onBack = { libraryRoute = LibraryRoute.Main }
-                        )
-                        is LibraryRoute.ArtistDetail -> ArtistDetailScreen(
-                            artistName = route.name,
-                            viewModel = viewModel,
-                            onBack = { libraryRoute = LibraryRoute.Artists }
-                        )
-                        is LibraryRoute.PlaylistDetail -> PlaylistDetailScreen(
-                            viewModel = viewModel,
-                            playlistId = route.id,
-                            playlistName = route.name,
-                            onBack = { libraryRoute = LibraryRoute.Playlists }
-                        )
-                    }
-                }
-                MainTab.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = PaddingValues(0.dp))
+        // Animated Content Switcher
+        // Using explicit `with` from androidx.compose.animation for safety
+        AnimatedContent(
+            targetState = currentScreen,
+            label = "ScreenTransition",
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            transitionSpec = {
+                 (fadeIn(animationSpec = tween(300)) +
+                  slideInHorizontally(animationSpec = tween(300), initialOffsetX = { it / 4 }))
+                 .with(fadeOut(animationSpec = tween(300)))
             }
+        ) { targetScreen ->
+             Box(modifier = Modifier.fillMaxSize()) {
+                when (targetScreen) {
+                    is AppScreen.Home -> HomeScreen(
+                        viewModel = viewModel,
+                        onSongClick = { /* handled locally */ }
+                    )
+                    is AppScreen.Search -> SearchScreen(viewModel = viewModel, contentPadding = PaddingValues(0.dp))
+                    is AppScreen.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = PaddingValues(0.dp))
+
+                    is AppScreen.Library -> LibraryScreen(
+                        viewModel = viewModel,
+                        snackbarHostState = snackbarHostState,
+                        onNavigateToPlaylists = { navigateTo(AppScreen.Playlists) },
+                        onNavigateToLiked = { navigateTo(AppScreen.LikedSongs) },
+                        onNavigateToArtists = { navigateTo(AppScreen.Artists) }
+                    )
+                    is AppScreen.Playlists -> PlaylistScreen(
+                        viewModel = viewModel,
+                        onBack = { popBackStack() },
+                        onPlaylistClick = { playlist -> navigateTo(AppScreen.PlaylistDetail(playlist.id, playlist.name)) }
+                    )
+                    is AppScreen.LikedSongs -> LikedSongsScreen(
+                        viewModel = viewModel,
+                        onBack = { popBackStack() },
+                        onSongClick = { id -> viewModel.playLocalSong(id, "Unknown", "Unknown", "") }
+                    )
+                    is AppScreen.Artists -> ArtistsScreen(
+                        viewModel = viewModel,
+                        onNavigateToArtist = { name -> navigateTo(AppScreen.ArtistDetail(name)) },
+                        onBack = { popBackStack() }
+                    )
+                    is AppScreen.ArtistDetail -> ArtistDetailScreen(
+                        artistName = targetScreen.name,
+                        viewModel = viewModel,
+                        onBack = { popBackStack() }
+                    )
+                    is AppScreen.PlaylistDetail -> PlaylistDetailScreen(
+                        viewModel = viewModel,
+                        playlistId = targetScreen.id,
+                        playlistName = targetScreen.name,
+                        onBack = { popBackStack() }
+                    )
+                }
+             }
         }
     }
 
-    // Full Screen Player Sheet
     if (isPlayerExpanded) {
         ModalBottomSheet(
             onDismissRequest = { isPlayerExpanded = false },
             sheetState = sheetState,
-            containerColor = androidx.compose.ui.graphics.Color.Transparent, // Let Player handle bg
-            dragHandle = null // Custom handle or none
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            dragHandle = null
         ) {
             FullScreenPlayer(
                 viewModel = viewModel,

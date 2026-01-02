@@ -273,4 +273,73 @@ object MusicRepository {
     suspend fun addSongToPlaylist(context: Context, playlistId: Int, songId: String) {
         AppDatabase.getDatabase(context).playlistDao().addSongToPlaylist(PlaylistEntry(playlistId, songId))
     }
+
+    suspend fun importLocalSongs(context: Context): Int = withContext(Dispatchers.IO) {
+        var count = 0
+        try {
+            val projection = arrayOf(
+                android.provider.MediaStore.Audio.Media._ID,
+                android.provider.MediaStore.Audio.Media.TITLE,
+                android.provider.MediaStore.Audio.Media.ARTIST,
+                android.provider.MediaStore.Audio.Media.ALBUM,
+                android.provider.MediaStore.Audio.Media.DURATION,
+                android.provider.MediaStore.Audio.Media.DATA
+            )
+
+            // Query for audio files
+            val cursor = context.contentResolver.query(
+                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                "${android.provider.MediaStore.Audio.Media.IS_MUSIC} != 0",
+                null,
+                null
+            )
+
+            cursor?.use {
+                val idCol = it.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media._ID)
+                val titleCol = it.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.TITLE)
+                val artistCol = it.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.ARTIST)
+                val albumCol = it.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.ALBUM)
+                val durationCol = it.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.DURATION)
+                val dataCol = it.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.DATA)
+
+                val database = AppDatabase.getDatabase(context)
+
+                while (it.moveToNext()) {
+                    val fileId = it.getLong(idCol).toString()
+                    val title = it.getString(titleCol) ?: "Unknown Title"
+                    val artist = it.getString(artistCol) ?: "Unknown Artist"
+                    val album = it.getString(albumCol) ?: "Unknown Album"
+                    val durationMs = it.getLong(durationCol)
+                    val path = it.getString(dataCol)
+
+                    // Format Duration
+                    val durationSec = durationMs / 1000
+                    val minutes = durationSec / 60
+                    val seconds = durationSec % 60
+                    val durationStr = String.format("%d:%02d", minutes, seconds)
+
+                    // Check for duplicates by path or ID prefix "local_"
+                    val localId = "local_$fileId"
+                    if (database.songDao().getSongById(localId) == null) {
+                         val song = Song(
+                             id = localId,
+                             title = title,
+                             artist = artist,
+                             album = album,
+                             duration = durationStr,
+                             filePath = path,
+                             thumbnailUrl = "" // No thumbnail for local yet
+                         )
+                         database.songDao().insert(song)
+                         count++
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.log("[Repo] Import failed: ${e.message}")
+            e.printStackTrace()
+        }
+        return@withContext count
+    }
 }
