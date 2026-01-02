@@ -48,6 +48,9 @@ fun LibraryScreen(
     // Manage adding to playlist
     var showAddToPlaylistForSong by remember { mutableStateOf<Song?>(null) }
 
+    // Manage Metadata Editing
+    var showEditMetadataForSong by remember { mutableStateOf<Song?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -96,10 +99,10 @@ fun LibraryScreen(
                 onClick = onNavigateToPlaylists
             )
 
-            // Artists Card (Replaced Albums)
+            // Artists Card
             NavigationCard(
                 title = "Artists",
-                icon = Icons.Default.Person, // User requested Person icon
+                icon = Icons.Default.Person,
                 color = Color(0xFFFFAB40), // Orange Accent
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToArtists
@@ -129,14 +132,13 @@ fun LibraryScreen(
                             HapticUtils.performHapticFeedback(context)
                             viewModel.addToQueue(song)
                             scope.launch { snackbarHostState.showSnackbar("Added to Queue") }
-                            false // Don't dismiss, just trigger action
+                            false
                         } else {
                             false
                         }
                     }
                 )
 
-                // Fade in Queue Text logic
                 val progress = dismissState.progress
                 val alpha by animateFloatAsState(targetValue = if (progress > 0.1f) 1f else 0f)
 
@@ -148,7 +150,7 @@ fun LibraryScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color(0xFF7D5FFF)) // Deep Purple
+                                .background(Color(0xFF7D5FFF))
                                 .padding(horizontal = 24.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
@@ -162,7 +164,6 @@ fun LibraryScreen(
                     enableDismissFromEndToStart = false
                 ) {
                      Box(modifier = Modifier.background(Color(0xFF0F0F13))) {
-                         // Subtitle display logic remains the same as requested
                          val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
                          MusicRowItem(
                             title = song.title,
@@ -185,6 +186,13 @@ fun LibraryScreen(
                                 onClick = {
                                     showMenu = false
                                     showAddToPlaylistForSong = song
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Edit Metadata", color = Color.White) },
+                                onClick = {
+                                    showMenu = false
+                                    showEditMetadataForSong = song
                                 }
                             )
                             DropdownMenuItem(
@@ -223,6 +231,18 @@ fun LibraryScreen(
             onAddToPlaylist = { playlist, _ ->
                 viewModel.addSongToPlaylist(playlist.id.toInt(), song.id)
                 scope.launch { snackbarHostState.showSnackbar("Added to ${playlist.name}") }
+            }
+        )
+    }
+
+    if (showEditMetadataForSong != null) {
+        val song = showEditMetadataForSong!!
+        EditMetadataDialog(
+            song = song,
+            onDismiss = { showEditMetadataForSong = null },
+            onSave = { title, artist, album ->
+                viewModel.updateSongMetadata(song, title, artist, album)
+                showEditMetadataForSong = null
             }
         )
     }

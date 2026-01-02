@@ -12,6 +12,7 @@ object UserPreferences {
     private const val KEY_IS_FIRST_RUN = "is_first_run"
     private const val KEY_GENRES = "saved_genres"
     private const val KEY_LAST_REFRESHED = "last_genre_refreshed"
+    private const val KEY_THEME_COLOR = "theme_color"
 
     // Ad System Keys
     private const val KEY_FIRST_OPEN_TIME = "first_open_time"
@@ -62,6 +63,17 @@ object UserPreferences {
     fun setLastGenreRefreshTime(context: Context, timestamp: Long) {
         getPrefs(context).edit {
             putLong(KEY_LAST_REFRESHED, timestamp)
+        }
+    }
+
+    fun getThemeColor(context: Context): Long {
+        // Default to Electric Purple (0xFF7D5FFF)
+        return getPrefs(context).getLong(KEY_THEME_COLOR, 0xFF7D5FFF)
+    }
+
+    fun setThemeColor(context: Context, color: Long) {
+        getPrefs(context).edit {
+            putLong(KEY_THEME_COLOR, color)
         }
     }
 

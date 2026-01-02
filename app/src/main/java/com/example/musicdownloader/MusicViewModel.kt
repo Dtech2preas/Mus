@@ -385,4 +385,37 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    // New Features
+    fun importLocalSongs() {
+        viewModelScope.launch {
+            _toastEvent.emit("Scanning local files...")
+            try {
+                val count = MusicRepository.importLocalSongs(getApplication())
+                _toastEvent.emit("Imported $count songs.")
+            } catch (e: Exception) {
+                _toastEvent.emit("Import failed: ${e.message}")
+            }
+        }
+    }
+
+    fun updateSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                AppDatabase.getDatabase(getApplication()).songDao().updateMetadata(
+                    id = song.id,
+                    title = newTitle,
+                    artist = newArtist,
+                    album = newAlbum
+                )
+                _toastEvent.emit("Metadata updated")
+            } catch (e: Exception) {
+                _toastEvent.emit("Update failed: ${e.message}")
+            }
+        }
+    }
+
+    fun launchEqualizer() {
+        MusicControllerManager.launchEqualizer(getApplication())
+    }
 }

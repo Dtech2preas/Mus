@@ -286,4 +286,25 @@ object MusicControllerManager {
         }
     }
 
+    fun launchEqualizer(context: Context) {
+        try {
+            val intent = android.content.Intent(android.media.audiofx.AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
+
+            // We need to pass the AudioSessionId if possible, but MediaController doesn't easily expose it safely across process.
+            // Sending 0 (Global Mix) is often rejected by modern Android.
+            // We try passing 0 for now as a fallback.
+            intent.putExtra(android.media.audiofx.AudioEffect.EXTRA_AUDIO_SESSION, 0)
+            intent.putExtra(android.media.audiofx.AudioEffect.EXTRA_CONTENT_TYPE, android.media.audiofx.AudioEffect.CONTENT_TYPE_MUSIC)
+
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+            } else {
+                android.widget.Toast.makeText(context, "No Equalizer found on this device.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            AppLogger.log("[Controller] Failed to launch equalizer: ${e.message}")
+            android.widget.Toast.makeText(context, "Error opening Equalizer", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
 }
