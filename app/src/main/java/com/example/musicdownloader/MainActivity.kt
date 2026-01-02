@@ -12,6 +12,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -94,15 +96,12 @@ fun MainScreen(viewModel: MusicViewModel) {
     // -------------------------------------------------------------
     // NAVIGATION STATE (Custom Back Stack)
     // -------------------------------------------------------------
-    // Stack of screens. The last item is the current screen.
     val navigationStack = remember { mutableStateListOf<AppScreen>(AppScreen.Home) }
 
-    // Helper to navigate
     fun navigateTo(screen: AppScreen) {
         navigationStack.add(screen)
     }
 
-    // Helper to pop
     fun popBackStack(): Boolean {
         if (navigationStack.size > 1) {
             navigationStack.removeAt(navigationStack.size - 1)
@@ -111,10 +110,8 @@ fun MainScreen(viewModel: MusicViewModel) {
         return false
     }
 
-    // Current Screen is the last one in the list
     val currentScreen = navigationStack.lastOrNull() ?: AppScreen.Home
 
-    // Determine the "Active Tab" for the Bottom Bar
     val currentTab = when (currentScreen) {
         is AppScreen.Home -> 0
         is AppScreen.Search -> 1
@@ -188,12 +185,9 @@ fun MainScreen(viewModel: MusicViewModel) {
 
     // Intercept Back Button
     BackHandler(enabled = true) {
-        // 1. Try to pop internal navigation stack
         if (popBackStack()) {
             return@BackHandler
         }
-
-        // 2. If stack is empty (at Root), handle Exit Ad logic
         if (!hasShownExitAd) {
             hasShownExitAd = true
             AdManager.showRandomAd(context, thresholdMs = 0L, checkDuration = false)
@@ -301,21 +295,17 @@ fun MainScreen(viewModel: MusicViewModel) {
         }
     ) { paddingValues ->
         // Animated Content Switcher
-        androidx.compose.animation.AnimatedContent(
+        // Using explicit `with` from androidx.compose.animation for safety
+        AnimatedContent(
             targetState = currentScreen,
             label = "ScreenTransition",
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
             transitionSpec = {
-                 androidx.compose.animation.fadeIn(
-                     animationSpec = androidx.compose.animation.core.tween(300)
-                 ) + androidx.compose.animation.slideInHorizontally(
-                     animationSpec = androidx.compose.animation.core.tween(300),
-                     initialOffsetX = { fullWidth -> fullWidth / 4 }
-                 ) togetherWith androidx.compose.animation.fadeOut(
-                     animationSpec = androidx.compose.animation.core.tween(300)
-                 )
+                 (fadeIn(animationSpec = tween(300)) +
+                  slideInHorizontally(animationSpec = tween(300), initialOffsetX = { it / 4 }))
+                 .with(fadeOut(animationSpec = tween(300)))
             }
         ) { targetScreen ->
              Box(modifier = Modifier.fillMaxSize()) {
@@ -327,7 +317,6 @@ fun MainScreen(viewModel: MusicViewModel) {
                     is AppScreen.Search -> SearchScreen(viewModel = viewModel, contentPadding = PaddingValues(0.dp))
                     is AppScreen.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = PaddingValues(0.dp))
 
-                    // Library & Subs
                     is AppScreen.Library -> LibraryScreen(
                         viewModel = viewModel,
                         snackbarHostState = snackbarHostState,

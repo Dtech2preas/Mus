@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -38,6 +39,7 @@ import androidx.palette.graphics.Palette
 import coil.ImageLoader
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.ui.AddToPlaylistSheet
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.ui.ElectricPurple
@@ -250,9 +252,9 @@ fun FullScreenPlayer(
 
                 // Seek Bar
                 Slider(
-                    value = if (duration > 0) currentPosition.toFloat() / duration else 0f,
+                    value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
                     onValueChange = { newValue ->
-                        val newPos = (newValue * duration).toLong()
+                        val newPos = (newValue * duration.toFloat()).toLong()
                         viewModel.seekTo(newPos)
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -435,9 +437,6 @@ fun VisualizerBar(isPlaying: Boolean) {
             .background(color.copy(alpha = 0.8f))
     )
 }
-
-// Utility for alpha without requiring custom imports if Modifier.alpha is missing
-fun Modifier.alpha(alpha: Float) = this.then(androidx.compose.ui.draw.alpha(alpha))
 
 private fun formatTime(millis: Long): String {
     if (millis < 0) return "00:00"
