@@ -9,7 +9,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.musicdownloader"
+        applicationId = "com.dtech.music"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
