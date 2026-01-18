@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -76,6 +77,7 @@ fun FullScreenPlayer(
 
     // Add to Playlist State
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var showEffectsSheet by remember { mutableStateOf(false) }
 
     if (currentMediaItem == null) return
 
@@ -124,6 +126,15 @@ fun FullScreenPlayer(
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = "Collapse",
+                            tint = Color.White
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showEffectsSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Audio Settings",
                             tint = Color.White
                         )
                     }
@@ -392,6 +403,13 @@ fun FullScreenPlayer(
                 viewModel.addSongToPlaylist(playlist.id.toInt(), songId)
                 showAddToPlaylistDialog = false
             }
+        )
+    }
+
+    if (showEffectsSheet) {
+        PlayerEffectsSheet(
+            viewModel = viewModel,
+            onDismiss = { showEffectsSheet = false }
         )
     }
 }

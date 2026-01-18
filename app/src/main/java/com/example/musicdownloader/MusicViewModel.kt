@@ -84,6 +84,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val playlists: StateFlow<List<Playlist>> = MusicRepository.getPlaylists(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Audio Effects State
+    private val _playbackSpeed = MutableStateFlow(UserPreferences.getPlaybackSpeed(application))
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
+    private val _bassStrength = MutableStateFlow(UserPreferences.getBassBoostStrength(application))
+    val bassStrength: StateFlow<Int> = _bassStrength.asStateFlow()
+
+    private val _virtualizerStrength = MutableStateFlow(UserPreferences.getVirtualizerStrength(application))
+    val virtualizerStrength: StateFlow<Int> = _virtualizerStrength.asStateFlow()
+
+    private val _isMono = MutableStateFlow(UserPreferences.isMonoAudioEnabled(application))
+    val isMono: StateFlow<Boolean> = _isMono.asStateFlow()
+
+    // A-B Loop State (Not persisted)
+    private val _abStart = MutableStateFlow(androidx.media3.common.C.TIME_UNSET)
+    val abStart: StateFlow<Long> = _abStart.asStateFlow()
+
+    private val _abEnd = MutableStateFlow(androidx.media3.common.C.TIME_UNSET)
+    val abEnd: StateFlow<Long> = _abEnd.asStateFlow()
+
     init {
         // Initialize the controller connection
         MusicControllerManager.initialize(application)
@@ -417,5 +437,37 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun launchEqualizer() {
         MusicControllerManager.launchEqualizer(getApplication())
+    }
+
+    // --- Audio Effects & Features ---
+
+    fun setPlaybackSpeed(speed: Float) {
+        _playbackSpeed.value = speed
+        MusicControllerManager.setPlaybackSpeed(speed)
+    }
+
+    fun setBassStrength(strength: Int) {
+        _bassStrength.value = strength
+        MusicControllerManager.setBassBoostStrength(strength)
+    }
+
+    fun setVirtualizerStrength(strength: Int) {
+        _virtualizerStrength.value = strength
+        MusicControllerManager.setVirtualizerStrength(strength)
+    }
+
+    fun setABPoints(a: Long, b: Long) {
+        _abStart.value = a
+        _abEnd.value = b
+        MusicControllerManager.setABLoop(a, b)
+    }
+
+    fun clearABLoop() {
+        setABPoints(androidx.media3.common.C.TIME_UNSET, androidx.media3.common.C.TIME_UNSET)
+    }
+
+    fun setMonoAudio(enabled: Boolean) {
+        _isMono.value = enabled
+        MusicControllerManager.setMonoAudio(enabled)
     }
 }
