@@ -307,4 +307,43 @@ object MusicControllerManager {
         }
     }
 
+    // --- Audio Effects & Features ---
+
+    fun setPlaybackSpeed(speed: Float) {
+        mediaController?.sendCustomCommand(
+            SessionCommand("SET_SPEED", Bundle.EMPTY),
+            Bundle().apply { putFloat("SPEED", speed) }
+        )
+    }
+
+    fun setBassBoostStrength(strength: Int) {
+        mediaController?.sendCustomCommand(
+            SessionCommand("SET_BASS", Bundle.EMPTY),
+            Bundle().apply { putInt("STRENGTH", strength) }
+        )
+    }
+
+    fun setVirtualizerStrength(strength: Int) {
+        mediaController?.sendCustomCommand(
+            SessionCommand("SET_VIRT", Bundle.EMPTY),
+            Bundle().apply { putInt("STRENGTH", strength) }
+        )
+    }
+
+    fun setABLoop(aPoint: Long, bPoint: Long) {
+        mediaController?.sendCustomCommand(
+            SessionCommand("SET_AB", Bundle.EMPTY),
+            Bundle().apply {
+                putLong("A_POINT", aPoint)
+                putLong("B_POINT", bPoint)
+            }
+        )
+    }
+
+    fun setMonoAudio(enabled: Boolean) {
+        mediaController?.sendCustomCommand(
+            SessionCommand("SET_MONO", Bundle.EMPTY),
+            Bundle().apply { putBoolean("ENABLED", enabled) }
+        )
+    }
 }

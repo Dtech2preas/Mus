@@ -20,6 +20,12 @@ object UserPreferences {
     private const val KEY_LAST_DOWNLOAD_DATE = "last_download_date"
     private const val KEY_LAST_AD_SHOWN_DATE = "last_ad_shown_date"
 
+    // Audio Settings Keys
+    private const val KEY_PLAYBACK_SPEED = "playback_speed"
+    private const val KEY_BASS_BOOST = "bass_boost_strength"
+    private const val KEY_VIRTUALIZER = "virtualizer_strength"
+    private const val KEY_MONO_AUDIO = "mono_audio_enabled"
+
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
@@ -133,5 +139,47 @@ object UserPreferences {
 
     private fun getTodayDate(): String {
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    }
+
+    // --- Audio Settings Methods ---
+
+    fun getPlaybackSpeed(context: Context): Float {
+        return getPrefs(context).getFloat(KEY_PLAYBACK_SPEED, 1.0f)
+    }
+
+    fun setPlaybackSpeed(context: Context, speed: Float) {
+        getPrefs(context).edit {
+            putFloat(KEY_PLAYBACK_SPEED, speed)
+        }
+    }
+
+    fun getBassBoostStrength(context: Context): Int {
+        return getPrefs(context).getInt(KEY_BASS_BOOST, 0)
+    }
+
+    fun setBassBoostStrength(context: Context, strength: Int) {
+        getPrefs(context).edit {
+            putInt(KEY_BASS_BOOST, strength)
+        }
+    }
+
+    fun getVirtualizerStrength(context: Context): Int {
+        return getPrefs(context).getInt(KEY_VIRTUALIZER, 0)
+    }
+
+    fun setVirtualizerStrength(context: Context, strength: Int) {
+        getPrefs(context).edit {
+            putInt(KEY_VIRTUALIZER, strength)
+        }
+    }
+
+    fun isMonoAudioEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_MONO_AUDIO, false)
+    }
+
+    fun setMonoAudioEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit {
+            putBoolean(KEY_MONO_AUDIO, enabled)
+        }
     }
 }
