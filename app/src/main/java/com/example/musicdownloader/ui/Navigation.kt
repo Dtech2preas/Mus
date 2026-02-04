@@ -12,6 +12,9 @@ sealed class AppScreen {
     object LikedSongs : AppScreen()
     object Artists : AppScreen()
 
+    // Tools
+    object Compression : AppScreen()
+
     // Details
     data class PlaylistDetail(val id: Int, val name: String) : AppScreen()
     data class ArtistDetail(val name: String) : AppScreen()

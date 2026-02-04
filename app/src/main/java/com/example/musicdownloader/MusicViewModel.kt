@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.example.musicdownloader.data.AppDatabase
+import com.example.musicdownloader.data.CompressionManager
+import com.example.musicdownloader.data.CompressionQuality
 import com.example.musicdownloader.data.PlayHistory
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
@@ -46,6 +48,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Toast Events Channel
     private val _toastEvent = MutableSharedFlow<String>()
     val toastEvent = _toastEvent.asSharedFlow()
+
+    // Compression State
+    private val _isCompressing = MutableStateFlow(false)
+    val isCompressing: StateFlow<Boolean> = _isCompressing.asStateFlow()
+
+    private val _compressionProgress = MutableStateFlow("")
+    val compressionProgress: StateFlow<String> = _compressionProgress.asStateFlow()
 
     // Expose Player State from Manager
     val isPlaying = MusicControllerManager.isPlaying
@@ -417,5 +426,38 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun launchEqualizer() {
         MusicControllerManager.launchEqualizer(getApplication())
+    }
+
+    fun compressSongs(songs: List<Song>, quality: CompressionQuality) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isCompressing.value = true
+            var successCount = 0
+            var failCount = 0
+            val total = songs.size
+
+            songs.forEachIndexed { index, song ->
+                _compressionProgress.value = "Compressing ${index + 1} of $total...\n${song.title}"
+
+                // Optional: Check if already compressed? No easy way unless we store bitrate metadata.
+                // We assume user knows what they are doing.
+
+                val resultFile = CompressionManager.compressSong(getApplication(), song, quality)
+                if (resultFile != null) {
+                    try {
+                        MusicRepository.replaceSongFile(getApplication(), song, resultFile)
+                        successCount++
+                    } catch (e: Exception) {
+                        AppLogger.log("[ViewModel] Replace failed: ${e.message}")
+                        failCount++
+                    }
+                } else {
+                    failCount++
+                }
+            }
+
+            _isCompressing.value = false
+            _compressionProgress.value = ""
+            _toastEvent.emit("Compression complete. Success: $successCount, Failed: $failCount")
+        }
     }
 }

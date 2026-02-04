@@ -122,7 +122,8 @@ fun MainScreen(viewModel: MusicViewModel) {
         is AppScreen.Artists,
         is AppScreen.PlaylistDetail,
         is AppScreen.ArtistDetail -> 2
-        is AppScreen.Settings -> 3
+        is AppScreen.Settings,
+        is AppScreen.Compression -> 3
     }
 
     // -------------------------------------------------------------
@@ -316,7 +317,15 @@ fun MainScreen(viewModel: MusicViewModel) {
                         onSongClick = { /* handled locally */ }
                     )
                     is AppScreen.Search -> SearchScreen(viewModel = viewModel, contentPadding = PaddingValues(0.dp))
-                    is AppScreen.Settings -> SettingsScreen(onShowLogs = { showLogs = true }, contentPadding = PaddingValues(0.dp))
+                    is AppScreen.Settings -> SettingsScreen(
+                        onShowLogs = { showLogs = true },
+                        onNavigateToCompression = { navigateTo(AppScreen.Compression) },
+                        contentPadding = PaddingValues(0.dp)
+                    )
+                    is AppScreen.Compression -> CompressionScreen(
+                        viewModel = viewModel,
+                        onBack = { popBackStack() }
+                    )
 
                     is AppScreen.Library -> LibraryScreen(
                         viewModel = viewModel,
