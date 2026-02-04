@@ -56,6 +56,14 @@ fun IdentifyScreen(
         var webView: WebView? by remember { mutableStateOf(null) }
         var hasFound by remember { mutableStateOf(false) }
 
+        // Proper cleanup to release microphone resources and prevent "Second Try" failure
+        DisposableEffect(Unit) {
+            onDispose {
+                webView?.destroy()
+                webView = null
+            }
+        }
+
         // Polling to check for success state
         LaunchedEffect(Unit) {
             while (true) {
@@ -64,21 +72,45 @@ fun IdentifyScreen(
 
                 webView?.let { view ->
                     val url = view.url
-                    val title = view.title
 
                     if (url != null && url.contains("/track/")) {
-                        // Found a track!
-                        // Try to extract title from document title
-                        // Format is usually: "Song Name - Artist | Shazam" or just "Song Name - Artist"
-                        if (!title.isNullOrBlank()) {
-                            val cleanedTitle = title.replace("| Shazam", "")
-                                                    .replace("- Shazam", "")
-                                                    .trim()
+                        // Found a track page, try to extract metadata using JavaScript
+                        // We extract h1 (Song), h2 (Artist), and document.title as fallback
+                        val js = "(function() { " +
+                                "var h1 = document.querySelector('h1')?.innerText || ''; " +
+                                "var h2 = document.querySelector('h2')?.innerText || ''; " +
+                                "var t = document.title || ''; " +
+                                "return h1 + '|||' + h2 + '|||' + t; " +
+                                "})();"
 
-                            // Heuristic: If it looks like a song (has content), trigger
-                            if (cleanedTitle.isNotBlank() && cleanedTitle != "Shazam") {
-                                hasFound = true
-                                onSongFound(cleanedTitle)
+                        view.evaluateJavascript(js) { result ->
+                            // result is a JSON string, e.g., "\"Song|||Artist|||Title\""
+                            if (result != null && result != "null" && !hasFound) {
+                                val rawString = result.trim('"') // Remove surrounding quotes from JSON string
+                                val parts = rawString.split("|||")
+                                if (parts.size >= 3) {
+                                    val song = parts[0].trim()
+                                    val artist = parts[1].trim()
+                                    val pageTitle = parts[2].trim()
+
+                                    var searchQuery = ""
+
+                                    if (song.isNotBlank() && artist.isNotBlank()) {
+                                        searchQuery = "$artist - $song"
+                                    } else if (song.isNotBlank()) {
+                                        searchQuery = song
+                                    } else if (pageTitle.isNotBlank()) {
+                                        // Fallback to title parsing
+                                        searchQuery = pageTitle.replace("| Shazam", "")
+                                            .replace("- Shazam", "")
+                                            .trim()
+                                    }
+
+                                    if (searchQuery.isNotBlank() && searchQuery != "Shazam") {
+                                        hasFound = true
+                                        onSongFound(searchQuery)
+                                    }
+                                }
                             }
                         }
                     }
@@ -100,8 +132,9 @@ fun IdentifyScreen(
                     settings.allowFileAccess = true
                     settings.mediaPlaybackRequiresUserGesture = false
 
-                    // Clear cache to ensure fresh permission request state
-                    clearCache(false)
+                    // Clear cache aggressively to ensure fresh permission request state
+                    clearCache(true)
+                    clearHistory()
 
                     webChromeClient = object : WebChromeClient() {
                         override fun onPermissionRequest(request: PermissionRequest) {
