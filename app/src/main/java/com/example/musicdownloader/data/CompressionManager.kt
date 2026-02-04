@@ -45,6 +45,9 @@ object CompressionManager {
             // URI: file:///path/to/file
             val request = YoutubeDLRequest("file://${inputFile.absolutePath}")
 
+            // Add enable-file-urls for yt-dlp 2024+ security changes
+            request.addOption("--enable-file-urls")
+
             request.addOption("-x") // Extract audio
             request.addOption("--audio-format", "m4a")
             request.addOption("--audio-quality", quality.bitrateVal)
