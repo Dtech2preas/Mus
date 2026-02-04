@@ -274,6 +274,52 @@ object MusicRepository {
         AppDatabase.getDatabase(context).playlistDao().addSongToPlaylist(PlaylistEntry(playlistId, songId))
     }
 
+    suspend fun replaceSongFile(context: Context, oldSong: Song, newFile: File): Song = withContext(Dispatchers.IO) {
+        val database = AppDatabase.getDatabase(context)
+
+        val oldFile = File(oldSong.filePath)
+        val extension = newFile.extension
+        val finalFile = File(context.filesDir, "music_downloads/${oldSong.id}.$extension")
+
+        // Ensure parent dir exists
+        finalFile.parentFile?.mkdirs()
+
+        // 1. Move new file to final location
+        if (newFile.absolutePath != finalFile.absolutePath) {
+            // If final file exists (and is not our new file source), delete it to allow rename
+            if (finalFile.exists()) {
+                if (!finalFile.delete()) {
+                    // Try to proceed, but rename might fail
+                    AppLogger.log("[Repo] Warning: Could not delete target file ${finalFile.name}")
+                }
+            }
+
+            if (!newFile.renameTo(finalFile)) {
+                // Fallback: Copy and Delete
+                try {
+                    newFile.copyTo(finalFile, overwrite = true)
+                    newFile.delete()
+                } catch (e: Exception) {
+                    throw java.io.IOException("Failed to move compressed file to ${finalFile.absolutePath}: ${e.message}")
+                }
+            }
+        }
+
+        // 2. Delete old file (only if it is a different path than the final one)
+        if (oldFile.exists() && oldFile.absolutePath != finalFile.absolutePath) {
+            oldFile.delete()
+        }
+
+        // 3. Update Database
+        val updatedSong = oldSong.copy(
+            filePath = finalFile.absolutePath
+        )
+        database.songDao().insert(updatedSong) // Insert with same ID replaces
+
+        AppLogger.log("[Repo] Replaced song file for ${oldSong.title}. New path: ${finalFile.absolutePath}")
+        return@withContext updatedSong
+    }
+
     suspend fun importLocalSongs(context: Context): Int = withContext(Dispatchers.IO) {
         var count = 0
         try {

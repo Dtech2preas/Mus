@@ -31,6 +31,7 @@ import com.example.musicdownloader.utils.AdManager
 @Composable
 fun SettingsScreen(
     onShowLogs: () -> Unit,
+    onNavigateToCompression: () -> Unit,
     contentPadding: PaddingValues
 ) {
     val viewModel: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -162,6 +163,17 @@ fun SettingsScreen(
                     )
                     Text("Scan / Fix Metadata")
                 }
+
+                 Spacer(modifier = Modifier.height(8.dp))
+
+                 // Compression
+                 Button(
+                     onClick = onNavigateToCompression,
+                     modifier = Modifier.fillMaxWidth(),
+                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                 ) {
+                     Text("Audio Compression (Save Space)")
+                 }
             }
         }
 
