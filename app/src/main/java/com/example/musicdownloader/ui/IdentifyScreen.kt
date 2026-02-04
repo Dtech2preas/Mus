@@ -95,7 +95,13 @@ fun IdentifyScreen(
                     )
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.databaseEnabled = true
+                    settings.allowContentAccess = true
+                    settings.allowFileAccess = true
                     settings.mediaPlaybackRequiresUserGesture = false
+
+                    // Clear cache to ensure fresh permission request state
+                    clearCache(false)
 
                     webChromeClient = object : WebChromeClient() {
                         override fun onPermissionRequest(request: PermissionRequest) {
@@ -111,8 +117,11 @@ fun IdentifyScreen(
                                     } else {
                                         Log.w("IdentifyScreen", "Cannot grant AUDIO_CAPTURE: System permission missing")
                                     }
+                                } else if (res != PermissionRequest.RESOURCE_VIDEO_CAPTURE) {
+                                    // Grant other resources (like PROTECTED_MEDIA_ID) if requested,
+                                    // but explicitly exclude VIDEO_CAPTURE as we don't have camera permission
+                                    resourcesToGrant.add(res)
                                 }
-                                // We intentionally ignore VIDEO_CAPTURE (Camera) as we don't support it
                             }
 
                             if (resourcesToGrant.isNotEmpty()) {
