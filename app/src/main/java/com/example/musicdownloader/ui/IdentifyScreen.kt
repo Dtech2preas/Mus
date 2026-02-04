@@ -99,7 +99,28 @@ fun IdentifyScreen(
 
                     webChromeClient = object : WebChromeClient() {
                         override fun onPermissionRequest(request: PermissionRequest) {
-                            request.grant(request.resources)
+                            val requestedResources = request.resources ?: emptyArray()
+                            Log.d("IdentifyScreen", "Permission request from ${request.origin}: ${requestedResources.joinToString()}")
+
+                            val resourcesToGrant = mutableListOf<String>()
+                            for (res in requestedResources) {
+                                if (res == PermissionRequest.RESOURCE_AUDIO_CAPTURE) {
+                                    // Check if we have the system permission
+                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                        resourcesToGrant.add(res)
+                                    } else {
+                                        Log.w("IdentifyScreen", "Cannot grant AUDIO_CAPTURE: System permission missing")
+                                    }
+                                }
+                                // We intentionally ignore VIDEO_CAPTURE (Camera) as we don't support it
+                            }
+
+                            if (resourcesToGrant.isNotEmpty()) {
+                                request.grant(resourcesToGrant.toTypedArray())
+                            } else {
+                                Log.d("IdentifyScreen", "Denying permission request")
+                                request.deny()
+                            }
                         }
                     }
 
