@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -116,14 +117,15 @@ fun MainScreen(viewModel: MusicViewModel) {
     val currentTab = when (currentScreen) {
         is AppScreen.Home -> 0
         is AppScreen.Search -> 1
+        is AppScreen.Identify -> 2
         is AppScreen.Library,
         is AppScreen.Playlists,
         is AppScreen.LikedSongs,
         is AppScreen.Artists,
         is AppScreen.PlaylistDetail,
-        is AppScreen.ArtistDetail -> 2
+        is AppScreen.ArtistDetail -> 3
         is AppScreen.Settings,
-        is AppScreen.Compression -> 3
+        is AppScreen.Compression -> 4
     }
 
     // -------------------------------------------------------------
@@ -269,7 +271,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                         selected = currentTab == 1,
                         onClick = {
                             navigationStack.clear()
-                            navigationStack.add(AppScreen.Search)
+                            navigationStack.add(AppScreen.Search())
                         },
                         icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                         label = { Text("Search") }
@@ -278,13 +280,22 @@ fun MainScreen(viewModel: MusicViewModel) {
                         selected = currentTab == 2,
                         onClick = {
                             navigationStack.clear()
+                            navigationStack.add(AppScreen.Identify)
+                        },
+                        icon = { Icon(Icons.Default.Info, contentDescription = "Identify") },
+                        label = { Text("Identify") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 3,
+                        onClick = {
+                            navigationStack.clear()
                             navigationStack.add(AppScreen.Library)
                         },
                         icon = { Icon(Icons.Default.List, contentDescription = "Library") },
                         label = { Text("Library") }
                     )
                     NavigationBarItem(
-                        selected = currentTab == 3,
+                        selected = currentTab == 4,
                         onClick = {
                             navigationStack.clear()
                             navigationStack.add(AppScreen.Settings)
@@ -316,7 +327,18 @@ fun MainScreen(viewModel: MusicViewModel) {
                         viewModel = viewModel,
                         onSongClick = { /* handled locally */ }
                     )
-                    is AppScreen.Search -> SearchScreen(viewModel = viewModel, contentPadding = PaddingValues(0.dp))
+                    is AppScreen.Search -> SearchScreen(
+                        viewModel = viewModel,
+                        contentPadding = PaddingValues(0.dp),
+                        initialQuery = targetScreen.query
+                    )
+                    is AppScreen.Identify -> IdentifyScreen(
+                        onSongFound = { songName ->
+                            // Navigate to search with the found name
+                            navigationStack.clear()
+                            navigationStack.add(AppScreen.Search(query = songName))
+                        }
+                    )
                     is AppScreen.Settings -> SettingsScreen(
                         onShowLogs = { showLogs = true },
                         onNavigateToCompression = { navigateTo(AppScreen.Compression) },

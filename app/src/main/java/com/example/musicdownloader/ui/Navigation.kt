@@ -3,7 +3,8 @@ package com.example.musicdownloader.ui
 sealed class AppScreen {
     // Root Screens
     object Home : AppScreen()
-    object Search : AppScreen()
+    data class Search(val query: String? = null) : AppScreen()
+    object Identify : AppScreen()
     object Library : AppScreen()
     object Settings : AppScreen()
 
