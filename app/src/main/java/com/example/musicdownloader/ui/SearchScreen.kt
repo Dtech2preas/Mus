@@ -23,9 +23,18 @@ import com.example.musicdownloader.MusicViewModel
 @Composable
 fun SearchScreen(
     viewModel: MusicViewModel,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    initialQuery: String? = null
 ) {
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(initialQuery ?: "") }
+
+    LaunchedEffect(initialQuery) {
+        if (!initialQuery.isNullOrBlank()) {
+            query = initialQuery
+            viewModel.search(initialQuery)
+        }
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
