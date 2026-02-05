@@ -73,42 +73,63 @@ fun IdentifyScreen(
                 webView?.let { view ->
                     val url = view.url
 
-                    if (url != null && url.contains("/track/")) {
-                        // Found a track page, try to extract metadata using JavaScript
-                        // We extract h1 (Song), h2 (Artist), and document.title as fallback
-                        val js = "(function() { " +
-                                "var h1 = document.querySelector('h1')?.innerText || ''; " +
-                                "var h2 = document.querySelector('h2')?.innerText || ''; " +
-                                "var t = document.title || ''; " +
-                                "return h1 + '|||' + h2 + '|||' + t; " +
-                                "})();"
+                    if (url != null) {
+                        if (url.contains("/song/")) {
+                            // New format: Extract metadata directly from URL slug
+                            // e.g. https://www.shazam.com/song/1856650306/leskandi-20-feat-natiey-lepaka-and-janesh
+                            try {
+                                val uri = android.net.Uri.parse(url)
+                                val pathSegments = uri.pathSegments
+                                // Expected segments: ["song", "id", "slug"]
+                                if (pathSegments.size >= 3 && pathSegments[0] == "song") {
+                                    val slug = pathSegments.last()
+                                    val searchQuery = slug.replace("-", " ")
 
-                        view.evaluateJavascript(js) { result ->
-                            // result is a JSON string, e.g., "\"Song|||Artist|||Title\""
-                            if (result != null && result != "null" && !hasFound) {
-                                val rawString = result.trim('"') // Remove surrounding quotes from JSON string
-                                val parts = rawString.split("|||")
-                                if (parts.size >= 3) {
-                                    val song = parts[0].trim()
-                                    val artist = parts[1].trim()
-                                    val pageTitle = parts[2].trim()
-
-                                    var searchQuery = ""
-
-                                    if (song.isNotBlank() && artist.isNotBlank()) {
-                                        searchQuery = "$artist - $song"
-                                    } else if (song.isNotBlank()) {
-                                        searchQuery = song
-                                    } else if (pageTitle.isNotBlank()) {
-                                        // Fallback to title parsing
-                                        searchQuery = pageTitle.replace("| Shazam", "")
-                                            .replace("- Shazam", "")
-                                            .trim()
-                                    }
-
-                                    if (searchQuery.isNotBlank() && searchQuery != "Shazam") {
+                                    if (searchQuery.isNotBlank() && !hasFound) {
                                         hasFound = true
                                         onSongFound(searchQuery)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e("IdentifyScreen", "Error parsing song URL", e)
+                            }
+                        } else if (url.contains("/track/")) {
+                            // Legacy/Fallback: Found a track page, try to extract metadata using JavaScript
+                            // We extract h1 (Song), h2 (Artist), and document.title as fallback
+                            val js = "(function() { " +
+                                    "var h1 = document.querySelector('h1')?.innerText || ''; " +
+                                    "var h2 = document.querySelector('h2')?.innerText || ''; " +
+                                    "var t = document.title || ''; " +
+                                    "return h1 + '|||' + h2 + '|||' + t; " +
+                                    "})();"
+
+                            view.evaluateJavascript(js) { result ->
+                                // result is a JSON string, e.g., "\"Song|||Artist|||Title\""
+                                if (result != null && result != "null" && !hasFound) {
+                                    val rawString = result.trim('"') // Remove surrounding quotes from JSON string
+                                    val parts = rawString.split("|||")
+                                    if (parts.size >= 3) {
+                                        val song = parts[0].trim()
+                                        val artist = parts[1].trim()
+                                        val pageTitle = parts[2].trim()
+
+                                        var searchQuery = ""
+
+                                        if (song.isNotBlank() && artist.isNotBlank()) {
+                                            searchQuery = "$artist - $song"
+                                        } else if (song.isNotBlank()) {
+                                            searchQuery = song
+                                        } else if (pageTitle.isNotBlank()) {
+                                            // Fallback to title parsing
+                                            searchQuery = pageTitle.replace("| Shazam", "")
+                                                .replace("- Shazam", "")
+                                                .trim()
+                                        }
+
+                                        if (searchQuery.isNotBlank() && searchQuery != "Shazam") {
+                                            hasFound = true
+                                            onSongFound(searchQuery)
+                                        }
                                     }
                                 }
                             }
