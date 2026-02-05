@@ -40,10 +40,22 @@ data class MusicUiState(
     val genreFeeds: List<GenreFeed> = emptyList()
 )
 
+data class SmartDashboardState(
+    val topArtistName: String = "",
+    val topArtistImage: String? = null,
+    val totalTimeListened: String = "0m",
+    val onRepeat: List<Song> = emptyList(),
+    val newArrivals: List<Song> = emptyList(),
+    val isCalculated: Boolean = false
+)
+
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(MusicUiState())
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
+
+    private val _smartDashboardState = MutableStateFlow(SmartDashboardState())
+    val smartDashboardState: StateFlow<SmartDashboardState> = _smartDashboardState.asStateFlow()
 
     // Toast Events Channel
     private val _toastEvent = MutableSharedFlow<String>()
@@ -104,6 +116,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         // Load Genre Feeds
         loadGenreFeeds()
+
+        // Calculate Smart Insights
+        calculateSmartInsights()
 
         // Polling loop for position updates
         viewModelScope.launch {
@@ -459,5 +474,77 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             _compressionProgress.value = ""
             _toastEvent.emit("Compression complete. Success: $successCount, Failed: $failCount")
         }
+    }
+
+    fun calculateSmartInsights() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>()
+
+                // 1. History Analysis
+                val history = MusicRepository.getAllHistory(context)
+                var totalSeconds = 0L
+                val artistCounts = mutableMapOf<String, Int>()
+
+                val songIds = history.map { it.songId }.distinct()
+                val songMap = MusicRepository.getSongsByIds(context, songIds).associateBy { it.id }
+
+                history.forEach { item ->
+                    artistCounts[item.artist] = (artistCounts[item.artist] ?: 0) + 1
+
+                    val song = songMap[item.songId]
+                    if (song != null) {
+                        totalSeconds += parseDurationToSeconds(song.duration)
+                    } else {
+                        totalSeconds += 210 // Fallback 3.5 mins
+                    }
+                }
+
+                val topArtistEntry = artistCounts.maxByOrNull { it.value }
+                val topArtistName = topArtistEntry?.key ?: "Start Listening"
+
+                // Find an image for the top artist (from history thumbnails)
+                val topArtistImage = history.firstOrNull { it.artist == topArtistName }?.thumbnailUrl
+
+                // Format Time
+                val hours = totalSeconds / 3600
+                val mins = (totalSeconds % 3600) / 60
+                val timeString = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
+
+                // 2. On Repeat
+                val onRepeat = MusicRepository.getOnRepeatSongs(context)
+
+                // 3. New Arrivals
+                val allSongs = MusicRepository.getAllSongs(context)
+                // Take last 10 (reversed to show newest first)
+                val newArrivals = allSongs.takeLast(10).reversed()
+
+                _smartDashboardState.value = SmartDashboardState(
+                    topArtistName = topArtistName,
+                    topArtistImage = topArtistImage,
+                    totalTimeListened = timeString,
+                    onRepeat = onRepeat,
+                    newArrivals = newArrivals,
+                    isCalculated = true
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun parseDurationToSeconds(duration: String): Long {
+        // Formats: "mm:ss", "h:mm:ss", or "ss"
+        try {
+            val parts = duration.split(":")
+            if (parts.size == 2) {
+                return parts[0].toLong() * 60 + parts[1].toLong()
+            } else if (parts.size == 3) {
+                return parts[0].toLong() * 3600 + parts[1].toLong() * 60 + parts[2].toLong()
+            }
+        } catch (e: Exception) {
+            return 0L
+        }
+        return 0L
     }
 }

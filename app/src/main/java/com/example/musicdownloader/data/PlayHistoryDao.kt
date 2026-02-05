@@ -11,6 +11,9 @@ interface PlayHistoryDao {
     @Query("SELECT * FROM play_history ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentHistory(limit: Int): Flow<List<PlayHistory>>
 
+    @Query("SELECT * FROM play_history ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getAllHistorySync(limit: Int): List<PlayHistory>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(history: PlayHistory)
 

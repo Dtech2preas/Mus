@@ -223,6 +223,38 @@ object MusicRepository {
             }
     }
 
+    suspend fun getAllHistory(context: Context, limit: Int = 1000): List<PlayHistory> {
+        return AppDatabase.getDatabase(context).playHistoryDao().getAllHistorySync(limit)
+    }
+
+    suspend fun getOnRepeatSongs(context: Context, limit: Int = 5): List<Song> {
+        // Look at last 200 plays to determine "On Repeat"
+        val history = AppDatabase.getDatabase(context).playHistoryDao().getAllHistorySync(200)
+
+        if (history.isEmpty()) return emptyList()
+
+        // Group by ID, Count, Sort by Descending Count
+        val topIds = history.groupBy { it.songId }
+            .mapValues { it.value.size }
+            .toList()
+            .sortedByDescending { it.second }
+            .take(limit)
+            .map { it.first }
+
+        // Resolve to actual Song objects
+        return AppDatabase.getDatabase(context).songDao().getSongsByIds(topIds)
+            // Restore order because SQL 'IN' doesn't guarantee order
+            .sortedBy { topIds.indexOf(it.id) }
+    }
+
+    suspend fun getSongsByIds(context: Context, ids: List<String>): List<Song> {
+        return AppDatabase.getDatabase(context).songDao().getSongsByIds(ids)
+    }
+
+    suspend fun getAllSongs(context: Context): List<Song> {
+        return AppDatabase.getDatabase(context).songDao().getAllSongsSync()
+    }
+
     suspend fun addToHistory(context: Context, video: VideoItem) {
         val history = PlayHistory(
             songId = video.id,
