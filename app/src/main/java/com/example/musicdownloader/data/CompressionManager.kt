@@ -46,6 +46,7 @@ object CompressionManager {
         var decoder: MediaCodec? = null
         var encoder: MediaCodec? = null
         var muxerStarted = false
+        var pendingDecodedBufferIndex = -1
 
         try {
             AppLogger.log("[Compression] Starting native compression for ${song.title} to ${quality.approxBitrateKbps}kbps")
@@ -86,7 +87,6 @@ object CompressionManager {
             var decoderDone = false // Decoder -> Encoder (EOS sent to Encoder)
             var outputDone = false // Encoder -> Muxer (EOS received from Encoder)
 
-            var pendingDecodedBufferIndex = -1
             val pendingBufferInfo = MediaCodec.BufferInfo()
             val muxerBufferInfo = MediaCodec.BufferInfo() // Separate buffer info for muxer/encoder output
 
