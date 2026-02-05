@@ -67,6 +67,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Download Progress Flow (Global)
     val downloadProgress = YoutubeClient.downloadProgress
 
+    // Initializing Downloads (Waiting for start)
+    private val _initializingDownloads = MutableStateFlow<Set<String>>(emptySet())
+    val initializingDownloads: StateFlow<Set<String>> = _initializingDownloads.asStateFlow()
+
     private val _sortOption = MutableStateFlow(SortOption.NEWEST_FIRST)
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
 
@@ -112,6 +116,24 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     MusicControllerManager.updatePosition()
                 }
                 delay(1000)
+            }
+        }
+
+        // Monitor download progress to clear initializing state
+        viewModelScope.launch {
+            downloadProgress.collect { progressMap ->
+                val currentInitializing = _initializingDownloads.value
+                if (currentInitializing.isNotEmpty()) {
+                    // Remove IDs that have started downloading (progress > 0)
+                    val newInitializing = currentInitializing.filter { id ->
+                        val progress = progressMap[id]
+                        progress == null || progress <= 0f
+                    }.toSet()
+
+                    if (newInitializing.size != currentInitializing.size) {
+                        _initializingDownloads.value = newInitializing
+                    }
+                }
             }
         }
     }
@@ -163,6 +185,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
+        _initializingDownloads.value += video.id
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -173,17 +196,24 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 result.onSuccess { msg ->
                     _uiState.value = _uiState.value.copy(downloadMessage = msg)
 
-                    // If file already exists, play it now
+                    // If file already exists, we are done, remove from initializing
                     if (msg == "File already exists") {
+                        _initializingDownloads.value -= video.id
+
                         // Switch to Main thread for playback logic if needed, but playSong handles it
                         withContext(Dispatchers.Main) {
                              playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
                         }
                     }
+                    // If msg indicates enqueued, we leave it in initializingDownloads.
+                    // The init block will remove it when progress > 0.
                 }.onFailure { e ->
+                    // If failed, remove from initializing
+                    _initializingDownloads.value -= video.id
                     _toastEvent.emit("Download failed: ${e.message}")
                 }
             } catch (e: Exception) {
+                _initializingDownloads.value -= video.id
                 AppLogger.log("[ViewModel] Download Error: ${e.message}")
                 _toastEvent.emit("Error starting download: ${e.message}")
             }
@@ -242,14 +272,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _sortOption.value = option
     }
 
-    fun addToQueue(song: Song) {
-        viewModelScope.launch(Dispatchers.IO) {
+    suspend fun addToQueue(song: Song): Boolean {
+        return withContext(Dispatchers.IO) {
             try {
                 MusicControllerManager.addToQueue(song)
-                _toastEvent.emit("Added to queue: ${song.title}")
+                // _toastEvent.emit("Added to queue: ${song.title}") // UI handles success message usually
+                true
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding to queue: ${e.message}")
                 _toastEvent.emit("Failed to add to queue")
+                false
             }
         }
     }

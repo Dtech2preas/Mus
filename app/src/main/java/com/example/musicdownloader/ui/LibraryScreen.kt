@@ -126,42 +126,16 @@ fun LibraryScreen(
             modifier = Modifier.weight(1f)
         ) {
             items(items = filteredSongs, key = { it.id }) { song ->
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = {
-                        if (it == SwipeToDismissBoxValue.StartToEnd) {
-                            HapticUtils.performHapticFeedback(context)
-                            viewModel.addToQueue(song)
-                            scope.launch { snackbarHostState.showSnackbar("Added to Queue") }
-                            false
-                        } else {
-                            false
-                        }
-                    }
-                )
-
-                val progress = dismissState.progress
-                val alpha by animateFloatAsState(targetValue = if (progress > 0.1f) 1f else 0f)
-
                 var showMenu by remember { mutableStateOf(false) }
 
-                SwipeToDismissBox(
-                    state = dismissState,
-                    backgroundContent = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF7D5FFF))
-                                .padding(horizontal = 24.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(alpha)) {
-                                Icon(Icons.Default.Add, contentDescription = "Queue", tint = Color.White)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Queue", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
+                SwipeableSongRow(
+                    onSwipeToQueue = {
+                        val success = viewModel.addToQueue(song)
+                        if (success) {
+                            snackbarHostState.showSnackbar("Added to Queue")
                         }
-                    },
-                    enableDismissFromEndToStart = false
+                        success
+                    }
                 ) {
                      Box(modifier = Modifier.background(Color(0xFF0F0F13))) {
                          val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist

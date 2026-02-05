@@ -38,6 +38,7 @@ fun SearchScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+    val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
@@ -94,6 +95,7 @@ fun SearchScreen(
                         isLibrary = false,
                         isDownloaded = downloadedIds.contains(video.id),
                         downloadProgress = downloadProgress[video.id],
+                        isWaiting = initializingDownloads.contains(video.id),
                         onClick = {
                             if (downloadedIds.contains(video.id)) {
                                 viewModel.playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)

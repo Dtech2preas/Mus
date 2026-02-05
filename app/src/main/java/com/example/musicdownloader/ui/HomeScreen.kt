@@ -37,6 +37,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
     val homeFeedState by viewModel.uiState.collectAsStateWithLifecycle()
     val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+    val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
     val playHistory by viewModel.playHistory.collectAsStateWithLifecycle()
 
     // Map of downloaded song IDs for quick lookup
@@ -86,6 +87,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                 thumbnailUrl = song.thumbnailUrl,
                                 isDownloaded = downloadedIds.contains(song.id),
                                 downloadProgress = downloadProgress[song.id],
+                                isWaiting = initializingDownloads.contains(song.id),
                                 onClick = {
                                     if (downloadedIds.contains(song.id)) {
                                         viewModel.playLocalSong(song.id, song.title, song.uploader, song.thumbnailUrl)
@@ -142,6 +144,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                                      thumbnailUrl = song.thumbnailUrl,
                                                      isDownloaded = downloadedIds.contains(song.id),
                                                      downloadProgress = downloadProgress[song.id],
+                                                     isWaiting = initializingDownloads.contains(song.id),
                                                      onClick = {
                                                          if (downloadedIds.contains(song.id)) {
                                                              viewModel.playLocalSong(song.id, song.title, song.uploader, song.thumbnailUrl)
@@ -184,6 +187,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                              thumbnailUrl = song.thumbnailUrl,
                                              isDownloaded = downloadedIds.contains(song.id),
                                              downloadProgress = downloadProgress[song.id],
+                                             isWaiting = initializingDownloads.contains(song.id),
                                              onClick = {
                                                  if (downloadedIds.contains(song.id)) {
                                                      viewModel.playLocalSong(song.id, song.title, song.uploader, song.thumbnailUrl)
