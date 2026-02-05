@@ -16,9 +16,8 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 // Explicitly import icons that were failing resolution
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.rounded.AccountCircle // Fallback for GraphicEq if not available
-import androidx.compose.material.icons.rounded.DateRange // Fallback for Timer if not available
+import androidx.compose.material.icons.filled.DateRange // Fallback for History (DateRange is core)
+import androidx.compose.material.icons.filled.AccountCircle // Fallback for GraphicEq
 // Attempt standard imports again, but if they fail we swap.
 // CI indicated GraphicEq and Timer (rounded) were unresolved.
 // Let's check commonly available icons.
@@ -118,7 +117,7 @@ fun SmartLibraryDashboard(
             )
             NavTile(
                 title = "History",
-                icon = Icons.Default.History,
+                icon = Icons.Default.DateRange, // Fallback as History is missing in core
                 color = Color(0xFFE57373),
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToHistory
@@ -213,7 +212,7 @@ fun InsightCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.History, // Fallback to History/DateRange
+                        Icons.Default.DateRange, // Fallback to DateRange
                         contentDescription = null,
                         tint = ElectricPurple,
                         modifier = Modifier.size(16.dp)
