@@ -7,6 +7,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
+import com.yausername.youtubedl_android.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,7 @@ class MusicDownloaderApp : Application(), ImageLoaderFactory {
 
         try {
             YoutubeDL.getInstance().init(this)
+            FFmpeg.getInstance().init(this)
         } catch (e: YoutubeDLException) {
             e.printStackTrace()
             // In a real app, you might want to show a UI error if init fails

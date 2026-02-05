@@ -2,8 +2,7 @@ package com.example.musicdownloader.data
 
 import android.content.Context
 import com.example.musicdownloader.AppLogger
-import com.yausername.youtubedl_android.YoutubeDL
-import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.yausername.youtubedl_android.FFmpeg
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -41,29 +40,18 @@ object CompressionManager {
         try {
             AppLogger.log("[Compression] Starting compression for ${song.title} to ${quality.bitrateVal}")
 
-            // Use yt-dlp to process the local file
-            // URI: file:///path/to/file
-            val request = YoutubeDLRequest("file://${inputFile.absolutePath}")
-
-            // Add enable-file-urls for yt-dlp 2024+ security changes
-            request.addOption("--enable-file-urls")
-
-            request.addOption("-x") // Extract audio
-            request.addOption("--audio-format", "m4a")
-            request.addOption("--audio-quality", quality.bitrateVal)
-            request.addOption("-o", tempFile.absolutePath)
-
-            // Standard flags
-            request.addOption("--no-check-certificate")
-            request.addOption("--no-warnings")
+            // Use FFmpeg directly to avoid yt-dlp "NoneType" error on local files
+            val command = arrayOf(
+                "-y",
+                "-i", inputFile.absolutePath,
+                "-vn",
+                "-c:a", "aac",
+                "-b:a", quality.bitrateVal.lowercase(),
+                tempFile.absolutePath
+            )
 
             // Execute
-            YoutubeDL.getInstance().execute(request) { progress, _, line ->
-                // Log ffmpeg output if needed
-                if (line.contains("size=") || line.contains("time=")) {
-                   // AppLogger.log("[Compression-FFmpeg] $line")
-                }
-            }
+            FFmpeg.getInstance().execute(command, null)
 
             if (tempFile.exists() && tempFile.length() > 0) {
                 AppLogger.log("[Compression] Success. New size: ${tempFile.length()} vs Old: ${inputFile.length()}")
