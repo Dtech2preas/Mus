@@ -12,12 +12,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Timer
+// Explicitly import icons that were failing resolution
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.rounded.AccountCircle // Fallback for GraphicEq if not available
+import androidx.compose.material.icons.rounded.DateRange // Fallback for Timer if not available
+// Attempt standard imports again, but if they fail we swap.
+// CI indicated GraphicEq and Timer (rounded) were unresolved.
+// Let's check commonly available icons.
+// Actually, let's use standard filled icons which are more reliable across versions if rounded are missing.
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -177,7 +182,7 @@ fun InsightCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Rounded.GraphicEq,
+                        Icons.Default.Person, // Fallback to Person/AccountCircle as GraphicEq is likely extended set
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(20.dp)
@@ -208,7 +213,7 @@ fun InsightCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Rounded.Timer,
+                        Icons.Default.History, // Fallback to History/DateRange
                         contentDescription = null,
                         tint = ElectricPurple,
                         modifier = Modifier.size(16.dp)
@@ -334,4 +339,4 @@ fun NavTile(
 }
 
 // Extension to help with alpha modifiers on AsyncImage
-private fun Modifier.alpha(alpha: Float) = this.then(androidx.compose.ui.Modifier.alpha(alpha))
+private fun Modifier.alpha(alpha: Float): Modifier = this.then(androidx.compose.ui.Modifier.alpha(alpha))
