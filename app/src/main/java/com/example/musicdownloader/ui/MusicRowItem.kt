@@ -34,6 +34,7 @@ fun MusicRowItem(
     isLibrary: Boolean = true,
     isDownloaded: Boolean = false,
     downloadProgress: Float? = null,
+    isWaiting: Boolean = false,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
     onOptionClick: () -> Unit = {}
@@ -67,7 +68,20 @@ fun MusicRowItem(
                     contentScale = ContentScale.Crop
                 )
 
-                if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
+                if (isWaiting) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.6f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = ElectricPurple,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                } else if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -103,7 +117,13 @@ fun MusicRowItem(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
+                if (isWaiting) {
+                    Text(
+                        text = "Preparing...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ElectricPurple
+                    )
+                } else if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
                      Text(
                         text = "${downloadProgress.toInt()}%",
                         style = MaterialTheme.typography.labelSmall,
@@ -130,7 +150,7 @@ fun MusicRowItem(
                         tint = Color.Gray,
                         modifier = Modifier.size(24.dp)
                     )
-                } else if (downloadProgress == null || downloadProgress == 0f) {
+                } else if (!isWaiting && (downloadProgress == null || downloadProgress == 0f)) {
                     IconButton(onClick = {
                         HapticUtils.performHapticFeedback(context)
                         onDownloadClick()
@@ -154,6 +174,7 @@ fun MusicCard(
     thumbnailUrl: String,
     isDownloaded: Boolean,
     downloadProgress: Float?,
+    isWaiting: Boolean = false,
     onClick: () -> Unit,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier
@@ -175,7 +196,20 @@ fun MusicCard(
                     contentScale = ContentScale.Crop
                 )
 
-                if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
+                if (isWaiting) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.6f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            color = ElectricPurple,
+                            strokeWidth = 3.dp
+                        )
+                    }
+                } else if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
