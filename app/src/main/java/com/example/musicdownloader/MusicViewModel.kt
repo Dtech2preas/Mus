@@ -80,7 +80,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // Active Downloads List (Derived)
     val activeDownloads: StateFlow<List<DownloadStatus>> = downloadProgress
-        .map { it.values.toList().filter { status -> status.progress < 100f } }
+        .map { map -> map.values.toList().filter { status -> status.progress < 100f } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Initializing Downloads (Waiting for start)
