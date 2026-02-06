@@ -243,6 +243,15 @@ object MusicRepository {
         AppDatabase.getDatabase(context).playHistoryDao().insert(history)
     }
 
+    // DNA Stats Methods
+    fun getTopArtist(context: Context): Flow<com.example.musicdownloader.data.ArtistCount?> {
+        return AppDatabase.getDatabase(context).playHistoryDao().getTopArtist()
+    }
+
+    fun getTotalPlayCount(context: Context): Flow<Int> {
+        return AppDatabase.getDatabase(context).playHistoryDao().getTotalPlayCount()
+    }
+
     // Favorites Methods
     suspend fun setLikeStatus(context: Context, songId: String, isLiked: Boolean) {
         val dao = AppDatabase.getDatabase(context).favoriteDao()

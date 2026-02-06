@@ -6,6 +6,11 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
+data class ArtistCount(
+    val artist: String,
+    val playCount: Int
+)
+
 @Dao
 interface PlayHistoryDao {
     @Query("SELECT * FROM play_history ORDER BY timestamp DESC LIMIT :limit")
@@ -17,7 +22,10 @@ interface PlayHistoryDao {
     @Query("DELETE FROM play_history")
     suspend fun clearHistory()
 
-    // Optional: Keep history size manageable by deleting old entries
-    @Query("DELETE FROM play_history WHERE id NOT IN (SELECT id FROM play_history ORDER BY timestamp DESC LIMIT 50)")
-    suspend fun trimHistory()
+    // DNA Stats Queries
+    @Query("SELECT artist, COUNT(*) as playCount FROM play_history GROUP BY artist ORDER BY playCount DESC LIMIT 1")
+    fun getTopArtist(): Flow<ArtistCount?>
+
+    @Query("SELECT COUNT(*) FROM play_history")
+    fun getTotalPlayCount(): Flow<Int>
 }
