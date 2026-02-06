@@ -132,12 +132,18 @@ object MusicRepository {
         val downloadRequest = OneTimeWorkRequestBuilder<MusicDownloadWorker>()
             .setInputData(workData)
             .setConstraints(constraints)
-            .addTag("download")
+            .addTag("download") // Generic tag
+            .addTag("download_${video.id}") // Specific tag
             .build()
 
         WorkManager.getInstance(context).enqueue(downloadRequest)
 
         return Result.success("Download queued")
+    }
+
+    fun cancelDownload(context: Context, videoId: String) {
+        AppLogger.log("[Repo] Cancelling download for $videoId")
+        WorkManager.getInstance(context).cancelAllWorkByTag("download_$videoId")
     }
 
     // Helper to sync file system with DB on startup

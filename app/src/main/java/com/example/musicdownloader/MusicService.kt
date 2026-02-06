@@ -42,6 +42,7 @@ class MusicService : MediaSessionService() {
     // Define the custom command constant
     companion object {
         val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle())
+        val GET_SESSION_ID_COMMAND = SessionCommand("GET_SESSION_ID", Bundle())
     }
 
     @OptIn(UnstableApi::class)
@@ -132,6 +133,7 @@ class MusicService : MediaSessionService() {
             // Add our custom PLAY_STREAM command to the allowed list
             val sessionCommands = SessionCommands.Builder()
                 .add(PLAY_STREAM_COMMAND)
+                .add(GET_SESSION_ID_COMMAND)
                 .build()
 
             // Allow all standard player commands (Play, Pause, etc.) + Custom Commands
@@ -195,6 +197,11 @@ class MusicService : MediaSessionService() {
                     }
                 }
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            } else if (customCommand.customAction == GET_SESSION_ID_COMMAND.customAction) {
+                val extras = Bundle().apply {
+                    putInt("AUDIO_SESSION_ID", player.audioSessionId)
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))
             }
             return super.onCustomCommand(session, controller, customCommand, args)
         }

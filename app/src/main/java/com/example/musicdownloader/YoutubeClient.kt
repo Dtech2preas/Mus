@@ -20,13 +20,21 @@ data class VideoItem(
     val album: String? = null
 )
 
+data class DownloadStatus(
+    val videoId: String,
+    val progress: Float, // 0-100
+    val totalSize: String = "Unknown",
+    val speed: String = "0 KB/s",
+    val eta: String = "--:--"
+)
+
 object YoutubeClient {
 
-    private val _downloadProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
-    val downloadProgress: StateFlow<Map<String, Float>> = _downloadProgress
+    private val _downloadProgress = MutableStateFlow<Map<String, DownloadStatus>>(emptyMap())
+    val downloadProgress: StateFlow<Map<String, DownloadStatus>> = _downloadProgress
 
-    // Regex to capture percentage from yt-dlp output like "[download] 45.0% of..."
-    private val progressRegex = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)%")
+    // Regex to capture detailed stats: [download]  10.5% of 3.42MiB at 45.00KiB/s ETA 01:10
+    private val progressRegex = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)%\\s+of\\s+([~\\d\\.]+\\w+)(?:\\s+at\\s+([\\d\\.]+\\w+/s))?(?:\\s+ETA\\s+([\\d:]+))?")
 
     // Regex for cleaning titles
     // Matches (...) or [...] containing specific keywords, case insensitive
@@ -151,7 +159,7 @@ object YoutubeClient {
     suspend fun downloadAudio(context: Context, videoId: String, outputDir: File): File = withContext(Dispatchers.IO) {
         try {
             // Reset progress for this video
-            updateProgress(videoId, 0f)
+            updateProgress(videoId, 0f, "Calculating...", "", "")
 
             val url = "https://www.youtube.com/watch?v=$videoId"
             val request = YoutubeDLRequest(url)
@@ -182,13 +190,17 @@ object YoutubeClient {
                     val matcher = progressRegex.matcher(line)
                     if (matcher.find()) {
                         val percentStr = matcher.group(1)
+                        val totalSize = matcher.group(2) ?: "Unknown"
+                        val speed = matcher.group(3) ?: ""
+                        val eta = matcher.group(4) ?: ""
+
                         val percent = percentStr?.toFloatOrNull()
                         if (percent != null) {
-                            updateProgress(videoId, percent)
+                            updateProgress(videoId, percent, totalSize, speed, eta)
                         }
                     } else if (progress > 0) {
                          // Fallback to library progress if available
-                         updateProgress(videoId, progress)
+                         updateProgress(videoId, progress, "Unknown", "", "")
                     }
                 }
             }
@@ -203,21 +215,21 @@ object YoutubeClient {
             }
 
             // Clear progress on success
-            updateProgress(videoId, 100f)
+            updateProgress(videoId, 100f, "Done", "", "")
             // Optional: remove from map after a delay? For now, 100% is fine.
 
             return@withContext foundFile
         } catch (e: Exception) {
             e.printStackTrace()
             // Clear progress on failure
-            updateProgress(videoId, 0f)
+            updateProgress(videoId, 0f, "Error", "", "")
             throw e
         }
     }
 
-    private fun updateProgress(videoId: String, percent: Float) {
+    private fun updateProgress(videoId: String, percent: Float, totalSize: String, speed: String, eta: String) {
         val current = _downloadProgress.value.toMutableMap()
-        current[videoId] = percent
+        current[videoId] = DownloadStatus(videoId, percent, totalSize, speed, eta)
         _downloadProgress.value = current
     }
 

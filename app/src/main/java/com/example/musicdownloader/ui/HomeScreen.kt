@@ -86,7 +86,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                 subtitle = song.uploader,
                                 thumbnailUrl = song.thumbnailUrl,
                                 isDownloaded = downloadedIds.contains(song.id),
-                                downloadProgress = downloadProgress[song.id],
+                                    downloadProgress = downloadProgress[song.id]?.progress,
                                 isWaiting = initializingDownloads.contains(song.id),
                                 onClick = {
                                     if (downloadedIds.contains(song.id)) {
@@ -143,7 +143,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                                      subtitle = subtitle,
                                                      thumbnailUrl = song.thumbnailUrl,
                                                      isDownloaded = downloadedIds.contains(song.id),
-                                                     downloadProgress = downloadProgress[song.id],
+                                                    downloadProgress = downloadProgress[song.id]?.progress,
                                                      isWaiting = initializingDownloads.contains(song.id),
                                                      onClick = {
                                                          if (downloadedIds.contains(song.id)) {
@@ -186,7 +186,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                              subtitle = subtitle,
                                              thumbnailUrl = song.thumbnailUrl,
                                              isDownloaded = downloadedIds.contains(song.id),
-                                             downloadProgress = downloadProgress[song.id],
+                                            downloadProgress = downloadProgress[song.id]?.progress,
                                              isWaiting = initializingDownloads.contains(song.id),
                                              onClick = {
                                                  if (downloadedIds.contains(song.id)) {

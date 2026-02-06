@@ -46,6 +46,9 @@ object MusicControllerManager {
     private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    private val _audioSessionId = MutableStateFlow(0)
+    val audioSessionId: StateFlow<Int> = _audioSessionId.asStateFlow()
+
     fun initialize(context: Context) {
         AppLogger.log("[Controller] initialize called")
         this.applicationContext = context.applicationContext
@@ -62,6 +65,7 @@ object MusicControllerManager {
                 mediaController = mediaControllerFuture?.get()
                 AppLogger.log("[Controller] Connected to session")
                 setupListeners()
+                fetchAudioSessionId()
             } catch (e: Exception) {
                 AppLogger.log("[Controller] Connection failed: ${e.message}")
                 e.printStackTrace()
@@ -286,14 +290,34 @@ object MusicControllerManager {
         }
     }
 
+    private fun fetchAudioSessionId() {
+        mediaController?.let { controller ->
+            val command = SessionCommand("GET_SESSION_ID", Bundle.EMPTY)
+            val future = controller.sendCustomCommand(command, Bundle.EMPTY)
+            future.addListener({
+                try {
+                    val result = future.get()
+                    if (result.resultCode == SessionResult.RESULT_SUCCESS) {
+                        val id = result.extras.getInt("AUDIO_SESSION_ID")
+                        AppLogger.log("[Controller] Received Audio Session ID: $id")
+                        _audioSessionId.value = id
+                    }
+                } catch (e: Exception) {
+                    AppLogger.log("[Controller] Failed to get session ID: ${e.message}")
+                }
+            }, MoreExecutors.directExecutor())
+        }
+    }
+
     fun launchEqualizer(context: Context) {
         try {
             val intent = android.content.Intent(android.media.audiofx.AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
 
-            // We need to pass the AudioSessionId if possible, but MediaController doesn't easily expose it safely across process.
-            // Sending 0 (Global Mix) is often rejected by modern Android.
-            // We try passing 0 for now as a fallback.
-            intent.putExtra(android.media.audiofx.AudioEffect.EXTRA_AUDIO_SESSION, 0)
+            // We now have the correct session ID!
+            val sessionId = _audioSessionId.value
+            AppLogger.log("[Controller] Launching Equalizer with Session ID: $sessionId")
+
+            intent.putExtra(android.media.audiofx.AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
             intent.putExtra(android.media.audiofx.AudioEffect.EXTRA_CONTENT_TYPE, android.media.audiofx.AudioEffect.CONTENT_TYPE_MUSIC)
 
             if (intent.resolveActivity(context.packageManager) != null) {
