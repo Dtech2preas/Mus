@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.musicdownloader.MusicViewModel
+import com.example.musicdownloader.SmartDashboardState
 import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.utils.HapticUtils
 import kotlinx.coroutines.launch
@@ -39,6 +40,7 @@ fun LibraryScreen(
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val smartState by viewModel.smartDashboardState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -76,44 +78,6 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Navigation Cards Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Liked Songs Card
-            NavigationCard(
-                title = "Liked",
-                icon = Icons.Default.Favorite,
-                color = ElectricPurple,
-                modifier = Modifier.weight(1f),
-                onClick = onNavigateToLiked
-            )
-
-            // Playlists Card
-            NavigationCard(
-                title = "Playlists",
-                icon = Icons.Default.List,
-                color = Color(0xFF00E5FF), // Cyan Accent
-                modifier = Modifier.weight(1f),
-                onClick = onNavigateToPlaylists
-            )
-
-            // Artists Card
-            NavigationCard(
-                title = "Artists",
-                icon = Icons.Default.Person,
-                color = Color(0xFFFFAB40), // Orange Accent
-                modifier = Modifier.weight(1f),
-                onClick = onNavigateToArtists
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text("All Songs", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-
         val filteredSongs = remember(songs, localSearchQuery) {
             if (localSearchQuery.isBlank()) songs else songs.filter {
                 it.title.contains(localSearchQuery, ignoreCase = true) ||
@@ -125,6 +89,30 @@ fun LibraryScreen(
             contentPadding = contentPadding,
             modifier = Modifier.weight(1f)
         ) {
+            // Only show Dashboard if search is empty (immersive feel)
+            if (localSearchQuery.isBlank()) {
+                item {
+                    SmartLibraryDashboard(
+                        state = smartState,
+                        onNavigateToLiked = onNavigateToLiked,
+                        onNavigateToPlaylists = onNavigateToPlaylists,
+                        onNavigateToArtists = onNavigateToArtists,
+                        onNavigateToHistory = {
+                             scope.launch { snackbarHostState.showSnackbar("History coming soon!") }
+                        },
+                        onPlaySongs = { playlistSongs ->
+                            if (playlistSongs.isNotEmpty()) {
+                                val first = playlistSongs.first()
+                                viewModel.playSong(first.id, first.title, first.artist, first.thumbnailUrl, playlistSongs)
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text("All Songs", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+
             items(items = filteredSongs, key = { it.id }) { song ->
                 var showMenu by remember { mutableStateOf(false) }
 
@@ -219,42 +207,5 @@ fun LibraryScreen(
                 showEditMetadataForSong = null
             }
         )
-    }
-}
-
-@Composable
-fun NavigationCard(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier
-            .height(80.dp)
-            .clickable(onClick = onClick),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C26))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.align(Alignment.TopStart).size(24.dp)
-            )
-            Text(
-                text = title,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                modifier = Modifier.align(Alignment.BottomStart)
-            )
-        }
     }
 }

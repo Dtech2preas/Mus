@@ -25,4 +25,7 @@ interface SongDao {
 
     @Query("UPDATE songs SET title = :title, artist = :artist, album = :album WHERE id = :id")
     suspend fun updateMetadata(id: String, title: String, artist: String, album: String)
+
+    @Query("SELECT * FROM songs WHERE id IN (:ids)")
+    suspend fun getSongsByIds(ids: List<String>): List<Song>
 }
