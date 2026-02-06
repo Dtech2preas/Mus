@@ -11,6 +11,7 @@ import com.example.musicdownloader.data.CompressionQuality
 import com.example.musicdownloader.data.PlayHistory
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
+import com.example.musicdownloader.utils.DnaAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,6 +31,15 @@ enum class SortOption {
     A_Z,
     Z_A
 }
+
+data class DnaStats(
+    val topArtist: String = "Unknown",
+    val topArtistPlays: Int = 0,
+    val totalPlays: Int = 0,
+    val favoriteGenre: String = "Various",
+    val personalityType: String = "The Newcomer",
+    val personalityDescription: String = "Just starting your musical journey."
+)
 
 data class MusicUiState(
     val results: List<VideoItem> = emptyList(),
@@ -96,6 +106,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Playlists Flow
     val playlists: StateFlow<List<Playlist>> = MusicRepository.getPlaylists(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // D-TECH DNA Stats Flow
+    val dnaStats: StateFlow<DnaStats> = combine(
+        MusicRepository.getTopArtist(application),
+        MusicRepository.getTotalPlayCount(application)
+    ) { topArtist, totalPlays ->
+        val genres = UserPreferences.getGenres(application)
+        val favGenre = genres.firstOrNull() ?: "Various"
+
+        val (type, desc) = DnaAnalyzer.calculatePersonality(topArtist, totalPlays, genres.size)
+
+        DnaStats(
+            topArtist = topArtist?.artist ?: "None Yet",
+            topArtistPlays = topArtist?.playCount ?: 0,
+            totalPlays = totalPlays,
+            favoriteGenre = favGenre,
+            personalityType = type,
+            personalityDescription = desc
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DnaStats())
 
     init {
         // Initialize the controller connection
