@@ -38,21 +38,24 @@ fun SearchScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+    val activeDownloads by viewModel.activeDownloads.collectAsStateWithLifecycle()
     val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
     val downloadedIds = remember(librarySongs) { librarySongs.map { it.id }.toSet() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F0F13))
-            .padding(horizontal = 16.dp)
-            .padding(top = 16.dp)
-    ) {
-        // Search Bar
-        OutlinedTextField(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF0F0F13))
+                .padding(horizontal = 16.dp)
+                .padding(top = 16.dp)
+                .padding(bottom = if (activeDownloads.isNotEmpty()) 120.dp else 0.dp) // Make space for dashboard
+        ) {
+            // Search Bar
+            OutlinedTextField(
             value = query,
             onValueChange = { query = it },
             placeholder = { Text("Search Song", color = Color.Gray) },
@@ -75,41 +78,56 @@ fun SearchScreen(
             keyboardActions = KeyboardActions(onSearch = { viewModel.search(query) })
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = ElectricPurple)
-            }
-        } else {
-            LazyColumn(
-                contentPadding = contentPadding,
-                modifier = Modifier.weight(1f)
-            ) {
-                items(uiState.results) { video ->
-                    val subtitle = if (video.album != null && video.album != "Unknown Album") "${video.uploader} • ${video.album}" else video.uploader
-                    MusicRowItem(
-                        title = video.title,
-                        subtitle = subtitle,
-                        thumbnailUrl = video.thumbnailUrl,
-                        isLibrary = false,
-                        isDownloaded = downloadedIds.contains(video.id),
-                        downloadProgress = downloadProgress[video.id],
-                        isWaiting = initializingDownloads.contains(video.id),
-                        onClick = {
-                            if (downloadedIds.contains(video.id)) {
-                                viewModel.playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)
-                            } else {
-                                Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
-                                viewModel.downloadAndPlay(video)
-                            }
-                        },
-                        onDownloadClick = {
-                             Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
-                             viewModel.downloadAndPlay(video)
-                        }
-                    )
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = ElectricPurple)
                 }
+            } else {
+                LazyColumn(
+                    contentPadding = contentPadding,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(uiState.results) { video ->
+                        val subtitle = if (video.album != null && video.album != "Unknown Album") "${video.uploader} • ${video.album}" else video.uploader
+                        MusicRowItem(
+                            title = video.title,
+                            subtitle = subtitle,
+                            thumbnailUrl = video.thumbnailUrl,
+                            isLibrary = false,
+                            isDownloaded = downloadedIds.contains(video.id),
+                            downloadProgress = downloadProgress[video.id]?.progress,
+                            isWaiting = initializingDownloads.contains(video.id),
+                            onClick = {
+                                if (downloadedIds.contains(video.id)) {
+                                    viewModel.playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                                } else {
+                                    Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
+                                    viewModel.downloadAndPlay(video)
+                                }
+                            },
+                            onDownloadClick = {
+                                 Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
+                                 viewModel.downloadAndPlay(video)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Dashboard Overlay
+        if (activeDownloads.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = contentPadding.calculateBottomPadding())
+            ) {
+                DownloadDashboard(
+                    downloads = activeDownloads,
+                    onCancel = { viewModel.cancelDownload(it) }
+                )
             }
         }
     }

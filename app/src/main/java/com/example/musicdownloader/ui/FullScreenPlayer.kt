@@ -65,6 +65,7 @@ fun FullScreenPlayer(
     val repeatMode by viewModel.repeatMode.collectAsState()
     val likedSongs by viewModel.likedSongIds.collectAsState()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val audioSessionId by viewModel.audioSessionId.collectAsState()
 
     val context = LocalContext.current
 
@@ -362,8 +363,14 @@ fun FullScreenPlayer(
 
                 Spacer(modifier = Modifier.height(48.dp))
 
-                // Cyberpunk Visualizer (Footer)
-                CyberpunkVisualizer(isPlaying = isPlaying)
+                // Realtime Visualizer (Footer)
+                RealtimeVisualizer(
+                    audioSessionId = audioSessionId,
+                    isPlaying = isPlaying,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp) // Taller for better effect
+                )
 
                 Spacer(modifier = Modifier.weight(0.1f))
             }
@@ -396,47 +403,7 @@ fun FullScreenPlayer(
     }
 }
 
-@Composable
-fun CyberpunkVisualizer(isPlaying: Boolean, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(32.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom
-    ) {
-        repeat(24) {
-            VisualizerBar(isPlaying = isPlaying)
-        }
-    }
-}
-
-@Composable
-fun VisualizerBar(isPlaying: Boolean) {
-    var targetHeight by remember { mutableStateOf(0.1f) }
-
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            while (isActive) {
-                targetHeight = Random.nextFloat().coerceIn(0.1f, 1f)
-                delay(80 + Random.nextLong(0, 100))
-            }
-        } else {
-            targetHeight = 0.1f
-        }
-    }
-
-    val animatedHeight by animateFloatAsState(targetValue = targetHeight, label = "barHeight")
-    val color = remember { if (Random.nextBoolean()) ElectricPurple else Color(0xFF00E5FF) }
-
-    Box(
-        modifier = Modifier
-            .width(4.dp)
-            .fillMaxHeight(animatedHeight)
-            .clip(RoundedCornerShape(2.dp))
-            .background(color.copy(alpha = 0.8f))
-    )
-}
+// Cyberpunk Visualizer removed in favor of RealtimeVisualizer
 
 private fun formatTime(millis: Long): String {
     if (millis < 0) return "00:00"

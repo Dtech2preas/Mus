@@ -73,9 +73,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val duration = MusicControllerManager.duration
     val shuffleModeEnabled = MusicControllerManager.shuffleModeEnabled
     val repeatMode = MusicControllerManager.repeatMode
+    val audioSessionId = MusicControllerManager.audioSessionId
 
     // Download Progress Flow (Global)
     val downloadProgress = YoutubeClient.downloadProgress
+
+    // Active Downloads List (Derived)
+    val activeDownloads: StateFlow<List<DownloadStatus>> = downloadProgress
+        .map { it.values.toList().filter { status -> status.progress < 100f } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Initializing Downloads (Waiting for start)
     private val _initializingDownloads = MutableStateFlow<Set<String>>(emptySet())
@@ -156,8 +162,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (currentInitializing.isNotEmpty()) {
                     // Remove IDs that have started downloading (progress > 0)
                     val newInitializing = currentInitializing.filter { id ->
-                        val progress = progressMap[id]
-                        progress == null || progress <= 0f
+                        val status = progressMap[id]
+                        status == null || status.progress <= 0f
                     }.toSet()
 
                     if (newInitializing.size != currentInitializing.size) {
@@ -390,6 +396,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearDownloadMessage() {
         _uiState.value = _uiState.value.copy(downloadMessage = null)
+    }
+
+    fun cancelDownload(videoId: String) {
+        viewModelScope.launch {
+            MusicRepository.cancelDownload(getApplication(), videoId)
+            _initializingDownloads.value -= videoId
+            _toastEvent.emit("Download cancelled")
+        }
     }
 
     // Genre Management
