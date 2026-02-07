@@ -13,16 +13,40 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+enum class IdentifyState {
+    INITIALIZING, // Waiting for Shazam button
+    READY,        // Button found, ready to listen
+    LISTENING,    // User clicked, listening to audio
+    SEARCHING,    // Searching for match
+    ERROR         // Failed to identify or timeout
+}
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -54,9 +78,57 @@ fun IdentifyScreen(
 
     if (hasAudioPermission) {
         var webView: WebView? by remember { mutableStateOf(null) }
-        var hasFound by remember { mutableStateOf(false) }
+        var hasFoundResult by remember { mutableStateOf(false) }
+        var currentState by remember { mutableStateOf(IdentifyState.INITIALIZING) }
+        val coroutineScope = rememberCoroutineScope()
 
-        // Proper cleanup to release microphone resources and prevent "Second Try" failure
+        // Javascript to find the button
+        val findButtonJs = """
+            (function() {
+                var btn = document.querySelector('[aria-label*="Shazam" i]');
+                if (!btn) btn = document.querySelector('[aria-label*="Listening" i]');
+                if (!btn) {
+                    var all = document.querySelectorAll('div[role="button"], button');
+                    for(var i=0; i<all.length; i++) {
+                        if(all[i].innerText && all[i].innerText.toLowerCase().includes('shazam')) {
+                            btn = all[i];
+                            break;
+                        }
+                    }
+                }
+                return btn != null;
+            })();
+        """.trimIndent()
+
+        // Javascript to click the button
+        val clickButtonJs = """
+            (function() {
+                var btn = document.querySelector('[aria-label*="Shazam" i]');
+                if (!btn) btn = document.querySelector('[aria-label*="Listening" i]');
+                if (!btn) {
+                     var all = document.querySelectorAll('div[role="button"], button');
+                    for(var i=0; i<all.length; i++) {
+                        if(all[i].innerText && all[i].innerText.toLowerCase().includes('shazam')) {
+                            btn = all[i];
+                            break;
+                        }
+                    }
+                }
+                if (btn) {
+                    btn.click();
+                    return true;
+                }
+                return false;
+            })();
+        """.trimIndent()
+
+        // Javascript to scroll (trigger button appearance)
+        val scrollJs = """
+            window.scrollTo({ top: 500, behavior: 'smooth' });
+            setTimeout(function() { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 800);
+        """.trimIndent()
+
+        // Proper cleanup
         DisposableEffect(Unit) {
             onDispose {
                 webView?.destroy()
@@ -64,73 +136,22 @@ fun IdentifyScreen(
             }
         }
 
-        // Polling to check for success state
+        // Logic to poll for result URL
         LaunchedEffect(Unit) {
             while (true) {
                 delay(1000)
-                if (hasFound) break
+                if (hasFoundResult) break
 
                 webView?.let { view ->
                     val url = view.url
-
                     if (url != null) {
-                        if (url.contains("/song/")) {
-                            // New format: Extract metadata directly from URL slug
-                            // e.g. https://www.shazam.com/song/1856650306/leskandi-20-feat-natiey-lepaka-and-janesh
-                            try {
-                                val uri = android.net.Uri.parse(url)
-                                val pathSegments = uri.pathSegments
-                                // Expected segments: ["song", "id", "slug"]
-                                if (pathSegments.size >= 3 && pathSegments[0] == "song") {
-                                    val slug = pathSegments.last()
-                                    val searchQuery = slug.replace("-", " ")
-
-                                    if (searchQuery.isNotBlank() && !hasFound) {
-                                        hasFound = true
-                                        onSongFound(searchQuery)
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e("IdentifyScreen", "Error parsing song URL", e)
-                            }
-                        } else if (url.contains("/track/")) {
-                            // Legacy/Fallback: Found a track page, try to extract metadata using JavaScript
-                            // We extract h1 (Song), h2 (Artist), and document.title as fallback
-                            val js = "(function() { " +
-                                    "var h1 = document.querySelector('h1')?.innerText || ''; " +
-                                    "var h2 = document.querySelector('h2')?.innerText || ''; " +
-                                    "var t = document.title || ''; " +
-                                    "return h1 + '|||' + h2 + '|||' + t; " +
-                                    "})();"
-
-                            view.evaluateJavascript(js) { result ->
-                                // result is a JSON string, e.g., "\"Song|||Artist|||Title\""
-                                if (result != null && result != "null" && !hasFound) {
-                                    val rawString = result.trim('"') // Remove surrounding quotes from JSON string
-                                    val parts = rawString.split("|||")
-                                    if (parts.size >= 3) {
-                                        val song = parts[0].trim()
-                                        val artist = parts[1].trim()
-                                        val pageTitle = parts[2].trim()
-
-                                        var searchQuery = ""
-
-                                        if (song.isNotBlank() && artist.isNotBlank()) {
-                                            searchQuery = "$artist - $song"
-                                        } else if (song.isNotBlank()) {
-                                            searchQuery = song
-                                        } else if (pageTitle.isNotBlank()) {
-                                            // Fallback to title parsing
-                                            searchQuery = pageTitle.replace("| Shazam", "")
-                                                .replace("- Shazam", "")
-                                                .trim()
-                                        }
-
-                                        if (searchQuery.isNotBlank() && searchQuery != "Shazam") {
-                                            hasFound = true
-                                            onSongFound(searchQuery)
-                                        }
-                                    }
+                        if (url.contains("/song/") || url.contains("/track/")) {
+                            // If we are in LISTENING or SEARCHING state, finding a URL means success
+                            // We can reuse the extraction logic here
+                            extractResult(view, url) { query ->
+                                if (query.isNotBlank() && !hasFoundResult) {
+                                    hasFoundResult = true
+                                    onSongFound(query)
                                 }
                             }
                         }
@@ -139,72 +160,301 @@ fun IdentifyScreen(
             }
         }
 
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.databaseEnabled = true
-                    settings.allowContentAccess = true
-                    settings.allowFileAccess = true
-                    settings.mediaPlaybackRequiresUserGesture = false
+        // Polling logic for button detection and timeouts
+        LaunchedEffect(webView, currentState) {
+            if (currentState == IdentifyState.INITIALIZING) {
+                var checks = 0
+                while(currentState == IdentifyState.INITIALIZING) {
+                    delay(2000) // check every 2 seconds
+                    webView?.evaluateJavascript(findButtonJs) { result ->
+                        if (result == "true") {
+                            currentState = IdentifyState.READY
+                        } else {
+                            checks++
+                            if (checks >= 15) { // 30 seconds timeout
+                                 currentState = IdentifyState.ERROR
+                            } else if (checks % 3 == 0) { // Every 6 seconds
+                                webView?.evaluateJavascript(scrollJs, null)
+                            }
+                        }
+                    }
+                }
+            } else if (currentState == IdentifyState.LISTENING) {
+                // Timeout for listening phase
+                delay(20000) // 20 seconds
+                if (!hasFoundResult && currentState == IdentifyState.LISTENING) {
+                    currentState = IdentifyState.ERROR
+                }
+            }
+        }
 
-                    // Clear cache aggressively to ensure fresh permission request state
-                    clearCache(true)
-                    clearHistory()
+        Box(modifier = Modifier.fillMaxSize()) {
+            // The hidden WebView
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.databaseEnabled = true
+                        settings.allowContentAccess = true
+                        settings.allowFileAccess = true
+                        settings.mediaPlaybackRequiresUserGesture = false
 
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onPermissionRequest(request: PermissionRequest) {
-                            val requestedResources = request.resources ?: emptyArray()
-                            Log.d("IdentifyScreen", "Permission request from ${request.origin}: ${requestedResources.joinToString()}")
+                        clearCache(true)
+                        clearHistory()
 
-                            val resourcesToGrant = mutableListOf<String>()
-                            for (res in requestedResources) {
-                                if (res == PermissionRequest.RESOURCE_AUDIO_CAPTURE) {
-                                    // Check if we have the system permission
-                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onPermissionRequest(request: PermissionRequest) {
+                                val requestedResources = request.resources ?: emptyArray()
+                                val resourcesToGrant = mutableListOf<String>()
+                                for (res in requestedResources) {
+                                    if (res == PermissionRequest.RESOURCE_AUDIO_CAPTURE) {
+                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                            resourcesToGrant.add(res)
+                                        }
+                                    } else if (res != PermissionRequest.RESOURCE_VIDEO_CAPTURE) {
                                         resourcesToGrant.add(res)
-                                    } else {
-                                        Log.w("IdentifyScreen", "Cannot grant AUDIO_CAPTURE: System permission missing")
                                     }
-                                } else if (res != PermissionRequest.RESOURCE_VIDEO_CAPTURE) {
-                                    // Grant other resources (like PROTECTED_MEDIA_ID) if requested,
-                                    // but explicitly exclude VIDEO_CAPTURE as we don't have camera permission
-                                    resourcesToGrant.add(res)
+                                }
+                                if (resourcesToGrant.isNotEmpty()) {
+                                    request.grant(resourcesToGrant.toTypedArray())
+                                } else {
+                                    request.deny()
                                 }
                             }
-
-                            if (resourcesToGrant.isNotEmpty()) {
-                                request.grant(resourcesToGrant.toTypedArray())
-                            } else {
-                                Log.d("IdentifyScreen", "Denying permission request")
-                                request.deny()
-                            }
                         }
-                    }
 
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                            super.onPageStarted(view, url, favicon)
-                        }
+                        webViewClient = object : WebViewClient() {}
+                        loadUrl("https://www.shazam.com/")
+                        webView = this
                     }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(0.01f), // Almost invisible but technically rendered
+                update = { webView = it }
+            )
 
-                    loadUrl("https://www.shazam.com/")
-                    webView = this
+            // The Custom Overlay
+            IdentifyOverlay(
+                state = currentState,
+                onStartListening = {
+                    currentState = IdentifyState.LISTENING
+                    // Trigger JS click
+                    webView?.evaluateJavascript(clickButtonJs, null)
+                },
+                onRetry = {
+                    currentState = IdentifyState.INITIALIZING
+                    hasFoundResult = false
+                    webView?.reload()
                 }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = {
-                webView = it
-            }
-        )
+            )
+        }
     } else {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
+        }
+    }
+}
+
+// Helper to extract result
+fun extractResult(view: WebView, url: String, onFound: (String) -> Unit) {
+    if (url.contains("/song/")) {
+        try {
+            val uri = android.net.Uri.parse(url)
+            val pathSegments = uri.pathSegments
+            if (pathSegments.size >= 3 && pathSegments[0] == "song") {
+                val slug = pathSegments.last()
+                val searchQuery = slug.replace("-", " ")
+                onFound(searchQuery)
+            }
+        } catch (e: Exception) {
+            Log.e("IdentifyScreen", "Error parsing song URL", e)
+        }
+    } else if (url.contains("/track/")) {
+        val js = "(function() { " +
+                "var h1 = document.querySelector('h1')?.innerText || ''; " +
+                "var h2 = document.querySelector('h2')?.innerText || ''; " +
+                "var t = document.title || ''; " +
+                "return h1 + '|||' + h2 + '|||' + t; " +
+                "})();"
+        view.evaluateJavascript(js) { result ->
+            if (result != null && result != "null") {
+                val rawString = result.trim('"')
+                val parts = rawString.split("|||")
+                if (parts.size >= 3) {
+                    val song = parts[0].trim()
+                    val artist = parts[1].trim()
+                    val pageTitle = parts[2].trim()
+                    var searchQuery = ""
+                    if (song.isNotBlank() && artist.isNotBlank()) {
+                        searchQuery = "$artist - $song"
+                    } else if (song.isNotBlank()) {
+                        searchQuery = song
+                    } else if (pageTitle.isNotBlank()) {
+                        searchQuery = pageTitle.replace("| Shazam", "").replace("- Shazam", "").trim()
+                    }
+                    if (searchQuery.isNotBlank() && searchQuery != "Shazam") {
+                        onFound(searchQuery)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PulsingCircle() {
+    val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "Scale"
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "Alpha"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(160.dp)
+            .scale(scale)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha), CircleShape)
+    )
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+fun IdentifyOverlay(
+    state: IdentifyState,
+    onStartListening: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        AnimatedContent(
+            targetState = state,
+            transitionSpec = {
+                fadeIn() with fadeOut()
+            },
+            label = "IdentifyState"
+        ) { targetState ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                when (targetState) {
+                    IdentifyState.INITIALIZING -> {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Initializing D-TECH AI...",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    IdentifyState.READY -> {
+                        Button(
+                            onClick = onStartListening,
+                            modifier = Modifier.size(120.dp),
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Mic,
+                                contentDescription = "Listen",
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Tap to Identify",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    IdentifyState.LISTENING -> {
+                        Box(contentAlignment = Alignment.Center) {
+                            PulsingCircle()
+                            Icon(
+                                imageVector = Icons.Filled.MusicNote,
+                                contentDescription = "Listening",
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Listening...",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    IdentifyState.SEARCHING -> {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Analyzing Match...",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    IdentifyState.ERROR -> {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Error",
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Couldn't identify song",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onRetry,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Text("Try Again")
+                        }
+                    }
+                }
+            }
         }
     }
 }
