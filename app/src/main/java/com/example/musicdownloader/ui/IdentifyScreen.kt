@@ -82,34 +82,72 @@ fun IdentifyScreen(
         var currentState by remember { mutableStateOf(IdentifyState.INITIALIZING) }
         val coroutineScope = rememberCoroutineScope()
 
-        // Javascript to find the button
+        // Strict Javascript to find the button
         val findButtonJs = """
             (function() {
-                var btn = document.querySelector('[aria-label*="Shazam" i]');
-                if (!btn) btn = document.querySelector('[aria-label*="Listening" i]');
-                if (!btn) {
-                    var all = document.querySelectorAll('div[role="button"], button');
-                    for(var i=0; i<all.length; i++) {
-                        if(all[i].innerText && all[i].innerText.toLowerCase().includes('shazam')) {
-                            btn = all[i];
-                            break;
-                        }
+                function isVisible(e) {
+                    return !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+                }
+                var badKeywords = ["get", "download", "connect", "install", "open", "rate", "concerts", "search", "menu", "policy", "terms"];
+
+                // 1. Explicitly look for "Tap to Shazam" aria-label (most reliable)
+                var btn = document.querySelector('[aria-label="Tap to Shazam"]');
+                if (btn && isVisible(btn)) return true;
+
+                // 2. Fallback: Filter buttons strictly
+                var all = document.querySelectorAll('button, div[role="button"]');
+                for(var i=0; i<all.length; i++) {
+                    var el = all[i];
+                    if (!isVisible(el)) continue;
+
+                    var text = (el.innerText || "").toLowerCase();
+                    var label = (el.getAttribute("aria-label") || "").toLowerCase();
+
+                    // Must be Shazam button
+                    var isCandidate = label.includes("tap to shazam") ||
+                                      (text.includes("shazam") && text.length < 20); // Short text like "Tap to Shazam"
+
+                    // Must NOT contain bad keywords
+                    var isBad = badKeywords.some(function(bad) {
+                        return text.includes(bad) || label.includes(bad);
+                    });
+
+                    if (isCandidate && !isBad) {
+                        return true;
                     }
                 }
-                return btn != null;
+                return false;
             })();
         """.trimIndent()
 
-        // Javascript to click the button
+        // Strict Javascript to click the button
         val clickButtonJs = """
             (function() {
-                var btn = document.querySelector('[aria-label*="Shazam" i]');
-                if (!btn) btn = document.querySelector('[aria-label*="Listening" i]');
-                if (!btn) {
-                     var all = document.querySelectorAll('div[role="button"], button');
+                function isVisible(e) {
+                    return !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+                }
+                var badKeywords = ["get", "download", "connect", "install", "open", "rate", "concerts", "search", "menu", "policy", "terms"];
+
+                var btn = document.querySelector('[aria-label="Tap to Shazam"]');
+                if (!btn || !isVisible(btn)) {
+                    btn = null;
+                    var all = document.querySelectorAll('button, div[role="button"]');
                     for(var i=0; i<all.length; i++) {
-                        if(all[i].innerText && all[i].innerText.toLowerCase().includes('shazam')) {
-                            btn = all[i];
+                        var el = all[i];
+                        if (!isVisible(el)) continue;
+
+                        var text = (el.innerText || "").toLowerCase();
+                        var label = (el.getAttribute("aria-label") || "").toLowerCase();
+
+                        var isCandidate = label.includes("tap to shazam") ||
+                                          (text.includes("shazam") && text.length < 20);
+
+                        var isBad = badKeywords.some(function(bad) {
+                            return text.includes(bad) || label.includes(bad);
+                        });
+
+                        if (isCandidate && !isBad) {
+                            btn = el;
                             break;
                         }
                     }
