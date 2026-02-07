@@ -94,23 +94,36 @@ fun IdentifyScreen(
                 var btn = document.querySelector('[aria-label="Tap to Shazam"]');
                 if (btn && isVisible(btn)) return true;
 
+                // 1b. Check for common Shazam IDs
+                btn = document.getElementById('listening-circle');
+                if (btn && isVisible(btn)) return true;
+
                 // 2. Fallback: Filter buttons strictly
-                var all = document.querySelectorAll('button, div[role="button"]');
+                // Added 'a' tag to selector
+                var all = document.querySelectorAll('button, div[role="button"], a[role="button"], a');
                 for(var i=0; i<all.length; i++) {
                     var el = all[i];
                     if (!isVisible(el)) continue;
 
                     var text = (el.innerText || "").toLowerCase();
                     var label = (el.getAttribute("aria-label") || "").toLowerCase();
+                    var id = (el.id || "").toLowerCase();
+                    var className = (el.className || "").toString().toLowerCase();
 
                     // Must be Shazam button
                     var isCandidate = label.includes("tap to shazam") ||
-                                      (text.includes("shazam") && text.length < 20); // Short text like "Tap to Shazam"
+                                      label.includes("identif") ||
+                                      (text.includes("shazam") && text.length < 25) ||
+                                      id.includes("listening") ||
+                                      className.includes("listening");
 
-                    // Must NOT contain bad keywords
-                    var isBad = badKeywords.some(function(bad) {
-                        return text.includes(bad) || label.includes(bad);
-                    });
+                    // Must NOT contain bad keywords if we are relying on text
+                    var isBad = false;
+                    if (!label.includes("tap to shazam")) {
+                         isBad = badKeywords.some(function(bad) {
+                            return text.includes(bad) || label.includes(bad);
+                        });
+                    }
 
                     if (isCandidate && !isBad) {
                         return true;
@@ -130,21 +143,33 @@ fun IdentifyScreen(
 
                 var btn = document.querySelector('[aria-label="Tap to Shazam"]');
                 if (!btn || !isVisible(btn)) {
+                    btn = document.getElementById('listening-circle');
+                }
+
+                if (!btn || !isVisible(btn)) {
                     btn = null;
-                    var all = document.querySelectorAll('button, div[role="button"]');
+                    var all = document.querySelectorAll('button, div[role="button"], a[role="button"], a');
                     for(var i=0; i<all.length; i++) {
                         var el = all[i];
                         if (!isVisible(el)) continue;
 
                         var text = (el.innerText || "").toLowerCase();
                         var label = (el.getAttribute("aria-label") || "").toLowerCase();
+                        var id = (el.id || "").toLowerCase();
+                        var className = (el.className || "").toString().toLowerCase();
 
                         var isCandidate = label.includes("tap to shazam") ||
-                                          (text.includes("shazam") && text.length < 20);
+                                          label.includes("identif") ||
+                                          (text.includes("shazam") && text.length < 25) ||
+                                          id.includes("listening") ||
+                                          className.includes("listening");
 
-                        var isBad = badKeywords.some(function(bad) {
-                            return text.includes(bad) || label.includes(bad);
-                        });
+                        var isBad = false;
+                        if (!label.includes("tap to shazam")) {
+                             isBad = badKeywords.some(function(bad) {
+                                return text.includes(bad) || label.includes(bad);
+                            });
+                        }
 
                         if (isCandidate && !isBad) {
                             btn = el;
@@ -241,6 +266,8 @@ fun IdentifyScreen(
                         settings.allowContentAccess = true
                         settings.allowFileAccess = true
                         settings.mediaPlaybackRequiresUserGesture = false
+                        // Set User Agent to ensure mobile site (which shows the big button)
+                        settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
                         clearCache(true)
                         clearHistory()
