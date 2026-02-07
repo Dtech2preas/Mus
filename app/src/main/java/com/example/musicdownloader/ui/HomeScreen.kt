@@ -25,6 +25,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.MusicViewModel
@@ -33,6 +34,7 @@ import com.example.musicdownloader.ui.ElectricPurple
 import com.example.musicdownloader.ui.DTechBlue
 import com.example.musicdownloader.ui.PremiumGold
 import java.util.Calendar
+import com.example.musicdownloader.R
 
 @Composable
 fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
@@ -257,19 +259,34 @@ fun GreetingHeader() {
         label = "offset"
     )
 
+    // Blue and Black Gradient as requested
     val brush = Brush.linearGradient(
-        colors = listOf(DTechBlue, PremiumGold, DTechBlue),
+        colors = listOf(DTechBlue, Color.Black, DTechBlue),
         start = Offset(offset, 0f),
         end = Offset(offset + 500f, 100f),
         tileMode = TileMode.Mirror
     )
 
-    Text(
-        text = "$greeting from DTECH",
-        style = TextStyle(
-            brush = brush,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // D-Tech Logo
+        Image(
+            painter = painterResource(id = R.drawable.dtech_logo),
+            contentDescription = "DTECH Logo",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
         )
-    )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Text(
+            text = "$greeting from DTECH",
+            style = TextStyle(
+                brush = brush,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+        )
+    }
 }
