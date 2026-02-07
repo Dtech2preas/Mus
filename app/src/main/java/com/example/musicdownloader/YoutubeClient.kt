@@ -22,10 +22,13 @@ data class VideoItem(
 
 data class DownloadStatus(
     val videoId: String,
+    val title: String,
     val progress: Float, // 0-100
     val totalSize: String = "Unknown",
     val speed: String = "0 KB/s",
-    val eta: String = "--:--"
+    val eta: String = "--:--",
+    val isPaused: Boolean = false,
+    val videoItem: VideoItem? = null
 )
 
 object YoutubeClient {
@@ -156,10 +159,10 @@ object YoutubeClient {
         return cleaned.trim()
     }
 
-    suspend fun downloadAudio(context: Context, videoId: String, outputDir: File): File = withContext(Dispatchers.IO) {
+    suspend fun downloadAudio(context: Context, videoId: String, title: String, outputDir: File): File = withContext(Dispatchers.IO) {
         try {
             // Reset progress for this video
-            updateProgress(videoId, 0f, "Calculating...", "", "")
+            updateProgress(videoId, title, 0f, "Calculating...", "", "")
 
             val url = "https://www.youtube.com/watch?v=$videoId"
             val request = YoutubeDLRequest(url)
@@ -196,11 +199,11 @@ object YoutubeClient {
 
                         val percent = percentStr?.toFloatOrNull()
                         if (percent != null) {
-                            updateProgress(videoId, percent, totalSize, speed, eta)
+                            updateProgress(videoId, title, percent, totalSize, speed, eta)
                         }
                     } else if (progress > 0) {
                          // Fallback to library progress if available
-                         updateProgress(videoId, progress, "Unknown", "", "")
+                         updateProgress(videoId, title, progress, "Unknown", "", "")
                     }
                 }
             }
@@ -215,21 +218,58 @@ object YoutubeClient {
             }
 
             // Clear progress on success
-            updateProgress(videoId, 100f, "Done", "", "")
+            updateProgress(videoId, title, 100f, "Done", "", "")
             // Optional: remove from map after a delay? For now, 100% is fine.
 
             return@withContext foundFile
         } catch (e: Exception) {
             e.printStackTrace()
             // Clear progress on failure
-            updateProgress(videoId, 0f, "Error", "", "")
+            updateProgress(videoId, title, 0f, "Error", "", "")
             throw e
         }
     }
 
-    private fun updateProgress(videoId: String, percent: Float, totalSize: String, speed: String, eta: String) {
+    // Overload for when we want to pass VideoItem specifically (e.g. at start)
+    fun initializeDownloadStatus(video: VideoItem) {
         val current = _downloadProgress.value.toMutableMap()
-        current[videoId] = DownloadStatus(videoId, percent, totalSize, speed, eta)
+        current[video.id] = DownloadStatus(
+            videoId = video.id,
+            title = video.title,
+            progress = 0f,
+            videoItem = video
+        )
+        _downloadProgress.value = current
+    }
+
+    private fun updateProgress(videoId: String, title: String, percent: Float, totalSize: String, speed: String, eta: String) {
+        val current = _downloadProgress.value.toMutableMap()
+        // Preserve videoItem if exists
+        val existing = current[videoId]
+        current[videoId] = DownloadStatus(
+            videoId,
+            title,
+            percent,
+            totalSize,
+            speed,
+            eta,
+            videoItem = existing?.videoItem
+        )
+        _downloadProgress.value = current
+    }
+
+    fun pauseDownloadStatus(videoId: String) {
+        val current = _downloadProgress.value.toMutableMap()
+        val existing = current[videoId]
+        if (existing != null) {
+            current[videoId] = existing.copy(isPaused = true)
+            _downloadProgress.value = current
+        }
+    }
+
+    fun removeDownloadStatus(videoId: String) {
+        val current = _downloadProgress.value.toMutableMap()
+        current.remove(videoId)
         _downloadProgress.value = current
     }
 

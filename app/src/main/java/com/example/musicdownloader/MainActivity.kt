@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MusicAppTheme {
-                RequestNotificationPermission()
+                RequestPermissions()
                 AppNavigation(viewModel)
             }
         }
@@ -52,23 +52,32 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun RequestNotificationPermission() {
+fun RequestPermissions() {
     val context = LocalContext.current
+
+    // Notification Permission (Android 13+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val permission = Manifest.permission.POST_NOTIFICATIONS
         val launcher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
-            onResult = { isGranted ->
-                if (!isGranted) {
-                    // User denied permission, maybe show a rationale or just proceed
-                }
-            }
+            onResult = { }
         )
-
         LaunchedEffect(Unit) {
             if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
                 launcher.launch(permission)
             }
+        }
+    }
+
+    // Audio Record Permission (For Visualizer)
+    val audioPermission = Manifest.permission.RECORD_AUDIO
+    val audioLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { }
+    )
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, audioPermission) != PackageManager.PERMISSION_GRANTED) {
+            audioLauncher.launch(audioPermission)
         }
     }
 }
@@ -114,6 +123,8 @@ fun MainScreen(viewModel: MusicViewModel) {
 
     val currentScreen = navigationStack.lastOrNull() ?: AppScreen.Home
 
+    val activeDownloads by viewModel.activeDownloads.collectAsStateWithLifecycle()
+
     val currentTab = when (currentScreen) {
         is AppScreen.Home -> 0
         is AppScreen.Search -> 1
@@ -126,6 +137,9 @@ fun MainScreen(viewModel: MusicViewModel) {
         is AppScreen.ArtistDetail -> 3
         is AppScreen.Settings,
         is AppScreen.Compression -> 4
+        // ActiveDownloads doesn't belong to a tab, usually sits on top of Search or Home?
+        // Let's keep Search tab active if we are in ActiveDownloads for now
+        is AppScreen.ActiveDownloads -> 1
     }
 
     // -------------------------------------------------------------
@@ -330,7 +344,15 @@ fun MainScreen(viewModel: MusicViewModel) {
                     is AppScreen.Search -> SearchScreen(
                         viewModel = viewModel,
                         contentPadding = PaddingValues(0.dp),
-                        initialQuery = targetScreen.query
+                        initialQuery = targetScreen.query,
+                        onViewDownloads = { navigateTo(AppScreen.ActiveDownloads) }
+                    )
+                    is AppScreen.ActiveDownloads -> ActiveDownloadsScreen(
+                        activeDownloads = activeDownloads,
+                        onBack = { popBackStack() },
+                        onPause = { viewModel.pauseDownload(it) },
+                        onResume = { viewModel.resumeDownload(it) },
+                        onDelete = { viewModel.deleteDownload(it) }
                     )
                     is AppScreen.Identify -> IdentifyScreen(
                         onSongFound = { songName ->

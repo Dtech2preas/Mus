@@ -141,9 +141,35 @@ object MusicRepository {
         return Result.success("Download queued")
     }
 
-    fun cancelDownload(context: Context, videoId: String) {
-        AppLogger.log("[Repo] Cancelling download for $videoId")
+    fun deleteDownload(context: Context, videoId: String) {
+        AppLogger.log("[Repo] Deleting download for $videoId")
+
+        // 1. Cancel Work
         WorkManager.getInstance(context).cancelAllWorkByTag("download_$videoId")
+
+        // 2. Remove from Client Status
+        YoutubeClient.removeDownloadStatus(videoId)
+
+        // 3. Delete Files (Partially downloaded or complete)
+        val outputDir = File(context.filesDir, "music_downloads")
+        if (outputDir.exists()) {
+            outputDir.listFiles { _, name -> name.startsWith(videoId) }?.forEach { file ->
+                try {
+                    file.delete()
+                    AppLogger.log("[Repo] Deleted file: ${file.name}")
+                } catch (e: Exception) {
+                    AppLogger.log("[Repo] Failed to delete file: ${file.name}")
+                }
+            }
+        }
+    }
+
+    fun pauseDownload(context: Context, videoId: String) {
+        AppLogger.log("[Repo] Pausing download for $videoId")
+        // Cancel work (stops process)
+        WorkManager.getInstance(context).cancelAllWorkByTag("download_$videoId")
+        // Mark as paused in Client
+        YoutubeClient.pauseDownloadStatus(videoId)
     }
 
     // Helper to sync file system with DB on startup
