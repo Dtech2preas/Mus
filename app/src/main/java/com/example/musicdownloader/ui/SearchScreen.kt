@@ -5,10 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,7 +26,8 @@ import com.example.musicdownloader.MusicViewModel
 fun SearchScreen(
     viewModel: MusicViewModel,
     contentPadding: PaddingValues,
-    initialQuery: String? = null
+    initialQuery: String? = null,
+    onViewDownloads: () -> Unit
 ) {
     var query by remember { mutableStateOf(initialQuery ?: "") }
 
@@ -52,31 +55,45 @@ fun SearchScreen(
                 .background(Color(0xFF0F0F13))
                 .padding(horizontal = 16.dp)
                 .padding(top = 16.dp)
-                .padding(bottom = if (activeDownloads.isNotEmpty()) 120.dp else 0.dp) // Make space for dashboard
         ) {
             // Search Bar
             OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            placeholder = { Text("Search Song", color = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ElectricPurple,
-                unfocusedBorderColor = Color.Gray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = ElectricPurple
-            ),
-            trailingIcon = {
-                IconButton(onClick = { viewModel.search(query) }) {
-                    Icon(Icons.Default.Search, contentDescription = "Search", tint = ElectricPurple)
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Search Song", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(50),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = ElectricPurple,
+                    unfocusedBorderColor = Color.Gray,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = ElectricPurple
+                ),
+                trailingIcon = {
+                    IconButton(onClick = { viewModel.search(query) }) {
+                        Icon(Icons.Default.Search, contentDescription = "Search", tint = ElectricPurple)
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { viewModel.search(query) })
+            )
+
+            // Download Summary Bar
+            if (activeDownloads.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onViewDownloads,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ElectricPurple),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                     Icon(Icons.Default.Download, contentDescription = null, tint = Color.White)
+                     Spacer(modifier = Modifier.width(8.dp))
+                     Text("Currently downloading ${activeDownloads.size} songs", color = Color.White)
                 }
-            },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { viewModel.search(query) })
-        )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -114,20 +131,6 @@ fun SearchScreen(
                         )
                     }
                 }
-            }
-        }
-
-        // Dashboard Overlay
-        if (activeDownloads.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = contentPadding.calculateBottomPadding())
-            ) {
-                DownloadDashboard(
-                    downloads = activeDownloads,
-                    onCancel = { viewModel.cancelDownload(it) }
-                )
             }
         }
     }

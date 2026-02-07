@@ -15,6 +15,7 @@ sealed class AppScreen {
 
     // Tools
     object Compression : AppScreen()
+    object ActiveDownloads : AppScreen()
 
     // Details
     data class PlaylistDetail(val id: Int, val name: String) : AppScreen()

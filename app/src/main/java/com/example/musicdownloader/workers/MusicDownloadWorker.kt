@@ -34,7 +34,7 @@ class MusicDownloadWorker(
         setProgress(workDataOf("title" to title))
 
         return try {
-            val file = YoutubeClient.downloadAudio(context, videoId, outputDir)
+            val file = YoutubeClient.downloadAudio(context, videoId, title, outputDir)
 
             // Insert into Database
             val database = AppDatabase.getDatabase(context)

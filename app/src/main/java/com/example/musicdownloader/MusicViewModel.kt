@@ -80,6 +80,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val downloadProgress = YoutubeClient.downloadProgress
 
     // Active Downloads List (Derived)
+    // Filter out completed ones (100f)
     val activeDownloads: StateFlow<List<DownloadStatus>> = downloadProgress
         .map { it.values.toList().filter { status -> status.progress < 100f } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -224,6 +225,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
         _initializingDownloads.value += video.id
 
+        // Initialize progress so UI shows it immediately
+        YoutubeClient.initializeDownloadStatus(video)
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 _toastEvent.emit("Download started for ${video.title}")
@@ -254,6 +258,49 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 AppLogger.log("[ViewModel] Download Error: ${e.message}")
                 _toastEvent.emit("Error starting download: ${e.message}")
             }
+        }
+    }
+
+    fun pauseDownload(videoId: String) {
+        viewModelScope.launch {
+            MusicRepository.pauseDownload(getApplication(), videoId)
+            _toastEvent.emit("Download paused")
+        }
+    }
+
+    fun resumeDownload(videoId: String) {
+        // Find the original VideoItem from status
+        val status = downloadProgress.value[videoId]
+        if (status?.videoItem != null) {
+            viewModelScope.launch {
+                // Re-enqueue
+                // We should probably check if it's already running? status.isPaused should be true.
+                _toastEvent.emit("Resuming download...")
+                val result = withContext(Dispatchers.IO) {
+                    MusicRepository.downloadSong(getApplication(), status.videoItem)
+                }
+                result.onSuccess {
+                    // Update status to not paused (YoutubeClient logic might need to be refreshed or wait for worker)
+                    // The worker will start and call updateProgress which overwrites status, effectively unpausing it.
+                }.onFailure {
+                    _toastEvent.emit("Failed to resume")
+                }
+            }
+        } else {
+            // Should not happen if we initialized correctly
+            viewModelScope.launch {
+                _toastEvent.emit("Cannot resume: Metadata lost")
+            }
+        }
+    }
+
+    fun deleteDownload(videoId: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                MusicRepository.deleteDownload(getApplication(), videoId)
+            }
+            _initializingDownloads.value -= videoId
+            _toastEvent.emit("Download cancelled and deleted")
         }
     }
 
@@ -399,12 +446,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(downloadMessage = null)
     }
 
+    // Deprecated: used old logic, but now mapped to deleteDownload for consistency if called
     fun cancelDownload(videoId: String) {
-        viewModelScope.launch {
-            MusicRepository.cancelDownload(getApplication(), videoId)
-            _initializingDownloads.value -= videoId
-            _toastEvent.emit("Download cancelled")
-        }
+        deleteDownload(videoId)
     }
 
     // Genre Management
