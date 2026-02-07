@@ -42,6 +42,8 @@ import coil.request.ImageRequest
 import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.ui.AddToPlaylistSheet
 import com.example.musicdownloader.ui.DeepBlue
+import com.example.musicdownloader.ui.DTechBlue
+import com.example.musicdownloader.ui.PremiumGold
 import com.example.musicdownloader.ui.ElectricPurple
 import com.example.musicdownloader.utils.HapticUtils
 import kotlinx.coroutines.Dispatchers
@@ -162,7 +164,7 @@ fun FullScreenPlayer(
                              Brush.verticalGradient(
                                  colors = listOf(
                                      Color.Black.copy(alpha = 0.3f),
-                                     Color(0xFF0F0F13).copy(alpha = 0.9f) // Fade to nearly black at bottom
+                                     DeepBlue.copy(alpha = 0.9f) // Fade to Midnight Black at bottom
                                  )
                              )
                          )
@@ -243,7 +245,7 @@ fun FullScreenPlayer(
                          Icon(
                              imageVector = Icons.Default.ThumbUp,
                              contentDescription = "Like",
-                             tint = if (isLiked) ElectricPurple else Color.White,
+                             tint = if (isLiked) PremiumGold else Color.White,
                              modifier = Modifier.size(28.dp)
                          )
                     }
@@ -260,8 +262,8 @@ fun FullScreenPlayer(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
+                        thumbColor = PremiumGold,
+                        activeTrackColor = PremiumGold,
                         inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                     )
                 )
@@ -286,7 +288,7 @@ fun FullScreenPlayer(
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Shuffle",
-                            tint = if (shuffleModeEnabled) ElectricPurple else Color.White.copy(alpha = 0.7f),
+                            tint = if (shuffleModeEnabled) PremiumGold else Color.White.copy(alpha = 0.7f),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -301,13 +303,13 @@ fun FullScreenPlayer(
                         )
                     }
 
-                    // Play/Pause (Big White Circle)
+                    // Play/Pause (Big Premium Circle)
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(Color.White)
+                            .background(PremiumGold)
                             .clickable {
                                 HapticUtils.performHapticFeedback(context)
                                 viewModel.togglePlayPause()
@@ -353,7 +355,7 @@ fun FullScreenPlayer(
                             contentDescription = "Repeat",
                             tint = when (repeatMode) {
                                 androidx.media3.common.Player.REPEAT_MODE_ONE,
-                                androidx.media3.common.Player.REPEAT_MODE_ALL -> ElectricPurple
+                                androidx.media3.common.Player.REPEAT_MODE_ALL -> PremiumGold
                                 else -> Color.White.copy(alpha = 0.7f)
                             },
                             modifier = Modifier.size(24.dp)
