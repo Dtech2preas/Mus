@@ -77,7 +77,7 @@ fun MusicRowItem(
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
-                            color = ElectricPurple,
+                            color = PremiumGold,
                             strokeWidth = 2.dp
                         )
                     }
@@ -91,7 +91,7 @@ fun MusicRowItem(
                         CircularProgressIndicator(
                             progress = { downloadProgress / 100f },
                             modifier = Modifier.size(24.dp),
-                            color = ElectricPurple,
+                            color = PremiumGold,
                             trackColor = Color.White.copy(alpha = 0.3f),
                         )
                     }
@@ -121,13 +121,13 @@ fun MusicRowItem(
                     Text(
                         text = "Preparing...",
                         style = MaterialTheme.typography.labelSmall,
-                        color = ElectricPurple
+                        color = PremiumGold
                     )
                 } else if (downloadProgress != null && downloadProgress > 0f && downloadProgress < 100f) {
                      Text(
                         text = "${downloadProgress.toInt()}%",
                         style = MaterialTheme.typography.labelSmall,
-                        color = ElectricPurple
+                        color = PremiumGold
                     )
                 }
             }
@@ -184,7 +184,7 @@ fun MusicCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C26)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         onClick = onClick
     ) {
         Column {
@@ -205,7 +205,7 @@ fun MusicCard(
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(32.dp),
-                            color = ElectricPurple,
+                            color = PremiumGold,
                             strokeWidth = 3.dp
                         )
                     }
@@ -220,7 +220,7 @@ fun MusicCard(
                              CircularProgressIndicator(
                                  progress = { downloadProgress / 100f },
                                  modifier = Modifier.size(32.dp),
-                                 color = ElectricPurple,
+                                 color = PremiumGold,
                                  trackColor = Color.White.copy(alpha = 0.3f),
                              )
                              Spacer(modifier = Modifier.height(4.dp))

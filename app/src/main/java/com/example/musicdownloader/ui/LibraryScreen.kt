@@ -85,7 +85,7 @@ fun LibraryScreen(
             NavigationCard(
                 title = "Liked",
                 icon = Icons.Default.Favorite,
-                color = ElectricPurple,
+                color = PremiumGold, // Gold for favorites
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToLiked
             )
@@ -94,7 +94,7 @@ fun LibraryScreen(
             NavigationCard(
                 title = "Playlists",
                 icon = Icons.Default.List,
-                color = Color(0xFF00E5FF), // Cyan Accent
+                color = DTechBlue, // Blue for lists
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToPlaylists
             )
@@ -103,7 +103,7 @@ fun LibraryScreen(
             NavigationCard(
                 title = "Artists",
                 icon = Icons.Default.Person,
-                color = Color(0xFFFFAB40), // Orange Accent
+                color = Color.White, // White for artists
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToArtists
             )

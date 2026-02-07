@@ -30,6 +30,8 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.VideoItem
 import com.example.musicdownloader.ui.ElectricPurple
+import com.example.musicdownloader.ui.DTechBlue
+import com.example.musicdownloader.ui.PremiumGold
 import java.util.Calendar
 
 @Composable
@@ -46,7 +48,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13))
+            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
         // Dynamic Header
@@ -123,13 +125,23 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                          // "Made for You" - 2 Rows Horizontal
                          item {
                              Column {
-                                 Text(
-                                     text = "Made for You: ${feed.genreName}",
-                                     fontSize = 20.sp,
-                                     fontWeight = FontWeight.Bold,
-                                     color = Color.White,
-                                     modifier = Modifier.padding(bottom = 12.dp)
-                                 )
+                                 Row(
+                                     modifier = Modifier.padding(bottom = 12.dp),
+                                     verticalAlignment = Alignment.CenterVertically
+                                 ) {
+                                     Text(
+                                         text = "Made for You: ",
+                                         fontSize = 20.sp,
+                                         fontWeight = FontWeight.Bold,
+                                         color = Color.White
+                                     )
+                                     Text(
+                                         text = feed.genreName,
+                                         fontSize = 20.sp,
+                                         fontWeight = FontWeight.Bold,
+                                         color = PremiumGold
+                                     )
+                                 }
 
                                  // Horizontal Grid (simulated with Column of 2 items per chunk)
                                  val chunks = feed.songs.chunked(2)
@@ -163,13 +175,23 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                      } else {
                          // "Trending" - Vertical Grid (2 Columns)
                          item {
-                             Text(
-                                 text = "Trending in ${feed.genreName}",
-                                 fontSize = 20.sp,
-                                 fontWeight = FontWeight.Bold,
-                                 color = Color.White,
-                                 modifier = Modifier.padding(bottom = 8.dp)
-                             )
+                             Row(
+                                 modifier = Modifier.padding(bottom = 8.dp),
+                                 verticalAlignment = Alignment.CenterVertically
+                             ) {
+                                 Text(
+                                     text = "Trending in ",
+                                     fontSize = 20.sp,
+                                     fontWeight = FontWeight.Bold,
+                                     color = Color.White
+                                 )
+                                 Text(
+                                     text = feed.genreName,
+                                     fontSize = 20.sp,
+                                     fontWeight = FontWeight.Bold,
+                                     color = PremiumGold
+                                 )
+                             }
                          }
 
                          val chunks = feed.songs.chunked(2)
@@ -236,7 +258,7 @@ fun GreetingHeader() {
     )
 
     val brush = Brush.linearGradient(
-        colors = listOf(Color(0xFF7D5FFF), Color(0xFF00E5FF), Color(0xFF7D5FFF)),
+        colors = listOf(DTechBlue, PremiumGold, DTechBlue),
         start = Offset(offset, 0f),
         end = Offset(offset + 500f, 100f),
         tileMode = TileMode.Mirror

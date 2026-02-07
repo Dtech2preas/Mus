@@ -26,11 +26,14 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.ui.*
+import com.example.musicdownloader.ui.DTechBlue
+import com.example.musicdownloader.ui.PremiumGold
 import com.example.musicdownloader.ui.FullScreenPlayer
 import com.example.musicdownloader.utils.AdManager
 import kotlinx.coroutines.Job
@@ -264,6 +267,14 @@ fun MainScreen(viewModel: MusicViewModel) {
                 NavigationBar(
                     containerColor = DeepBlue
                 ) {
+                    val navColors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PremiumGold,
+                        selectedTextColor = PremiumGold,
+                        indicatorColor = DTechBlue.copy(alpha = 0.2f),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+
                     NavigationBarItem(
                         selected = currentTab == 0,
                         onClick = {
@@ -271,7 +282,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                             navigationStack.add(AppScreen.Home)
                         },
                         icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                        label = { Text("Home") }
+                        label = { Text("Home") },
+                        colors = navColors
                     )
                     NavigationBarItem(
                         selected = currentTab == 1,
@@ -280,7 +292,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                             navigationStack.add(AppScreen.Search())
                         },
                         icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                        label = { Text("Search") }
+                        label = { Text("Search") },
+                        colors = navColors
                     )
                     NavigationBarItem(
                         selected = currentTab == 2,
@@ -289,7 +302,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                             navigationStack.add(AppScreen.Identify)
                         },
                         icon = { Icon(Icons.Default.Info, contentDescription = "Identify") },
-                        label = { Text("Identify") }
+                        label = { Text("Identify") },
+                        colors = navColors
                     )
                     NavigationBarItem(
                         selected = currentTab == 3,
@@ -298,7 +312,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                             navigationStack.add(AppScreen.Library)
                         },
                         icon = { Icon(Icons.Default.List, contentDescription = "Library") },
-                        label = { Text("Library") }
+                        label = { Text("Library") },
+                        colors = navColors
                     )
                     NavigationBarItem(
                         selected = currentTab == 4,
@@ -307,7 +322,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                             navigationStack.add(AppScreen.Settings)
                         },
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") }
+                        label = { Text("Settings") },
+                        colors = navColors
                     )
                 }
             }

@@ -67,8 +67,8 @@ object UserPreferences {
     }
 
     fun getThemeColor(context: Context): Long {
-        // Default to Electric Purple (0xFF7D5FFF)
-        return getPrefs(context).getLong(KEY_THEME_COLOR, 0xFF7D5FFF)
+        // Default to D-TECH Blue (0xFF2962FF)
+        return getPrefs(context).getLong(KEY_THEME_COLOR, 0xFF2962FF)
     }
 
     fun setThemeColor(context: Context, color: Long) {
