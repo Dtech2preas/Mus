@@ -85,20 +85,26 @@ fun IdentifyScreen(
         // Strict Javascript to find the button
         val findButtonJs = """
             (function() {
-                function isVisible(e) {
-                    return !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+                function isVisibleAndBottomRight(e) {
+                    if (!e.offsetWidth && !e.offsetHeight && !e.getClientRects().length) return false;
+                    var rect = e.getBoundingClientRect();
+                    var viewHeight = window.innerHeight;
+                    var viewWidth = window.innerWidth;
+                    // Check if it's in the bottom 40% and right 40% of the viewport (adjustable)
+                    // The screenshot shows it clearly in the bottom right corner
+                    return (rect.top > viewHeight * 0.6) && (rect.left > viewWidth * 0.6);
                 }
                 var badKeywords = ["get", "download", "connect", "install", "open", "rate", "concerts", "search", "menu", "policy", "terms"];
 
                 // 1. Explicitly look for "Tap to Shazam" aria-label (most reliable)
                 var btn = document.querySelector('[aria-label="Tap to Shazam"]');
-                if (btn && isVisible(btn)) return true;
+                if (btn && isVisibleAndBottomRight(btn)) return true;
 
                 // 2. Fallback: Filter buttons strictly
                 var all = document.querySelectorAll('button, div[role="button"]');
                 for(var i=0; i<all.length; i++) {
                     var el = all[i];
-                    if (!isVisible(el)) continue;
+                    if (!isVisibleAndBottomRight(el)) continue; // Must be bottom right
 
                     var text = (el.innerText || "").toLowerCase();
                     var label = (el.getAttribute("aria-label") || "").toLowerCase();
@@ -123,18 +129,22 @@ fun IdentifyScreen(
         // Strict Javascript to click the button
         val clickButtonJs = """
             (function() {
-                function isVisible(e) {
-                    return !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+                function isVisibleAndBottomRight(e) {
+                    if (!e.offsetWidth && !e.offsetHeight && !e.getClientRects().length) return false;
+                    var rect = e.getBoundingClientRect();
+                    var viewHeight = window.innerHeight;
+                    var viewWidth = window.innerWidth;
+                    return (rect.top > viewHeight * 0.6) && (rect.left > viewWidth * 0.6);
                 }
                 var badKeywords = ["get", "download", "connect", "install", "open", "rate", "concerts", "search", "menu", "policy", "terms"];
 
                 var btn = document.querySelector('[aria-label="Tap to Shazam"]');
-                if (!btn || !isVisible(btn)) {
+                if (!btn || !isVisibleAndBottomRight(btn)) {
                     btn = null;
                     var all = document.querySelectorAll('button, div[role="button"]');
                     for(var i=0; i<all.length; i++) {
                         var el = all[i];
-                        if (!isVisible(el)) continue;
+                        if (!isVisibleAndBottomRight(el)) continue;
 
                         var text = (el.innerText || "").toLowerCase();
                         var label = (el.getAttribute("aria-label") || "").toLowerCase();
@@ -241,6 +251,7 @@ fun IdentifyScreen(
                         settings.allowContentAccess = true
                         settings.allowFileAccess = true
                         settings.mediaPlaybackRequiresUserGesture = false
+                        settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
                         clearCache(true)
                         clearHistory()
