@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -152,4 +153,3 @@ fun DownloadItemCard(
 }
 
 // Ensure ElectricPurple is available or define it locally if not imported
-private val ElectricPurple = Color(0xFF7D5FFF)
