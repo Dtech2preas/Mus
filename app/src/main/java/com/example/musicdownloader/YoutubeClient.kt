@@ -36,6 +36,9 @@ object YoutubeClient {
     private val _downloadProgress = MutableStateFlow<Map<String, DownloadStatus>>(emptyMap())
     val downloadProgress: StateFlow<Map<String, DownloadStatus>> = _downloadProgress
 
+    // Track cancelled downloads to prevent race conditions from worker updates
+    private val cancelledDownloads = java.util.Collections.synchronizedSet(java.util.HashSet<String>())
+
     // Regex to capture detailed stats: [download]  10.5% of 3.42MiB at 45.00KiB/s ETA 01:10
     private val progressRegex = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)%\\s+of\\s+([~\\d\\.]+\\w+)(?:\\s+at\\s+([\\d\\.]+\\w+/s))?(?:\\s+ETA\\s+([\\d:]+))?")
 
@@ -161,6 +164,9 @@ object YoutubeClient {
 
     suspend fun downloadAudio(context: Context, videoId: String, title: String, outputDir: File): File = withContext(Dispatchers.IO) {
         try {
+            // Clear cancellation flag if retrying
+            cancelledDownloads.remove(videoId)
+
             // Reset progress for this video
             updateProgress(videoId, title, 0f, "Calculating...", "", "")
 
@@ -232,6 +238,7 @@ object YoutubeClient {
 
     // Overload for when we want to pass VideoItem specifically (e.g. at start)
     fun initializeDownloadStatus(video: VideoItem) {
+        cancelledDownloads.remove(video.id)
         val current = _downloadProgress.value.toMutableMap()
         current[video.id] = DownloadStatus(
             videoId = video.id,
@@ -243,9 +250,15 @@ object YoutubeClient {
     }
 
     private fun updateProgress(videoId: String, title: String, percent: Float, totalSize: String, speed: String, eta: String) {
+        if (cancelledDownloads.contains(videoId)) return
+
         val current = _downloadProgress.value.toMutableMap()
         // Preserve videoItem if exists
         val existing = current[videoId]
+
+        // If paused, keep paused status.
+        val isPaused = existing?.isPaused ?: false
+
         current[videoId] = DownloadStatus(
             videoId,
             title,
@@ -253,7 +266,8 @@ object YoutubeClient {
             totalSize,
             speed,
             eta,
-            videoItem = existing?.videoItem
+            videoItem = existing?.videoItem,
+            isPaused = isPaused
         )
         _downloadProgress.value = current
     }
@@ -268,6 +282,8 @@ object YoutubeClient {
     }
 
     fun removeDownloadStatus(videoId: String) {
+        // Mark as cancelled so late updates are ignored
+        cancelledDownloads.add(videoId)
         val current = _downloadProgress.value.toMutableMap()
         current.remove(videoId)
         _downloadProgress.value = current
