@@ -16,7 +16,7 @@ import androidx.compose.runtime.remember
 val DeepBlue = Color(0xFF050510) // Midnight Black
 val SurfaceBlue = Color(0xFF12121A) // Dark Glass
 val DTechBlue = Color(0xFF2962FF) // Royal Blue
-val PremiumGold = Color(0xFFFFD700) // Gold
+val PremiumGold = DTechBlue // Replaced Gold with Blue as requested
 val ElectricPurple = DTechBlue // Alias for backward compatibility, but now Blue
 val CyanAccent = PremiumGold // Update accent to Gold
 val TextWhite = Color(0xFFFFFFFF)
