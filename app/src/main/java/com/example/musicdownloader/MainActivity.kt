@@ -70,17 +70,8 @@ fun RequestPermissions() {
         }
     }
 
-    // Audio Record Permission (For Visualizer)
-    val audioPermission = Manifest.permission.RECORD_AUDIO
-    val audioLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { }
-    )
-    LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, audioPermission) != PackageManager.PERMISSION_GRANTED) {
-            audioLauncher.launch(audioPermission)
-        }
-    }
+    // Audio Record Permission removed: Visualizer no longer requires it.
+    // IdentifyScreen handles its own permission request.
 }
 
 @Composable
