@@ -293,7 +293,10 @@ object YoutubeClient {
          try {
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
-            request.addOption("-f", "bestaudio[ext=m4a]")
+            request.addOption("-f", "bestaudio/best")
+            request.addOption("--extractor-args", "youtube:player_client=ios")
+            request.addOption("--no-check-certificate")
+            request.addOption("--no-playlist")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
 
