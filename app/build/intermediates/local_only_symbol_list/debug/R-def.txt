@@ -1,0 +1,9 @@
+R_DEF: Internal format may change without notice
+local
+drawable dtech_logo
+mipmap ic_launcher
+mipmap ic_launcher_round
+string app_name
+style Theme.MusicDownloader
+xml backup_rules
+xml data_extraction_rules

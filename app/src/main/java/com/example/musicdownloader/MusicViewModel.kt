@@ -222,41 +222,111 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
-        _initializingDownloads.value += video.id
-
-        // Initialize progress so UI shows it immediately
-        YoutubeClient.initializeDownloadStatus(video)
-
+        // --- NEW LOGIC ---
+        // We will perform the file check on IO thread
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                _toastEvent.emit("Download started for ${video.title}")
-                // Enqueue download via WorkManager
-                val result = MusicRepository.downloadSong(getApplication(), video)
+            val file = File(getApplication<Application>().filesDir, "music_downloads/${video.id}")
+            val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
+            val existingFiles = outputDir.listFiles { _, name -> name.startsWith(video.id) }
+            val targetFile = existingFiles?.firstOrNull() ?: file
 
-                result.onSuccess { msg ->
-                    _uiState.value = _uiState.value.copy(downloadMessage = msg)
+            if (targetFile.exists()) {
+                 // Play local file immediately
+                 withContext(Dispatchers.Main) {
+                     playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                 }
+                 return@launch // Don't download again
+            }
 
-                    // If file already exists, we are done, remove from initializing
-                    if (msg == "File already exists") {
-                        _initializingDownloads.value -= video.id
+            // Not found locally, start parallel tasks
+            withContext(Dispatchers.Main) {
+                _uiState.value = _uiState.value.copy(downloadMessage = "Downloading ${video.title}...")
+                _initializingDownloads.value += video.id
+                YoutubeClient.initializeDownloadStatus(video)
+            }
 
-                        // Switch to Main thread for playback logic if needed, but playSong handles it
+            // 1. Start Download (Background)
+            // We use a separate launch so it doesn't block streaming if download takes time to queue (it shouldn't, but safe)
+            launch { // Inherits Dispatchers.IO
+                try {
+                    _toastEvent.emit("Download started for ${video.title}")
+                    // Enqueue download via WorkManager
+                    val result = MusicRepository.downloadSong(getApplication(), video)
+
+                    result.onSuccess { msg ->
                         withContext(Dispatchers.Main) {
-                             playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                             _uiState.value = _uiState.value.copy(downloadMessage = msg)
+                        }
+
+                        // If file already exists, we are done, remove from initializing
+                        if (msg == "File already exists") {
+                            withContext(Dispatchers.Main) {
+                                _initializingDownloads.value -= video.id
+                            }
+                            // Fallback: Check if playing. If not, play local.
+                            val currentId = currentMediaItem.value?.mediaId
+                            if (currentId != video.id) {
+                                withContext(Dispatchers.Main) {
+                                    playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                                }
+                            }
+                        }
+                    }.onFailure { e ->
+                        // If failed, remove from initializing
+                        withContext(Dispatchers.Main) {
+                            _initializingDownloads.value -= video.id
+                            _toastEvent.emit("Download failed: ${e.message}")
                         }
                     }
-                    // If msg indicates enqueued, we leave it in initializingDownloads.
-                    // The init block will remove it when progress > 0.
-                }.onFailure { e ->
-                    // If failed, remove from initializing
-                    _initializingDownloads.value -= video.id
-                    _toastEvent.emit("Download failed: ${e.message}")
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        _initializingDownloads.value -= video.id
+                        _toastEvent.emit("Error starting download: ${e.message}")
+                    }
+                    AppLogger.log("[ViewModel] Download Error: ${e.message}")
                 }
-            } catch (e: Exception) {
-                _initializingDownloads.value -= video.id
-                AppLogger.log("[ViewModel] Download Error: ${e.message}")
-                _toastEvent.emit("Error starting download: ${e.message}")
+            }
+
+            // 2. Start Streaming (Instant Play)
+            launch { // Inherits Dispatchers.IO
+                 withContext(Dispatchers.Main) {
+                     _uiState.value = _uiState.value.copy(isLoadingPlayer = true)
+                 }
+                 try {
+                     val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
+                     if (streamInfo.url.isNotBlank()) {
+                          // Check if local playback started (race condition from fast download/exist)
+                          val currentId = currentMediaItem.value?.mediaId
+                          if (currentId == video.id) {
+                              // Already playing (likely local file), skip streaming
+                              return@launch
+                          }
+
+                          val mediaMetadata = MediaMetadata.Builder()
+                              .setTitle(video.title)
+                              .setArtist(video.uploader)
+                              .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
+                              .build()
+
+                          val mediaItem = MediaItem.Builder()
+                              .setUri(streamInfo.url)
+                              .setMediaId(video.id)
+                              .setMediaMetadata(mediaMetadata)
+                              .build()
+
+                          withContext(Dispatchers.Main) {
+                               MusicControllerManager.playMedia(mediaItem)
+                               _toastEvent.emit("Streaming ${video.title}...")
+                          }
+                     }
+                 } catch (e: Exception) {
+                     AppLogger.log("Streaming failed: ${e.message}")
+                     _toastEvent.emit("Streaming failed, downloading in background...")
+                 } finally {
+                     withContext(Dispatchers.Main) {
+                         _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
+                     }
+                 }
             }
         }
     }
