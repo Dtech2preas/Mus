@@ -228,6 +228,43 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize progress so UI shows it immediately
         YoutubeClient.initializeDownloadStatus(video)
 
+        // Instant Play: Fetch stream URL concurrently
+        viewModelScope.launch(Dispatchers.IO) {
+            // Check if file exists first to avoid race with local playback
+            val filesDir = File(getApplication<Application>().filesDir, "music_downloads")
+            val alreadyExists = filesDir.listFiles { _, name -> name.startsWith(video.id) }?.isNotEmpty() == true
+
+            if (alreadyExists) {
+                AppLogger.log("[ViewModel] File exists, skipping Instant Play stream fetch.")
+                return@launch
+            }
+
+            try {
+                AppLogger.log("[ViewModel] Fetching stream URL for Instant Play: ${video.id}")
+                val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
+
+                if (streamInfo.url.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        val mediaMetadata = MediaMetadata.Builder()
+                            .setTitle(video.title)
+                            .setArtist(video.uploader)
+                            .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
+                            .build()
+
+                        val mediaItem = MediaItem.Builder()
+                            .setUri(streamInfo.url)
+                            .setMediaId(video.id)
+                            .setMediaMetadata(mediaMetadata)
+                            .build()
+
+                        MusicControllerManager.playMedia(mediaItem)
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Instant Play failed: ${e.message}")
+            }
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 _toastEvent.emit("Download started for ${video.title}")
