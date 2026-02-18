@@ -296,6 +296,7 @@ object YoutubeClient {
             request.addOption("-f", "bestaudio[ext=m4a]")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
+            request.addOption("--extractor-args", "youtube:player_client=ios")
 
             val cookieFile = CookieManager.getCookieFile(context)
             if (cookieFile != null) {
