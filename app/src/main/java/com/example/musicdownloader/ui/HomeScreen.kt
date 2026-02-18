@@ -94,12 +94,12 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                 isWaiting = initializingDownloads.contains(song.id),
                                 onClick = {
                                     if (downloadedIds.contains(song.id)) {
-                                        viewModel.playLocalSong(song.id, song.title, song.uploader, song.thumbnailUrl)
+                                        viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)
                                     } else {
-                                        viewModel.downloadAndPlay(song)
+                                        viewModel.playStream(song)
                                     }
                                 },
-                                onDownload = { viewModel.downloadAndPlay(song) },
+                                onDownload = { viewModel.downloadSong(song) },
                                 modifier = Modifier.width(120.dp).height(160.dp) // Compact size
                             )
                         }
@@ -161,12 +161,12 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                                      isWaiting = initializingDownloads.contains(song.id),
                                                      onClick = {
                                                          if (downloadedIds.contains(song.id)) {
-                                                             viewModel.playLocalSong(song.id, song.title, song.uploader, song.thumbnailUrl)
+                                                             viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)
                                                          } else {
-                                                             viewModel.downloadAndPlay(song)
+                                                             viewModel.playStream(song)
                                                          }
                                                      },
-                                                     onDownload = { viewModel.downloadAndPlay(song) }
+                                                     onDownload = { viewModel.downloadSong(song) }
                                                  )
                                              }
                                          }
@@ -214,12 +214,12 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                              isWaiting = initializingDownloads.contains(song.id),
                                              onClick = {
                                                  if (downloadedIds.contains(song.id)) {
-                                                     viewModel.playLocalSong(song.id, song.title, song.uploader, song.thumbnailUrl)
+                                                     viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)
                                                  } else {
-                                                     viewModel.downloadAndPlay(song)
+                                                     viewModel.playStream(song)
                                                  }
                                              },
-                                             onDownload = { viewModel.downloadAndPlay(song) },
+                                             onDownload = { viewModel.downloadSong(song) },
                                              modifier = Modifier.fillMaxWidth().height(220.dp)
                                          )
                                      }

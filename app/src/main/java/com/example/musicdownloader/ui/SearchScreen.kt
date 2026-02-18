@@ -118,15 +118,13 @@ fun SearchScreen(
                             isWaiting = initializingDownloads.contains(video.id),
                             onClick = {
                                 if (downloadedIds.contains(video.id)) {
-                                    viewModel.playLocalSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                                    viewModel.playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
                                 } else {
-                                    Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
-                                    viewModel.downloadAndPlay(video)
+                                    viewModel.playStream(video)
                                 }
                             },
                             onDownloadClick = {
-                                 Toast.makeText(context, "Downloading ${video.title}...", Toast.LENGTH_SHORT).show()
-                                 viewModel.downloadAndPlay(video)
+                                 viewModel.downloadSong(video)
                             }
                         )
                     }

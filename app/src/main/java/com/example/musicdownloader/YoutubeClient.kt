@@ -174,7 +174,7 @@ object YoutubeClient {
             val request = YoutubeDLRequest(url)
 
             // Speed fix options and preferred format
-            request.addOption("-f", "ba/b")
+            request.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
             request.addOption("-S", "+size,+br")
             request.addOption("--no-check-certificate")
             request.addOption("--extractor-args", "youtube:player_client=android,ios")
