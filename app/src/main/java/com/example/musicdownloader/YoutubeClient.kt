@@ -291,9 +291,17 @@ object YoutubeClient {
 
     suspend fun getStreamUrl(context: Context, url: String): StreamInfo = withContext(Dispatchers.IO) {
          try {
+            val startTime = System.currentTimeMillis()
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
-            request.addOption("-f", "bestaudio[ext=m4a]")
+
+            // Use iOS client for speed and HLS support (often faster)
+            request.addOption("--extractor-args", "youtube:player_client=ios")
+
+            // Relax format to allow best audio or HLS (m3u8)
+            request.addOption("-f", "bestaudio/best")
+
+            request.addOption("--no-playlist")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
 
@@ -308,6 +316,8 @@ object YoutubeClient {
                 }
             }
             val streamUrl = response.out?.trim() ?: ""
+            val duration = System.currentTimeMillis() - startTime
+            AppLogger.log("[YoutubeClient] getStreamUrl took $duration ms for $url")
 
             // YT-DLP usually returns direct links, unless using --hls-prefer-native which we aren't
             // But we can check if it looks like m3u8
