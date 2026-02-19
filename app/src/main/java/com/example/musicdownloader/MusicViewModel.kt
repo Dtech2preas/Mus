@@ -201,6 +201,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     results = videos,
                     isLoading = false
                 )
+                if (videos.isNotEmpty()) {
+                    YoutubeClient.prefetchStream(getApplication(), videos.first().id)
+                }
             }.onFailure { e ->
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -244,7 +247,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             try {
-                val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
+                val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.id)
+
+                // Prefetch next song if available in current results
+                val currentResults = _uiState.value.results
+                val index = currentResults.indexOfFirst { it.id == video.id }
+                if (index != -1 && index + 1 < currentResults.size) {
+                    val nextVideo = currentResults[index + 1]
+                    YoutubeClient.prefetchStream(getApplication(), nextVideo.id)
+                }
+
                 if (streamInfo.url.isNotBlank()) {
                     val mediaMetadata = MediaMetadata.Builder()
                         .setTitle(video.title)

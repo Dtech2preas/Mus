@@ -3,11 +3,16 @@ package com.example.musicdownloader
 import android.content.Context
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 
 data class VideoItem(
@@ -45,6 +50,11 @@ object YoutubeClient {
     // Regex for cleaning titles
     // Matches (...) or [...] containing specific keywords, case insensitive
     private val junkRegex = Regex("(?i)(\\(|\\[).*(official|video|audio|lyrics|4k|hd).*(]|\\))")
+
+    // Cache for stream URLs
+    private val streamCache = ConcurrentHashMap<String, Deferred<StreamInfo>>()
+    // Scope for background prefetching
+    private val prefetchScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     suspend fun searchVideos(context: Context, query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
@@ -289,11 +299,41 @@ object YoutubeClient {
         _downloadProgress.value = current
     }
 
-    suspend fun getStreamUrl(context: Context, url: String): StreamInfo = withContext(Dispatchers.IO) {
-         try {
+    fun prefetchStream(context: Context, videoId: String) {
+        if (streamCache.containsKey(videoId)) return
+
+        val deferred = prefetchScope.async {
+            fetchStreamInfo(context, videoId)
+        }
+        streamCache[videoId] = deferred
+    }
+
+    suspend fun getStreamUrl(context: Context, videoId: String): StreamInfo = withContext(Dispatchers.IO) {
+        // Check cache first
+        val deferred = streamCache[videoId]
+        if (deferred != null) {
+            return@withContext deferred.await()
+        }
+
+        // Not in cache, fetch immediately
+        val result = fetchStreamInfo(context, videoId)
+        // Optionally cache it for future calls (e.g. if user seeks or replays)
+        // But since we just fetched it, we can return it.
+        // To be consistent, we could put it in cache as a completed deferred.
+        // But simply returning is fine.
+        return@withContext result
+    }
+
+    private suspend fun fetchStreamInfo(context: Context, videoId: String): StreamInfo {
+        try {
+            val url = "https://www.youtube.com/watch?v=$videoId"
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
+            // Optimize format selection
             request.addOption("-f", "bestaudio[ext=m4a]")
+            // Optimize extraction speed
+            request.addOption("--extractor-args", "youtube:player_client=ios")
+            request.addOption("--no-playlist")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
 
@@ -309,12 +349,12 @@ object YoutubeClient {
             }
             val streamUrl = response.out?.trim() ?: ""
 
-            // YT-DLP usually returns direct links, unless using --hls-prefer-native which we aren't
-            // But we can check if it looks like m3u8
             val isHls = streamUrl.contains(".m3u8")
-            return@withContext StreamInfo(streamUrl, isHls)
+            return StreamInfo(streamUrl, isHls)
         } catch (e: Exception) {
             e.printStackTrace()
+            // If fetching failed, remove from cache so we can retry later
+            streamCache.remove(videoId)
             throw e
         }
     }
