@@ -177,7 +177,7 @@ object YoutubeClient {
             request.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
             request.addOption("-S", "+size,+br")
             request.addOption("--no-check-certificate")
-            request.addOption("--extractor-args", "youtube:player_client=android,ios")
+            request.addOption("--extractor-args", "youtube:player_client=ios,android")
 
             // Use videoId for filename to ensure consistency
             val outputFile = File(outputDir, "$videoId.%(ext)s")
@@ -294,6 +294,7 @@ object YoutubeClient {
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
             request.addOption("-f", "bestaudio[ext=m4a]")
+            request.addOption("--extractor-args", "youtube:player_client=ios")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
 
