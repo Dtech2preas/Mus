@@ -102,6 +102,23 @@ object InnerTubeClient {
         }
     }
 
+    suspend fun checkStreamUrl(url: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .head()
+                .addHeader("User-Agent", NetworkUtils.USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     suspend fun fetchMetadata(context: android.content.Context, videoId: String): VideoItem = withContext(Dispatchers.IO) {
         val jsonBody = JSONObject().apply {
             put("videoId", videoId)
