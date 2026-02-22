@@ -212,11 +212,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun playStream(video: VideoItem) {
         AppLogger.log("[ViewModel] playStream called for ${video.id}")
+        AppLogger.log("[ViewModel] Video Details: Title='${video.title}', Uploader='${video.uploader}', Duration=${video.duration}")
+        AppLogger.log("[ViewModel] WebURL=${video.webUrl}, Thumbnail=${video.thumbnailUrl}")
 
         // Track history immediately
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 MusicRepository.addToHistory(getApplication(), video)
+                AppLogger.log("[ViewModel] Added to history: ${video.title}")
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding to history: ${e.message}")
             }
@@ -225,16 +228,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val file = File(getApplication<Application>().filesDir, "music_downloads/${video.id}")
             val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
+
+            AppLogger.log("[ViewModel] Checking local file at default path: ${file.absolutePath}")
             val existingFiles = outputDir.listFiles { _, name -> name.startsWith(video.id) }
             val targetFile = existingFiles?.firstOrNull() ?: file
 
             if (targetFile.exists()) {
+                 AppLogger.log("[ViewModel] Local file FOUND at: ${targetFile.absolutePath}")
                  // Play local file immediately
                  withContext(Dispatchers.Main) {
                      playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
                      _toastEvent.emit("Playing downloaded file...")
                  }
                  return@launch
+            } else {
+                 AppLogger.log("[ViewModel] Local file NOT FOUND. Proceeding to stream.")
             }
 
             // Not found locally, start streaming
@@ -244,14 +252,19 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             try {
+                AppLogger.log("[ViewModel] Calling YoutubeClient.getStreamUrl...")
                 val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
+                AppLogger.log("[ViewModel] Stream Info received. URL Length: ${streamInfo.url.length}, isHls: ${streamInfo.isHls}")
+
                 if (streamInfo.url.isNotBlank()) {
+                    AppLogger.log("[ViewModel] Building MediaMetadata...")
                     val mediaMetadata = MediaMetadata.Builder()
                         .setTitle(video.title)
                         .setArtist(video.uploader)
                         .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
                         .build()
 
+                    AppLogger.log("[ViewModel] Building MediaItem with URI: ${streamInfo.url}")
                     val mediaItem = MediaItem.Builder()
                         .setUri(streamInfo.url)
                         .setMediaId(video.id)
@@ -259,11 +272,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
 
                     withContext(Dispatchers.Main) {
+                        AppLogger.log("[ViewModel] Dispatching playMedia to MusicControllerManager...")
                         MusicControllerManager.playMedia(mediaItem)
                     }
+                } else {
+                    AppLogger.log("[ViewModel] ERROR: Stream URL is blank!")
                 }
             } catch (e: Exception) {
-                AppLogger.log("Streaming failed: ${e.message}")
+                AppLogger.log("[ViewModel] Streaming failed with exception: ${e.message}")
+                e.printStackTrace()
                 withContext(Dispatchers.Main) {
                      _toastEvent.emit("Streaming failed: ${e.message}")
                 }
@@ -374,6 +391,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playSong(id: String, title: String, artist: String, thumbnailUrl: String, contextQueue: List<Song>? = null) {
+        AppLogger.log("[ViewModel] playSong called: id=$id, title=$title")
+
         // Track history
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -390,15 +409,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val index = queueToUse.indexOfFirst { it.id == id }
 
         AppLogger.log("[ViewModel] Playing song $title from list (${queueToUse.size} items)")
+        AppLogger.log("[ViewModel] Found index in queue: $index")
 
         if (index != -1) {
+            AppLogger.log("[ViewModel] Delegating to MusicControllerManager.playPlaylist")
             MusicControllerManager.playPlaylist(queueToUse, index)
         } else {
             // Fallback for non-library play (e.g. search result not in library yet)
+             AppLogger.log("[ViewModel] Song not in current queue. Attempting direct file playback.")
              val file = File(getApplication<Application>().filesDir, "music_downloads/$id")
              val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
              val existingFiles = outputDir.listFiles { _, name -> name.startsWith(id) }
              val targetFile = existingFiles?.firstOrNull() ?: file
+
+             AppLogger.log("[ViewModel] Direct file playback: Path=${targetFile.absolutePath}, Exists=${targetFile.exists()}")
 
              val mediaMetadata = MediaMetadata.Builder()
                  .setTitle(title)
@@ -412,6 +436,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                  .setMediaMetadata(mediaMetadata)
                  .build()
 
+             AppLogger.log("[ViewModel] Delegating to MusicControllerManager.playMedia")
              MusicControllerManager.playMedia(mediaItem)
         }
     }

@@ -86,13 +86,13 @@ object MusicControllerManager {
                     androidx.media3.common.Player.STATE_BUFFERING -> "BUFFERING"
                     androidx.media3.common.Player.STATE_READY -> "READY"
                     androidx.media3.common.Player.STATE_ENDED -> "ENDED"
-                    else -> "UNKNOWN"
+                    else -> "UNKNOWN ($playbackState)"
                 }
-                AppLogger.log("[Player] State: $stateName")
+                AppLogger.log("[Player] onPlaybackStateChanged: $stateName")
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                AppLogger.log("[Player] Media Item Transition: ${mediaItem?.mediaId} (Reason: $reason)")
+                AppLogger.log("[Player] Media Item Transition. ID: ${mediaItem?.mediaId}, Title: ${mediaItem?.mediaMetadata?.title} (Reason: $reason)")
                 _currentMediaItem.value = mediaItem
             }
 
@@ -104,7 +104,10 @@ object MusicControllerManager {
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                AppLogger.log("[Player] Error: ${error.errorCodeName} - ${error.message}")
+                AppLogger.log("[Player] ERROR OCCURRED!")
+                AppLogger.log("  -> Code: ${error.errorCode} (${error.errorCodeName})")
+                AppLogger.log("  -> Message: ${error.message}")
+                AppLogger.log("  -> Cause: ${error.cause?.message}")
                 error.printStackTrace()
             }
 
@@ -135,6 +138,11 @@ object MusicControllerManager {
                 putString("MIME_TYPE", mediaItem.localConfiguration?.mimeType)
             }
 
+            AppLogger.log("[Controller] Sending PLAY_STREAM command with args:")
+            args.keySet().forEach { key ->
+                AppLogger.log("  -> $key: ${args.get(key)}")
+            }
+
             controller.sendCustomCommand(command, args)
             AppLogger.log("[Controller] Custom Command sent: PLAY_STREAM")
         }
@@ -161,10 +169,16 @@ object MusicControllerManager {
                 .build()
         }
 
+        AppLogger.log("[Controller] Prepared ${mediaItems.size} MediaItems.")
+        if (mediaItems.isNotEmpty()) {
+             AppLogger.log("[Controller] First Item: ${mediaItems[0].mediaMetadata.title}")
+        }
+
         mediaController?.let { controller ->
             controller.setMediaItems(mediaItems, startIndex, 0)
             controller.prepare()
             controller.play()
+            AppLogger.log("[Controller] Playlist playback started.")
         }
     }
 

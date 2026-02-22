@@ -34,31 +34,44 @@ object MusicRepository {
     private const val CACHE_DURATION_MS = 24 * 60 * 60 * 1000L // 24 hours
 
     suspend fun searchVideos(context: Context, query: String): Result<List<VideoItem>> {
+        AppLogger.log("[Repo] searchVideos called for: '$query'")
         // 1. Check Cache
         searchCache[query]?.let {
+            AppLogger.log("[Repo] Cache HIT for '$query' (${it.size} items)")
             return Result.success(it)
         }
+        AppLogger.log("[Repo] Cache MISS for '$query'")
 
         // 2. Try InnerTube (Fastest & Most Reliable)
         try {
+            AppLogger.log("[Repo] Trying InnerTube search...")
             val videos = InnerTubeClient.search(query)
             if (videos.isNotEmpty()) {
+                AppLogger.log("[Repo] InnerTube success: ${videos.size} items found")
                 searchCache[query] = videos
                 return Result.success(videos)
+            } else {
+                 AppLogger.log("[Repo] InnerTube returned empty list.")
             }
         } catch (e: Exception) {
+            AppLogger.log("[Repo] InnerTube failed: ${e.message}")
             e.printStackTrace()
             // Continue to fallbacks
         }
 
         // 3. Fallback to YoutubeClient (Slow but reliable backup)
         return try {
+            AppLogger.log("[Repo] Fallback to YoutubeClient search...")
             val videos = YoutubeClient.searchVideos(context, query)
             if (videos.isNotEmpty()) {
+                AppLogger.log("[Repo] YoutubeClient success: ${videos.size} items found")
                 searchCache[query] = videos
+            } else {
+                AppLogger.log("[Repo] YoutubeClient returned empty list.")
             }
             Result.success(videos)
         } catch (e: Exception) {
+            AppLogger.log("[Repo] YoutubeClient failed: ${e.message}")
             Result.failure(e)
         }
     }
@@ -256,6 +269,7 @@ object MusicRepository {
     }
 
     suspend fun addToHistory(context: Context, video: VideoItem) {
+        AppLogger.log("[Repo] addToHistory (VideoItem): ${video.title}")
         val history = PlayHistory(
             songId = video.id,
             title = video.title,
@@ -266,6 +280,7 @@ object MusicRepository {
     }
 
     suspend fun addToHistory(context: Context, song: Song) {
+        AppLogger.log("[Repo] addToHistory (Song): ${song.title}")
         val history = PlayHistory(
             songId = song.id,
             title = song.title,
