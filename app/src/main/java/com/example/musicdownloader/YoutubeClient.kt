@@ -3,11 +3,17 @@ package com.example.musicdownloader
 import android.content.Context
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 
 data class VideoItem(
@@ -31,6 +37,11 @@ data class DownloadStatus(
     val videoItem: VideoItem? = null
 )
 
+private data class CachedStream(
+    val streamInfo: StreamInfo,
+    val expiryTimestamp: Long // Unix timestamp in seconds
+)
+
 object YoutubeClient {
 
     private val _downloadProgress = MutableStateFlow<Map<String, DownloadStatus>>(emptyMap())
@@ -45,6 +56,15 @@ object YoutubeClient {
     // Regex for cleaning titles
     // Matches (...) or [...] containing specific keywords, case insensitive
     private val junkRegex = Regex("(?i)(\\(|\\[).*(official|video|audio|lyrics|4k|hd).*(]|\\))")
+
+    // Stream Cache
+    private val streamCache = ConcurrentHashMap<String, CachedStream>()
+    // Regex to extract 'expire' param from YouTube URL
+    private val expireRegex = Pattern.compile("expire=(\\d+)")
+
+    // Request Coalescing
+    private val activeStreamRequests = ConcurrentHashMap<String, Deferred<StreamInfo>>()
+    private val requestMutex = Mutex()
 
     suspend fun searchVideos(context: Context, query: String): List<VideoItem> = withContext(Dispatchers.IO) {
         val videos = mutableListOf<VideoItem>()
@@ -289,8 +309,53 @@ object YoutubeClient {
         _downloadProgress.value = current
     }
 
-    suspend fun getStreamUrl(context: Context, url: String): StreamInfo = withContext(Dispatchers.IO) {
-         try {
+    suspend fun getStreamUrl(context: Context, url: String): StreamInfo = coroutineScope {
+        // Extract video ID from URL (simple extraction for now, assuming standard format)
+        val videoId = if (url.contains("v=")) {
+            url.split("v=")[1].split("&")[0]
+        } else {
+            url.substringAfterLast("/")
+        }
+
+        // 1. Check Cache
+        val cached = streamCache[videoId]
+        if (cached != null) {
+            val currentTime = System.currentTimeMillis() / 1000
+            // Add a buffer (e.g., 5 minutes) to avoid returning a URL that's about to expire
+            if (cached.expiryTimestamp > currentTime + 300) {
+                AppLogger.log("[Repo] Cached stream for $videoId. Expires at ${cached.expiryTimestamp}")
+                return@coroutineScope cached.streamInfo
+            } else {
+                AppLogger.log("[Repo] Stream cache expired for $videoId")
+                streamCache.remove(videoId)
+            }
+        } else {
+            AppLogger.log("[Repo] Stream Cache MISS for $videoId")
+        }
+
+        // 2. Request Coalescing
+        val deferred = requestMutex.withLock {
+            activeStreamRequests.getOrPut(videoId) {
+                async(Dispatchers.IO) {
+                    try {
+                        performStreamExtraction(context, url, videoId)
+                    } finally {
+                        // Ensure cleanup when done (even on cancellation)
+                        // No mutex needed for remove on ConcurrentHashMap
+                        activeStreamRequests.remove(videoId)
+                    }
+                }
+            }
+        }
+
+        // Await the result. Since cleanup happens in finally block of async,
+        // we don't need to remove it here.
+        return@coroutineScope deferred.await()
+    }
+
+    private suspend fun performStreamExtraction(context: Context, url: String, videoId: String): StreamInfo {
+        // AppLogger.log("[YoutubeClient] performStreamExtraction START for $videoId")
+        try {
             AppLogger.log("[YoutubeClient] getStreamUrl called for: $url")
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
@@ -332,7 +397,31 @@ object YoutubeClient {
             val isHls = streamUrl.contains(".m3u8")
             if (isHls) AppLogger.log("[YoutubeClient] Stream identified as HLS (m3u8)")
 
-            return@withContext StreamInfo(streamUrl, isHls)
+            val info = StreamInfo(streamUrl, isHls)
+
+            // 3. Extract Expiry and Cache
+            try {
+                val matcher = expireRegex.matcher(streamUrl)
+                if (matcher.find()) {
+                    val expiry = matcher.group(1)?.toLongOrNull()
+                    if (expiry != null) {
+                        streamCache[videoId] = CachedStream(info, expiry)
+                        AppLogger.log("[Repo] Cached stream for $videoId. Expires at $expiry")
+                    } else {
+                        // Default 1 hour if parse fails but regex matched??
+                        val defaultExpiry = (System.currentTimeMillis() / 1000) + 3600
+                        streamCache[videoId] = CachedStream(info, defaultExpiry)
+                    }
+                } else {
+                    // Default 1 hour if no expire param found
+                    val defaultExpiry = (System.currentTimeMillis() / 1000) + 3600
+                    streamCache[videoId] = CachedStream(info, defaultExpiry)
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[Repo] Error parsing stream expiry: ${e.message}")
+            }
+
+            return info
         } catch (e: Exception) {
             AppLogger.log("[YoutubeClient] getStreamUrl FAILED: ${e.message}")
             e.printStackTrace()
