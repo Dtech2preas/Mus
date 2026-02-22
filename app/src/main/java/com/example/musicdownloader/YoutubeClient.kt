@@ -163,6 +163,7 @@ object YoutubeClient {
     }
 
     suspend fun downloadAudio(context: Context, videoId: String, title: String, outputDir: File): File = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
         try {
             // Clear cancellation flag if retrying
             cancelledDownloads.remove(videoId)
@@ -174,7 +175,8 @@ object YoutubeClient {
             val request = YoutubeDLRequest(url)
 
             // Speed fix options and preferred format
-            request.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
+            request.addOption("-f", "bestaudio/best")
+            request.addOption("--retries", "0")
             request.addOption("-S", "+size,+br")
             request.addOption("--no-check-certificate")
             request.addOption("--extractor-args", "youtube:player_client=android,ios")
@@ -227,8 +229,13 @@ object YoutubeClient {
             updateProgress(videoId, title, 100f, "Done", "", "")
             // Optional: remove from map after a delay? For now, 100% is fine.
 
+            val endTime = System.currentTimeMillis()
+            AppLogger.log("[YoutubeClient] Download process took: ${endTime - startTime}ms")
+
             return@withContext foundFile
         } catch (e: Exception) {
+            val endTime = System.currentTimeMillis()
+            AppLogger.log("[YoutubeClient] downloadAudio FAILED after ${endTime - startTime}ms")
             e.printStackTrace()
             // Clear progress on failure
             updateProgress(videoId, title, 0f, "Error", "", "")
@@ -290,15 +297,17 @@ object YoutubeClient {
     }
 
     suspend fun getStreamUrl(context: Context, url: String): StreamInfo = withContext(Dispatchers.IO) {
-         try {
+        val startTime = System.currentTimeMillis()
+        try {
             AppLogger.log("[YoutubeClient] getStreamUrl called for: $url")
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
-            request.addOption("-f", "bestaudio[ext=m4a]")
+            request.addOption("-f", "bestaudio/best")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
+            request.addOption("--retries", "0")
 
-            AppLogger.log("[YoutubeClient] Request Options: -g, -f bestaudio[ext=m4a], --no-warnings, --force-ipv4")
+            AppLogger.log("[YoutubeClient] Request Options: -g, -f bestaudio/best, --no-warnings, --force-ipv4, --retries 0")
 
             val cookieFile = CookieManager.getCookieFile(context)
             if (cookieFile != null) {
@@ -329,9 +338,13 @@ object YoutubeClient {
             val isHls = streamUrl.contains(".m3u8")
             if (isHls) AppLogger.log("[YoutubeClient] Stream identified as HLS (m3u8)")
 
+            val endTime = System.currentTimeMillis()
+            AppLogger.log("[YoutubeClient] Stream extraction took: ${endTime - startTime}ms")
+
             return@withContext StreamInfo(streamUrl, isHls)
         } catch (e: Exception) {
-            AppLogger.log("[YoutubeClient] getStreamUrl FAILED: ${e.message}")
+            val endTime = System.currentTimeMillis()
+            AppLogger.log("[YoutubeClient] getStreamUrl FAILED after ${endTime - startTime}ms: ${e.message}")
             e.printStackTrace()
             throw e
         }
