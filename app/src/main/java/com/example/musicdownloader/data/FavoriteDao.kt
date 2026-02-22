@@ -19,4 +19,7 @@ interface FavoriteDao {
 
     @Query("SELECT songId FROM favorite_songs")
     fun getAllLikedIds(): Flow<List<String>>
+
+    @Query("SELECT songId FROM favorite_songs")
+    suspend fun getAllLikedIdsSync(): List<String>
 }

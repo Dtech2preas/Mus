@@ -13,9 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlayHistory::class,
         FavoriteSong::class,
         Playlist::class,
-        PlaylistEntry::class
+        PlaylistEntry::class,
+        StreamCache::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -23,6 +24,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playHistoryDao(): PlayHistoryDao
     abstract fun favoriteDao(): FavoriteDao
     abstract fun playlistDao(): PlaylistDao
+    abstract fun streamCacheDao(): StreamCacheDao
 
     companion object {
         @Volatile
@@ -35,7 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "music_database"
                 )
-                .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration() // Simple migration strategy for this overhaul
                 .build()
                 INSTANCE = instance
@@ -47,6 +49,20 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // Add the 'album' column with a default value
                 database.execSQL("ALTER TABLE songs ADD COLUMN album TEXT NOT NULL DEFAULT 'Unknown Album'")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `stream_cache` (
+                        `videoId` TEXT NOT NULL,
+                        `streamUrl` TEXT NOT NULL,
+                        `expireTime` INTEGER NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`videoId`)
+                    )
+                """.trimIndent())
             }
         }
     }

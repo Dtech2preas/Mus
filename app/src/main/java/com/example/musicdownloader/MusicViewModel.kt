@@ -75,6 +75,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val shuffleModeEnabled = MusicControllerManager.shuffleModeEnabled
     val repeatMode = MusicControllerManager.repeatMode
     val audioSessionId = MusicControllerManager.audioSessionId
+    val isSmartShuffleEnabled = MusicControllerManager.isSmartShuffleEnabled
 
     // Download Progress Flow (Global)
     val downloadProgress = YoutubeClient.downloadProgress
@@ -514,6 +515,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleShuffle() {
         MusicControllerManager.toggleShuffleMode()
+    }
+
+    fun toggleSmartShuffle() {
+        MusicControllerManager.toggleSmartShuffle()
     }
 
     fun toggleRepeatMode() {
