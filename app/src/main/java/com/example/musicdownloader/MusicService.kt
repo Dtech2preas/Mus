@@ -57,7 +57,7 @@ class MusicService : MediaSessionService() {
 
         // 1. Base DataSource Factory (Global)
         // We now primarily play local files, but keep network capabilities for robustness.
-        val userAgent = "AppleCoreMedia/1.0.0.1931042321 (iPad; U; CPU OS 17_5_1 like Mac OS X; en_us)"
+        val userAgent = NetworkUtils.USER_AGENT
         val httpDataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
             .setUserAgent(userAgent)
 
