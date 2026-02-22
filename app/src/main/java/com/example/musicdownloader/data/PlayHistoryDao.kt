@@ -28,4 +28,8 @@ interface PlayHistoryDao {
 
     @Query("SELECT COUNT(*) FROM play_history")
     fun getTotalPlayCount(): Flow<Int>
+
+    // Sync query for Smart Shuffle
+    @Query("SELECT artist, COUNT(*) as playCount FROM play_history GROUP BY artist ORDER BY playCount DESC LIMIT 1")
+    suspend fun getTopArtistSync(): ArtistCount?
 }

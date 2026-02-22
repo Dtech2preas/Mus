@@ -12,11 +12,17 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.example.musicdownloader.data.Song
+import com.example.musicdownloader.utils.SmartShuffleManager
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 // Singleton to manage MediaController
@@ -24,6 +30,9 @@ object MusicControllerManager {
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
     private var applicationContext: Context? = null
+
+    // Scope for background operations (prefetching, smart shuffle)
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -42,6 +51,10 @@ object MusicControllerManager {
     // Shuffle & Repeat State
     private val _shuffleModeEnabled = MutableStateFlow(false)
     val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
+
+    // Smart Shuffle State
+    private val _isSmartShuffleEnabled = MutableStateFlow(false)
+    val isSmartShuffleEnabled: StateFlow<Boolean> = _isSmartShuffleEnabled.asStateFlow()
 
     private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
@@ -89,11 +102,17 @@ object MusicControllerManager {
                     else -> "UNKNOWN ($playbackState)"
                 }
                 AppLogger.log("[Player] onPlaybackStateChanged: $stateName")
+
+                // If ended and smart shuffle is on, we might need to trigger something?
+                // Usually onMediaItemTransition handles the "next song" logic better.
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 AppLogger.log("[Player] Media Item Transition. ID: ${mediaItem?.mediaId}, Title: ${mediaItem?.mediaMetadata?.title} (Reason: $reason)")
                 _currentMediaItem.value = mediaItem
+
+                // Trigger Smart Logic
+                checkQueueAndPrefetch()
             }
 
             override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
@@ -119,6 +138,97 @@ object MusicControllerManager {
                 _repeatMode.value = repeatMode
             }
         })
+    }
+
+    private fun checkQueueAndPrefetch() {
+        val controller = mediaController ?: return
+        val context = applicationContext ?: return
+
+        scope.launch {
+            try {
+                // 1. Smart Shuffle Logic
+                if (_isSmartShuffleEnabled.value) {
+                    val currentIndex = controller.currentMediaItemIndex
+                    val itemCount = controller.mediaItemCount
+                    val remaining = itemCount - currentIndex - 1
+
+                    if (remaining < 2) { // Logic: If less than 2 songs left
+                        AppLogger.log("[Controller] Smart Shuffle: Queue running low ($remaining left). Fetching recommendation...")
+                        val recommendation = SmartShuffleManager.getNextRecommendation(context)
+                        if (recommendation != null) {
+                            addVideoItemToQueue(recommendation)
+                            AppLogger.log("[Controller] Smart Shuffle: Added ${recommendation.title}")
+                        }
+                    }
+                }
+
+                // 2. Prefetching Logic
+                val isWifi = NetworkUtils.isWifiConnected(context)
+                val lookAhead = if (isWifi) 3 else 2
+
+                val currentIndex = controller.currentMediaItemIndex
+                val itemCount = controller.mediaItemCount
+
+                for (i in 1..lookAhead) {
+                    val targetIndex = currentIndex + i
+                    if (targetIndex < itemCount) {
+                        val item = controller.getMediaItemAt(targetIndex)
+                        val videoId = item.mediaId
+                        if (videoId.isNotBlank()) {
+                            AppLogger.log("[Controller] Prefetching upcoming song: $videoId (Index: $targetIndex)")
+                            MusicRepository.prefetchStream(context, videoId)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[Controller] Error in checkQueueAndPrefetch: ${e.message}")
+            }
+        }
+    }
+
+    private fun addVideoItemToQueue(video: VideoItem) {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(video.title)
+            .setArtist(video.uploader)
+            .setArtworkUri(Uri.parse(video.thumbnailUrl))
+            .build()
+
+        // For queue items, we don't have the stream URL yet usually.
+        // We set the URI to a "lazy" placeholder or the web URL?
+        // Actually, if we use playStream logic, we construct MediaItem with stream URL.
+        // But here we are adding to queue for FUTURE playback.
+        // If we add webUrl as URI, the Player needs to know how to handle it when it prepares.
+        // Our Service/ExoPlayer setup likely expects a direct URI or we need to intercept `prepare`.
+        // However, `MusicRepository.getStreamUrl` returns a `StreamInfo`.
+
+        // BETTER APPROACH:
+        // We add it with the webUrl (or custom scheme) as the URI.
+        // BUT, since we don't have a ResolvingDataSource installed in ExoPlayer easily here (it's in Service),
+        // we can PRE-RESOLVE it now since we are adding it?
+        // OR, we rely on the fact that we just prefetched it in `checkQueueAndPrefetch` if logic allows.
+        // Let's resolve it now.
+
+        scope.launch {
+            try {
+                 val context = applicationContext ?: return@launch
+                 // Resolving
+                 val streamInfo = MusicRepository.getStreamUrlWithCache(context, video.id, video.webUrl)
+
+                 if (streamInfo.url.isNotBlank()) {
+                     val mediaItem = MediaItem.Builder()
+                        .setUri(streamInfo.url)
+                        .setMediaId(video.id)
+                        .setMediaMetadata(metadata)
+                        .build()
+
+                     withContext(Dispatchers.Main) {
+                         mediaController?.addMediaItem(mediaItem)
+                     }
+                 }
+            } catch (e: Exception) {
+                AppLogger.log("[Controller] Failed to resolve URL for queue item: ${video.title}")
+            }
+        }
     }
 
     fun playMedia(mediaItem: MediaItem) {
@@ -270,6 +380,14 @@ object MusicControllerManager {
     fun toggleShuffleMode() {
         mediaController?.let {
             it.shuffleModeEnabled = !it.shuffleModeEnabled
+        }
+    }
+
+    fun toggleSmartShuffle() {
+        _isSmartShuffleEnabled.value = !_isSmartShuffleEnabled.value
+        // If enabled, trigger a check immediately
+        if (_isSmartShuffleEnabled.value) {
+            checkQueueAndPrefetch()
         }
     }
 

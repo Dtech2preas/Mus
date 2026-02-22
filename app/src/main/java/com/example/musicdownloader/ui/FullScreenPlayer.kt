@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -64,6 +65,7 @@ fun FullScreenPlayer(
     val duration by viewModel.duration.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val shuffleModeEnabled by viewModel.shuffleModeEnabled.collectAsState()
+    val smartShuffleEnabled by viewModel.isSmartShuffleEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
     val likedSongs by viewModel.likedSongIds.collectAsState()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -283,12 +285,12 @@ fun FullScreenPlayer(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Shuffle
-                    IconButton(onClick = { viewModel.toggleShuffle() }) {
+                    // Smart Shuffle
+                    IconButton(onClick = { viewModel.toggleSmartShuffle() }) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Shuffle",
-                            tint = if (shuffleModeEnabled) PremiumGold else Color.White.copy(alpha = 0.7f),
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Smart Shuffle",
+                            tint = if (smartShuffleEnabled) PremiumGold else Color.White.copy(alpha = 0.7f),
                             modifier = Modifier.size(24.dp)
                         )
                     }
