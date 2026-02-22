@@ -294,11 +294,14 @@ object YoutubeClient {
             AppLogger.log("[YoutubeClient] getStreamUrl called for: $url")
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
-            request.addOption("-f", "bestaudio[ext=m4a]")
+            request.addOption("-f", "bestaudio/best")
+            request.addOption("--extractor-args", "youtube:player_client=android,ios")
+            request.addOption("--no-playlist")
+            request.addOption("--retries", "0")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
 
-            AppLogger.log("[YoutubeClient] Request Options: -g, -f bestaudio[ext=m4a], --no-warnings, --force-ipv4")
+            AppLogger.log("[YoutubeClient] Request Options: -g, -f bestaudio/best, --extractor-args youtube:player_client=android,ios, --no-playlist, --retries 0, --no-warnings, --force-ipv4")
 
             val cookieFile = CookieManager.getCookieFile(context)
             if (cookieFile != null) {
