@@ -291,29 +291,47 @@ object YoutubeClient {
 
     suspend fun getStreamUrl(context: Context, url: String): StreamInfo = withContext(Dispatchers.IO) {
          try {
+            AppLogger.log("[YoutubeClient] getStreamUrl called for: $url")
             val request = YoutubeDLRequest(url)
             request.addOption("-g")
             request.addOption("-f", "bestaudio[ext=m4a]")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
 
+            AppLogger.log("[YoutubeClient] Request Options: -g, -f bestaudio[ext=m4a], --no-warnings, --force-ipv4")
+
             val cookieFile = CookieManager.getCookieFile(context)
             if (cookieFile != null) {
                 request.addOption("--cookies", cookieFile.absolutePath)
+                AppLogger.log("[YoutubeClient] Using cookies: ${cookieFile.absolutePath}")
+            } else {
+                AppLogger.log("[YoutubeClient] No cookies found.")
             }
 
+            AppLogger.log("[YoutubeClient] Executing YoutubeDL request...")
             val response = YoutubeDL.getInstance().execute(request) { _, _, line ->
                 if (line.isNotBlank()) {
                     AppLogger.log("[yt-dlp stream] $line")
                 }
             }
             val streamUrl = response.out?.trim() ?: ""
+            AppLogger.log("[YoutubeClient] Execution complete. Response Code: ${response.exitCode}, Output Length: ${streamUrl.length}")
+
+            if (streamUrl.isBlank()) {
+                AppLogger.log("[YoutubeClient] WARNING: Extracted URL is blank!")
+            } else {
+                val snippet = if (streamUrl.length > 100) streamUrl.take(100) + "..." else streamUrl
+                AppLogger.log("[YoutubeClient] Extracted URL: $snippet")
+            }
 
             // YT-DLP usually returns direct links, unless using --hls-prefer-native which we aren't
             // But we can check if it looks like m3u8
             val isHls = streamUrl.contains(".m3u8")
+            if (isHls) AppLogger.log("[YoutubeClient] Stream identified as HLS (m3u8)")
+
             return@withContext StreamInfo(streamUrl, isHls)
         } catch (e: Exception) {
+            AppLogger.log("[YoutubeClient] getStreamUrl FAILED: ${e.message}")
             e.printStackTrace()
             throw e
         }
