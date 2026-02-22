@@ -251,12 +251,51 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _toastEvent.emit("Fetching stream for ${video.title}...")
             }
 
-            try {
-                AppLogger.log("[ViewModel] Calling YoutubeClient.getStreamUrl...")
-                val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
-                AppLogger.log("[ViewModel] Stream Info received. URL Length: ${streamInfo.url.length}, isHls: ${streamInfo.isHls}")
+            var streamInfo: StreamInfo? = null
 
-                if (streamInfo.url.isNotBlank()) {
+            // 1. Fast Path (InnerTube)
+            try {
+                val startTime = System.currentTimeMillis()
+                AppLogger.log("[ViewModel] Attempting Fast Path (InnerTube)...")
+                val fastInfo = InnerTubeClient.getStreamUrl(getApplication(), video.id)
+
+                // 2. Validate with HEAD request
+                val request = okhttp3.Request.Builder().url(fastInfo.url).head().build()
+                val response = InnerTubeClient.client.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    streamInfo = fastInfo
+                    val duration = System.currentTimeMillis() - startTime
+                    AppLogger.log("[ViewModel] Fast Path Success in ${duration}ms")
+                } else {
+                    AppLogger.log("[ViewModel] Fast Path Validation Failed: ${response.code}")
+                }
+                response.close()
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Fast Path Failed: ${e.message}")
+            }
+
+            // 3. Fallback (YoutubeDL)
+            if (streamInfo == null) {
+                try {
+                    AppLogger.log("[ViewModel] Calling YoutubeClient.getStreamUrl (Fallback)...")
+                    streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
+                } catch (e: Exception) {
+                    AppLogger.log("[ViewModel] All streaming methods failed: ${e.message}")
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        _toastEvent.emit("Streaming failed: ${e.message}")
+                        _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
+                    }
+                    return@launch
+                }
+            }
+
+            // 4. Play
+            try {
+                val finalStreamInfo = streamInfo
+                if (finalStreamInfo != null && finalStreamInfo.url.isNotBlank()) {
+                    AppLogger.log("[ViewModel] Stream Info received. URL Length: ${finalStreamInfo.url.length}, isHls: ${finalStreamInfo.isHls}")
                     AppLogger.log("[ViewModel] Building MediaMetadata...")
                     val mediaMetadata = MediaMetadata.Builder()
                         .setTitle(video.title)
@@ -264,9 +303,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
                         .build()
 
-                    AppLogger.log("[ViewModel] Building MediaItem with URI: ${streamInfo.url}")
+                    AppLogger.log("[ViewModel] Building MediaItem with URI: ${finalStreamInfo.url}")
                     val mediaItem = MediaItem.Builder()
-                        .setUri(streamInfo.url)
+                        .setUri(finalStreamInfo.url)
                         .setMediaId(video.id)
                         .setMediaMetadata(mediaMetadata)
                         .build()
@@ -279,10 +318,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     AppLogger.log("[ViewModel] ERROR: Stream URL is blank!")
                 }
             } catch (e: Exception) {
-                AppLogger.log("[ViewModel] Streaming failed with exception: ${e.message}")
+                AppLogger.log("[ViewModel] Playback setup failed: ${e.message}")
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                     _toastEvent.emit("Streaming failed: ${e.message}")
+                     _toastEvent.emit("Playback failed: ${e.message}")
                 }
             } finally {
                 withContext(Dispatchers.Main) {

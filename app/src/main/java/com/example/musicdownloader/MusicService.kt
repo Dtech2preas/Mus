@@ -157,9 +157,8 @@ class MusicService : MediaSessionService() {
                         try {
                             // 1. Configure the Network Client (Cookies + UserAgent)
                             val cookie = CookieManager.getCookie(this@MusicService)
-                            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                            val httpDataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
                                 .setUserAgent(NetworkUtils.USER_AGENT)
-                                .setAllowCrossProtocolRedirects(true)
                                 .setDefaultRequestProperties(mapOf("Cookie" to cookie))
 
                             // DefaultDataSource automatically switches between ContentDataSource, FileDataSource, and HttpDataSource
