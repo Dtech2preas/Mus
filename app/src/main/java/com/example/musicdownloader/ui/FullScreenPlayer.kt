@@ -65,7 +65,7 @@ private val DeepBlack = Color(0xFF121212)
 private val TextPrimary = Color.White
 private val TextSecondary = Color.White.copy(alpha = 0.7f)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun FullScreenPlayer(
     viewModel: MusicViewModel,
