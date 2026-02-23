@@ -40,6 +40,7 @@ import com.example.musicdownloader.R
 fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
     val homeFeedState by viewModel.uiState.collectAsStateWithLifecycle()
     val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
+    val recommendedSongs by viewModel.recommendedSongs.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
     val playHistory by viewModel.playHistory.collectAsStateWithLifecycle()
@@ -62,6 +63,47 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(24.dp),
             modifier = Modifier.weight(1f)
         ) {
+            // 0. Recommended For You (Cached/Auto)
+            val displayRecommended = recommendedSongs.filter { !downloadedIds.contains(it.id) }
+            if (displayRecommended.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Recommended For You",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        items(displayRecommended) { song ->
+                            val videoItem = VideoItem(
+                                id = song.id,
+                                title = song.title,
+                                uploader = song.artist,
+                                duration = song.duration,
+                                thumbnailUrl = song.thumbnailUrl,
+                                webUrl = "https://youtube.com/watch?v=${song.id}"
+                            )
+
+                            MusicCard(
+                                title = song.title,
+                                subtitle = song.artist,
+                                thumbnailUrl = song.thumbnailUrl,
+                                isDownloaded = false,
+                                downloadProgress = null,
+                                isWaiting = false,
+                                onClick = { viewModel.playStream(videoItem) },
+                                onDownload = { viewModel.downloadSong(videoItem) },
+                                modifier = Modifier.width(140.dp).height(200.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // 1. Recently Played Section
             if (playHistory.isNotEmpty()) {
                 item {

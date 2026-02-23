@@ -11,8 +11,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -30,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 
@@ -62,7 +65,30 @@ class MusicService : MediaSessionService() {
             .setUserAgent(userAgent)
 
         // Wrap in DefaultDataSource.Factory to support File URIs
-        val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+        val defaultDataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+
+        // ResolvingDataSource to handle dtech://stream/{id}
+        val resolvingDataSourceFactory = ResolvingDataSource.Factory(defaultDataSourceFactory, object : ResolvingDataSource.Resolver {
+            override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
+                if (dataSpec.uri.scheme == "dtech" && dataSpec.uri.pathSegments.firstOrNull() == "stream") {
+                    val videoId = dataSpec.uri.lastPathSegment
+                    if (videoId != null) {
+                        try {
+                            // Resolve URL synchronously (blocking is allowed here)
+                            val streamInfo = runBlocking {
+                                MusicRepository.getStreamUrlWithCache(this@MusicService, videoId, "https://www.youtube.com/watch?v=$videoId")
+                            }
+                            if (streamInfo.url.isNotBlank()) {
+                                return dataSpec.buildUpon().setUri(Uri.parse(streamInfo.url)).build()
+                            }
+                        } catch (e: Exception) {
+                            AppLogger.log("[Service] Failed to resolve dtech URI: ${e.message}")
+                        }
+                    }
+                }
+                return dataSpec
+            }
+        })
 
         // 2. Load Control (Buffering Optimization)
         val loadControl = DefaultLoadControl.Builder()
@@ -79,7 +105,7 @@ class MusicService : MediaSessionService() {
         // Removed HlsMediaSource.Factory enforcement since we are playing local files which might not be HLS.
         // ExoPlayer's default MediaSourceFactory handles local files better.
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(resolvingDataSourceFactory))
             .setLoadControl(loadControl)
             .setAudioAttributes(AudioAttributes.DEFAULT, true)
             .build()

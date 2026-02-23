@@ -11,6 +11,7 @@ import com.example.musicdownloader.data.CompressionQuality
 import com.example.musicdownloader.data.PlayHistory
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
+import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.utils.DnaAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -93,16 +94,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _sortOption = MutableStateFlow(SortOption.NEWEST_FIRST)
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
 
-    // Library Flow
-    private val _rawSongs = AppDatabase.getDatabase(application).songDao().getAll()
+    private val _filterDownloadedOnly = MutableStateFlow(false)
+    val filterDownloadedOnly: StateFlow<Boolean> = _filterDownloadedOnly.asStateFlow()
 
-    val librarySongs: StateFlow<List<Song>> = combine(_rawSongs, _sortOption) { songs, sort ->
+    // Library Flow
+    private val _unifiedSongs = MusicRepository.getLibrarySongs(application)
+
+    val librarySongs: StateFlow<List<Song>> = combine(_unifiedSongs, _sortOption, _filterDownloadedOnly) { songs, sort, filterDown ->
+        val filtered = if (filterDown) songs.filter { !it.filePath.startsWith("stream://") } else songs
         when (sort) {
-            SortOption.NEWEST_FIRST -> songs.reversed()
-            SortOption.A_Z -> songs.sortedBy { it.title.lowercase() }
-            SortOption.Z_A -> songs.sortedByDescending { it.title.lowercase() }
+            SortOption.NEWEST_FIRST -> filtered.reversed()
+            SortOption.A_Z -> filtered.sortedBy { it.title.lowercase() }
+            SortOption.Z_A -> filtered.sortedByDescending { it.title.lowercase() }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recommendedSongs: StateFlow<List<StreamSong>> = MusicRepository.getRecommendedSongs(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // History Flow
     val playHistory: StateFlow<List<PlayHistory>> = MusicRepository.getRecentHistory(application)
@@ -220,6 +228,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 MusicRepository.addToHistory(getApplication(), video)
+                MusicRepository.autoAddStreamSong(getApplication(), video)
                 AppLogger.log("[ViewModel] Added to history: ${video.title}")
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding to history: ${e.message}")
@@ -451,6 +460,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _sortOption.value = option
     }
 
+    fun toggleFilterDownloadedOnly() {
+        _filterDownloadedOnly.value = !_filterDownloadedOnly.value
+    }
+
+    fun addToLibrary(video: VideoItem) {
+        viewModelScope.launch {
+            MusicRepository.addToLibrary(getApplication(), video)
+            _toastEvent.emit("Added to Library")
+        }
+    }
+
+    fun isSavedToLibrary(id: String): kotlinx.coroutines.flow.Flow<Boolean> {
+        return MusicRepository.isSavedToLibrary(getApplication(), id)
+    }
+
     suspend fun addToQueue(song: Song): Boolean {
         return withContext(Dispatchers.IO) {
             try {
@@ -562,11 +586,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Favorites Logic ---
-    fun toggleLike(songId: String) {
+    fun toggleLike(video: VideoItem) {
+        val songId = video.id
         val isLiked = likedSongIds.value.contains(songId)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 MusicRepository.setLikeStatus(getApplication(), songId, !isLiked)
+                if (!isLiked) {
+                    // Auto-add to library when liking
+                    MusicRepository.addToLibrary(getApplication(), video)
+                }
                 val msg = if (isLiked) "Removed from Liked Songs" else "Added to Liked Songs"
                 _toastEvent.emit(msg)
             } catch (e: Exception) {
@@ -592,6 +621,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addSongToPlaylist(playlistId: Int, video: VideoItem) {
+        viewModelScope.launch {
+            MusicRepository.addSongToPlaylist(getApplication(), playlistId, video.id)
+            // Auto-add to library when adding to playlist
+            MusicRepository.addToLibrary(getApplication(), video)
+        }
+    }
+
+    // Keep old signature for compatibility if needed, but prefer VideoItem
     fun addSongToPlaylist(playlistId: Int, songId: String) {
         viewModelScope.launch {
             MusicRepository.addSongToPlaylist(getApplication(), playlistId, songId)

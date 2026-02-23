@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.musicdownloader.MusicViewModel
+import com.example.musicdownloader.VideoItem
 import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.utils.HapticUtils
 import kotlinx.coroutines.launch
@@ -39,6 +41,7 @@ fun LibraryScreen(
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val filterDownloadedOnly by viewModel.filterDownloadedOnly.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -111,7 +114,34 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text("All Songs", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("All Songs", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+
+            // Downloaded Only Toggle
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Downloaded",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (filterDownloadedOnly) DTechBlue else Color.Gray
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Switch(
+                    checked = filterDownloadedOnly,
+                    onCheckedChange = { viewModel.toggleFilterDownloadedOnly() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = DTechBlue,
+                        checkedTrackColor = DTechBlue.copy(alpha = 0.3f),
+                        uncheckedThumbColor = Color.Gray,
+                        uncheckedTrackColor = Color.DarkGray
+                    ),
+                    modifier = Modifier.scale(0.8f)
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         val filteredSongs = remember(songs, localSearchQuery) {
@@ -138,14 +168,18 @@ fun LibraryScreen(
                     }
                 ) {
                      Box(modifier = Modifier.background(Color(0xFF0F0F13))) {
-                         val subtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
+                         val isStream = song.filePath.startsWith("stream://")
+                         val baseSubtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
+                         val subtitle = if (isStream) "$baseSubtitle • Stream" else baseSubtitle
+
                          MusicRowItem(
                             title = song.title,
                             subtitle = subtitle,
                             thumbnailUrl = song.thumbnailUrl,
                             isLibrary = true,
+                            isDownloaded = !isStream,
                             onClick = {
-                                viewModel.playLocalSong(song.id, song.title, song.artist, song.thumbnailUrl)
+                                viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
                             },
                             onOptionClick = { showMenu = true }
                         )
@@ -203,7 +237,15 @@ fun LibraryScreen(
             onDismiss = { showAddToPlaylistForSong = null },
             onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
             onAddToPlaylist = { playlist, _ ->
-                viewModel.addSongToPlaylist(playlist.id.toInt(), song.id)
+                val videoItem = VideoItem(
+                    id = song.id,
+                    title = song.title,
+                    uploader = song.artist,
+                    duration = song.duration,
+                    thumbnailUrl = song.thumbnailUrl,
+                    webUrl = "https://youtube.com/watch?v=${song.id}"
+                )
+                viewModel.addSongToPlaylist(playlist.id.toInt(), videoItem)
                 scope.launch { snackbarHostState.showSnackbar("Added to ${playlist.name}") }
             }
         )
