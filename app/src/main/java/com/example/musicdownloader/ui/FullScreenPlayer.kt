@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -68,6 +70,7 @@ fun FullScreenPlayer(
     val smartShuffleEnabled by viewModel.isSmartShuffleEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
     val likedSongs by viewModel.likedSongIds.collectAsState()
+    val streamSongs by viewModel.streamLibrarySongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val audioSessionId by viewModel.audioSessionId.collectAsState()
 
@@ -75,6 +78,11 @@ fun FullScreenPlayer(
 
     val currentSongId = currentMediaItem?.mediaId
     val isLiked = currentSongId != null && likedSongs.contains(currentSongId)
+
+    // Stream Library Logic
+    val streamSongStatus = streamSongs.find { it.id == currentSongId }
+    val isStreamManual = streamSongStatus?.isManual == true
+    val isInStreamLibrary = streamSongStatus != null
 
     // Dynamic Background State
     var dominantColor by remember { mutableStateOf(DeepBlue) }
@@ -86,21 +94,19 @@ fun FullScreenPlayer(
 
     val artworkUri = currentMediaItem?.mediaMetadata?.artworkUri
 
-    // Extract Palette & Update Theme temporarily if needed,
-    // but here we use it for the gradient background.
+    // Extract Palette
     LaunchedEffect(artworkUri) {
         if (artworkUri != null) {
             withContext(Dispatchers.IO) {
                 val loader = ImageLoader(context)
                 val req = ImageRequest.Builder(context)
                     .data(artworkUri)
-                    .allowHardware(false) // Required for Palette
+                    .allowHardware(false)
                     .build()
                 val result = loader.execute(req)
                 val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
                 if (bitmap != null) {
                     val p = Palette.from(bitmap).generate()
-                    // Try to get a vibrant color, or fallback
                     val colorInt = p.getVibrantColor(
                         p.getDarkVibrantColor(DeepBlue.toArgb())
                     )
@@ -111,7 +117,7 @@ fun FullScreenPlayer(
     }
 
     Scaffold(
-        containerColor = Color.Transparent, // Handle BG manually for immersion
+        containerColor = Color.Transparent,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -138,27 +144,20 @@ fun FullScreenPlayer(
         }
     ) { paddingValues ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
+            modifier = Modifier.fillMaxSize()
         ) {
-            // 1. IMMERSIVE BACKGROUND LAYER
-            // Blurred Artwork or Color Gradient
+            // Background Layer
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(dominantColor) // Fallback base color
+                    .background(dominantColor)
             ) {
-                 // Overlay a large, blurred version of the artwork
                  Image(
                      painter = rememberAsyncImagePainter(artworkUri),
                      contentDescription = null,
-                     modifier = Modifier
-                         .fillMaxSize()
-                         .alpha(0.3f), // Dim it down
+                     modifier = Modifier.fillMaxSize().alpha(0.3f),
                      contentScale = ContentScale.Crop
                  )
-
-                 // Add a Gradient scrim on top to ensure text readability
                  Box(
                      modifier = Modifier
                          .fillMaxSize()
@@ -166,14 +165,14 @@ fun FullScreenPlayer(
                              Brush.verticalGradient(
                                  colors = listOf(
                                      Color.Black.copy(alpha = 0.3f),
-                                     DeepBlue.copy(alpha = 0.9f) // Fade to Midnight Black at bottom
+                                     DeepBlue.copy(alpha = 0.9f)
                                  )
                              )
                          )
                  )
             }
 
-            // 2. CONTENT LAYER
+            // Content Layer
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -183,7 +182,7 @@ fun FullScreenPlayer(
             ) {
                 Spacer(modifier = Modifier.weight(0.1f))
 
-                // Big Artwork with Shadow and Rounded Corners
+                // Artwork
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -202,13 +201,13 @@ fun FullScreenPlayer(
 
                 Spacer(modifier = Modifier.height(40.dp))
 
-                // Title, Artist, and Add/Like buttons
+                // Meta Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Add Button (Left)
+                    // Left: Add to Playlist
                     IconButton(onClick = { showAddToPlaylistDialog = true }) {
                          Icon(
                              imageVector = Icons.Default.Add,
@@ -218,8 +217,9 @@ fun FullScreenPlayer(
                          )
                     }
 
+                    // Center: Title/Artist
                     Column(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
@@ -239,17 +239,33 @@ fun FullScreenPlayer(
                         )
                     }
 
-                    // Like Button (Right)
-                    IconButton(onClick = {
-                        HapticUtils.performHapticFeedback(context)
-                        currentSongId?.let { viewModel.toggleLike(it) }
-                    }) {
-                         Icon(
-                             imageVector = Icons.Default.ThumbUp,
-                             contentDescription = "Like",
-                             tint = if (isLiked) PremiumGold else Color.White,
-                             modifier = Modifier.size(28.dp)
-                         )
+                    // Right: Stream Lib & Like
+                    Row {
+                        // Stream Library Button
+                        IconButton(onClick = {
+                            HapticUtils.performHapticFeedback(context)
+                            viewModel.toggleStreamLibrary()
+                        }) {
+                             Icon(
+                                 imageVector = if (isStreamManual) Icons.Default.CloudDone else Icons.Default.CloudQueue,
+                                 contentDescription = "Stream Library",
+                                 tint = if (isInStreamLibrary) PremiumGold else Color.White,
+                                 modifier = Modifier.size(28.dp)
+                             )
+                        }
+
+                        // Like Button
+                        IconButton(onClick = {
+                            HapticUtils.performHapticFeedback(context)
+                            currentSongId?.let { viewModel.toggleLike(it) }
+                        }) {
+                             Icon(
+                                 imageVector = Icons.Default.ThumbUp,
+                                 contentDescription = "Like",
+                                 tint = if (isLiked) PremiumGold else Color.White,
+                                 modifier = Modifier.size(28.dp)
+                             )
+                        }
                     }
                 }
 
@@ -305,7 +321,7 @@ fun FullScreenPlayer(
                         )
                     }
 
-                    // Play/Pause (Big Premium Circle)
+                    // Play/Pause
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -324,7 +340,6 @@ fun FullScreenPlayer(
                             )
                         } else {
                             if (isPlaying) {
-                                // Pause Icon
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Box(modifier = Modifier.size(8.dp, 24.dp).background(DeepBlue, RoundedCornerShape(2.dp)))
                                     Box(modifier = Modifier.size(8.dp, 24.dp).background(DeepBlue, RoundedCornerShape(2.dp)))
@@ -353,7 +368,7 @@ fun FullScreenPlayer(
                     // Repeat
                     IconButton(onClick = { viewModel.toggleRepeatMode() }) {
                         Icon(
-                            imageVector = Icons.Default.Refresh, // Recycle icon as repeat
+                            imageVector = Icons.Default.Refresh,
                             contentDescription = "Repeat",
                             tint = when (repeatMode) {
                                 androidx.media3.common.Player.REPEAT_MODE_ONE,
@@ -367,13 +382,13 @@ fun FullScreenPlayer(
 
                 Spacer(modifier = Modifier.height(48.dp))
 
-                // Realtime Visualizer (Footer)
+                // Visualizer
                 RealtimeVisualizer(
                     audioSessionId = audioSessionId,
                     isPlaying = isPlaying,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp) // Taller for better effect
+                        .height(60.dp)
                 )
 
                 Spacer(modifier = Modifier.weight(0.1f))
@@ -381,7 +396,6 @@ fun FullScreenPlayer(
         }
     }
 
-    // Add to Playlist Sheet Logic
     if (showAddToPlaylistDialog) {
         val songTitle = currentMediaItem?.mediaMetadata?.title?.toString() ?: ""
         val songId = currentSongId ?: ""
@@ -406,8 +420,6 @@ fun FullScreenPlayer(
         )
     }
 }
-
-// Cyberpunk Visualizer removed in favor of RealtimeVisualizer
 
 private fun formatTime(millis: Long): String {
     if (millis < 0) return "00:00"

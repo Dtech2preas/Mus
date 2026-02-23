@@ -11,6 +11,7 @@ import com.example.musicdownloader.data.CompressionQuality
 import com.example.musicdownloader.data.PlayHistory
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
+import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.utils.DnaAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -104,6 +105,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Stream Library Flow
+    val streamLibrarySongs: StateFlow<List<StreamSong>> = MusicRepository.getStreamSongs(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // History Flow
     val playHistory: StateFlow<List<PlayHistory>> = MusicRepository.getRecentHistory(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -143,6 +148,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         // Sync files on startup
         viewModelScope.launch {
             MusicRepository.syncFilesWithDatabase(application)
+            // Stream Library Maintenance
+            MusicRepository.cleanupAutoStreamSongs(application)
+            MusicRepository.refreshStreamLibrary(application)
         }
 
         // Load Genre Feeds
@@ -220,7 +228,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 MusicRepository.addToHistory(getApplication(), video)
-                AppLogger.log("[ViewModel] Added to history: ${video.title}")
+                // Auto-add to Stream Library
+                MusicRepository.addToStreamLibrary(getApplication(), video, isManual = false)
+                AppLogger.log("[ViewModel] Added to history & Stream Library (auto): ${video.title}")
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding to history: ${e.message}")
             }
@@ -289,6 +299,54 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
                 }
+            }
+        }
+    }
+
+    // New helper to play directly from StreamLibrary list
+    fun playStreamSong(streamSong: StreamSong) {
+        val videoItem = VideoItem(
+            id = streamSong.id,
+            title = streamSong.title,
+            duration = streamSong.duration,
+            uploader = streamSong.artist,
+            thumbnailUrl = streamSong.thumbnailUrl,
+            webUrl = "https://www.youtube.com/watch?v=${streamSong.id}",
+            album = streamSong.album
+        )
+        playStream(videoItem)
+    }
+
+    fun toggleStreamLibrary(videoItem: VideoItem? = null) {
+        // If null passed, try to use currentMediaItem
+        val targetVideo = if (videoItem != null) {
+            videoItem
+        } else {
+            val item = currentMediaItem.value ?: return
+            VideoItem(
+                id = item.mediaId,
+                title = item.mediaMetadata.title.toString(),
+                duration = "", // Unknown if just from media item
+                uploader = item.mediaMetadata.artist.toString(),
+                thumbnailUrl = item.mediaMetadata.artworkUri.toString(),
+                webUrl = "https://www.youtube.com/watch?v=${item.mediaId}"
+            )
+        }
+
+        viewModelScope.launch {
+            // Check if it's already a manual entry
+            val currentList = streamLibrarySongs.value
+            val existing = currentList.find { it.id == targetVideo.id }
+
+            if (existing != null && existing.isManual) {
+                // If it's manual, remove it entirely? Or toggle back to auto?
+                // Standard behavior for "Add to Library" toggle is remove.
+                MusicRepository.removeFromStreamLibrary(getApplication(), targetVideo.id)
+                _toastEvent.emit("Removed from Stream Library")
+            } else {
+                // If not manual (or not exists), promote/add as manual
+                MusicRepository.addToStreamLibrary(getApplication(), targetVideo, isManual = true)
+                _toastEvent.emit("Added to Stream Library")
             }
         }
     }
@@ -464,6 +522,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    // Overload for StreamSong (maps to Song basically)
+    suspend fun addToQueue(streamSong: StreamSong): Boolean {
+        // This is tricky because addToQueue expects a Local file usually for Song.
+        // We need to implement addToQueue for VideoItem/StreamSong in Controller
+        // For now, let's map it to a "dummy" Song but Controller checks file path...
+        // Actually, we added addVideoItemToQueue logic in Controller but it's private.
+        // We should add a public addToQueue(VideoItem) in Controller.
+        // Or, we resolve the URL now and use playStream logic but append?
+        return false // Not fully implemented for Streams in Queue yet without file
+    }
+
 
     fun deleteSong(song: Song) {
         viewModelScope.launch {

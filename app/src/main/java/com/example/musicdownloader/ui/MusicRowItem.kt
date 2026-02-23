@@ -37,7 +37,8 @@ fun MusicRowItem(
     isWaiting: Boolean = false,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
-    onOptionClick: () -> Unit = {}
+    onOptionClick: () -> Unit = {},
+    trailingContent: (@Composable () -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -133,6 +134,12 @@ fun MusicRowItem(
             }
 
             Spacer(modifier = Modifier.width(8.dp))
+
+            // Trailing Content (e.g. Cloud Icon)
+            if (trailingContent != null) {
+                trailingContent()
+                Spacer(modifier = Modifier.width(8.dp))
+            }
 
             if (isLibrary) {
                 IconButton(onClick = onOptionClick) {

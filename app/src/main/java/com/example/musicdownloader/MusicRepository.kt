@@ -13,6 +13,7 @@ import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.PlaylistEntry
 import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.data.StreamCache
+import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.workers.MusicDownloadWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -315,6 +316,7 @@ object MusicRepository {
             // This needs a DAO method that returns a list.
             // For now, assume topArtist is one, we might need to expand PlayHistoryDao later.
             // Using a simple query if possible, or defaulting to last history items artists.
+            // Using a simple query if possible, or defaulting to last history items artists.
             val history = AppDatabase.getDatabase(context).playHistoryDao().getRecentHistory(50).map { it.distinctBy { h -> h.artist }.map { h -> h.artist } }
             // Since we need a synchronous return (not flow) for the manager:
             // This is a bit tricky with Flows. Let's rely on cached data or just blocking get if necessary,
@@ -539,5 +541,64 @@ object MusicRepository {
             e.printStackTrace()
         }
         return 0L
+    }
+
+    // --- Stream Library Management ---
+
+    fun getStreamSongs(context: Context): Flow<List<StreamSong>> {
+        return AppDatabase.getDatabase(context).streamSongDao().getAllStreamSongs()
+    }
+
+    suspend fun addToStreamLibrary(context: Context, video: VideoItem, isManual: Boolean) = withContext(Dispatchers.IO) {
+        val dao = AppDatabase.getDatabase(context).streamSongDao()
+        val existing = dao.getStreamSong(video.id)
+
+        // Logic:
+        // 1. If exists and isManual=true, do nothing (keep manual status).
+        // 2. If exists and isManual=false, update timestamp. If new request is manual, upgrade to manual.
+        // 3. If not exists, insert.
+
+        val newIsManual = if (existing != null && existing.isManual) true else isManual
+
+        val streamSong = StreamSong(
+            id = video.id,
+            title = video.title,
+            artist = video.uploader,
+            thumbnailUrl = video.thumbnailUrl,
+            duration = video.duration,
+            album = video.album ?: "Unknown Album",
+            isManual = newIsManual,
+            timestamp = System.currentTimeMillis()
+        )
+        dao.insert(streamSong)
+        AppLogger.log("[Repo] Added to Stream Library: ${video.title} (Manual: $newIsManual)")
+    }
+
+    suspend fun removeFromStreamLibrary(context: Context, videoId: String) = withContext(Dispatchers.IO) {
+        AppDatabase.getDatabase(context).streamSongDao().deleteById(videoId)
+        AppLogger.log("[Repo] Removed from Stream Library: $videoId")
+    }
+
+    suspend fun cleanupAutoStreamSongs(context: Context) = withContext(Dispatchers.IO) {
+        val threshold = System.currentTimeMillis() - (1 * 60 * 60 * 1000) // 1 Hour
+        AppLogger.log("[Repo] Cleaning up auto-stream songs older than 1 hour...")
+        AppDatabase.getDatabase(context).streamSongDao().deleteExpiredAutoSongs(threshold)
+    }
+
+    suspend fun refreshStreamLibrary(context: Context) = withContext(Dispatchers.IO) {
+        AppLogger.log("[Repo] Refreshing Manual Stream Library URLs...")
+        val dao = AppDatabase.getDatabase(context).streamSongDao()
+        val manualSongs = dao.getManualStreamSongsSync()
+
+        manualSongs.forEach { song ->
+            try {
+                // Determine webUrl (heuristic)
+                val webUrl = "https://www.youtube.com/watch?v=${song.id}"
+                // Prefetch triggers cache update if expired
+                prefetchStream(context, song.id)
+            } catch (e: Exception) {
+                AppLogger.log("[Repo] Failed to refresh stream for ${song.title}: ${e.message}")
+            }
+        }
     }
 }
