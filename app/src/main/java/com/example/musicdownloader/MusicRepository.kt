@@ -13,12 +13,14 @@ import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.PlaylistEntry
 import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.data.StreamCache
+import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.workers.MusicDownloadWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -539,5 +541,79 @@ object MusicRepository {
             e.printStackTrace()
         }
         return 0L
+    }
+
+    // --- Unified Library Logic ---
+
+    fun getLibrarySongs(context: Context): Flow<List<Song>> {
+        val database = AppDatabase.getDatabase(context)
+        return combine(
+            database.songDao().getAll(),
+            database.streamSongDao().getLibrarySongs()
+        ) { downloads, streams ->
+            val mappedStreams = streams.map { stream ->
+                Song(
+                    id = stream.id,
+                    title = stream.title,
+                    artist = stream.artist,
+                    album = stream.album,
+                    duration = stream.duration,
+                    thumbnailUrl = stream.thumbnailUrl,
+                    filePath = "stream://${stream.id}" // Marker for Stream
+                )
+            }
+            // Combine and distinct by ID (Downloads take precedence)
+            val downloadIds = downloads.map { it.id }.toSet()
+            val uniqueStreams = mappedStreams.filter { it.id !in downloadIds }
+
+            downloads + uniqueStreams
+        }
+    }
+
+    fun getRecommendedSongs(context: Context): Flow<List<StreamSong>> {
+        return AppDatabase.getDatabase(context).streamSongDao().getRecommendedSongs()
+    }
+
+    suspend fun addToLibrary(context: Context, video: VideoItem) {
+        val song = StreamSong(
+            id = video.id,
+            title = video.title,
+            artist = video.uploader,
+            album = video.album ?: "Unknown Album",
+            duration = video.duration,
+            thumbnailUrl = video.thumbnailUrl,
+            isManual = true,
+            timestamp = System.currentTimeMillis()
+        )
+        AppDatabase.getDatabase(context).streamSongDao().insert(song)
+        AppLogger.log("[Repo] Added to Library (Stream): ${video.title}")
+    }
+
+    suspend fun autoAddStreamSong(context: Context, video: VideoItem) {
+        val dao = AppDatabase.getDatabase(context).streamSongDao()
+        val existing = dao.getStreamSongById(video.id)
+        if (existing == null) {
+            val song = StreamSong(
+                id = video.id,
+                title = video.title,
+                artist = video.uploader,
+                album = video.album ?: "Unknown Album",
+                duration = video.duration,
+                thumbnailUrl = video.thumbnailUrl,
+                isManual = false,
+                timestamp = System.currentTimeMillis()
+            )
+            dao.insert(song)
+            AppLogger.log("[Repo] Auto-added stream song: ${video.title}")
+        } else {
+            // Update timestamp for auto songs to keep them fresh in recommended
+            if (!existing.isManual) {
+                dao.insert(existing.copy(timestamp = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    fun isSavedToLibrary(context: Context, songId: String): Flow<Boolean> {
+        return AppDatabase.getDatabase(context).streamSongDao().isSavedToLibrary(songId)
     }
 }

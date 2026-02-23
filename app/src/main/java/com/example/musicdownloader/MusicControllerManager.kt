@@ -272,8 +272,15 @@ object MusicControllerManager {
                 .setArtworkUri(Uri.parse(song.thumbnailUrl))
                 .build()
 
+            val uri = if (song.filePath.startsWith("stream://")) {
+                val id = song.filePath.removePrefix("stream://")
+                Uri.parse("dtech://stream/$id")
+            } else {
+                Uri.fromFile(File(song.filePath))
+            }
+
             MediaItem.Builder()
-                .setUri(Uri.fromFile(File(song.filePath)))
+                .setUri(uri)
                 .setMediaId(song.id)
                 .setMediaMetadata(metadata)
                 .build()
@@ -298,6 +305,27 @@ object MusicControllerManager {
         if (mediaController == null) {
             AppLogger.log("[Controller] MediaController is null, cannot add to queue")
             throw IllegalStateException("Player not initialized")
+        }
+
+        if (song.filePath.startsWith("stream://")) {
+            val id = song.filePath.removePrefix("stream://")
+            val uri = Uri.parse("dtech://stream/$id")
+
+            val metadata = MediaMetadata.Builder()
+                .setTitle(song.title)
+                .setArtist(song.artist)
+                .setArtworkUri(Uri.parse(song.thumbnailUrl))
+                .build()
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(uri)
+                .setMediaId(song.id)
+                .setMediaMetadata(metadata)
+                .build()
+
+            mediaController!!.addMediaItem(mediaItem)
+            AppLogger.log("[Controller] Successfully added stream to queue")
+            return
         }
 
         // Validate File with Smart Discovery
