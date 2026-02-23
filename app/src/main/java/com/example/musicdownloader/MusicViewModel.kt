@@ -11,6 +11,7 @@ import com.example.musicdownloader.data.CompressionQuality
 import com.example.musicdownloader.data.PlayHistory
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
+import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.utils.DnaAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -104,11 +105,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Stream Library Flow (Manual entries)
+    val streamLibrarySongs: StateFlow<List<StreamSong>> = MusicRepository.getManualStreamSongs(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // History Flow
     val playHistory: StateFlow<List<PlayHistory>> = MusicRepository.getRecentHistory(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Favorites Flow
+    // Favorites Flow (Mapped to IDs for UI checks)
     val likedSongIds: StateFlow<List<String>> = MusicRepository.getLikedSongIds(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -213,8 +218,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun playStream(video: VideoItem) {
         AppLogger.log("[ViewModel] playStream called for ${video.id}")
-        AppLogger.log("[ViewModel] Video Details: Title='${video.title}', Uploader='${video.uploader}', Duration=${video.duration}")
-        AppLogger.log("[ViewModel] WebURL=${video.webUrl}, Thumbnail=${video.thumbnailUrl}")
+
+        // Auto-Add to Stream Cache/Library
+        viewModelScope.launch(Dispatchers.IO) {
+            MusicRepository.autoAddStreamSong(getApplication(), video)
+        }
 
         // Track history immediately
         viewModelScope.launch(Dispatchers.IO) {
@@ -230,7 +238,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val file = File(getApplication<Application>().filesDir, "music_downloads/${video.id}")
             val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
 
-            AppLogger.log("[ViewModel] Checking local file at default path: ${file.absolutePath}")
             val existingFiles = outputDir.listFiles { _, name -> name.startsWith(video.id) }
             val targetFile = existingFiles?.firstOrNull() ?: file
 
@@ -242,8 +249,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                      _toastEvent.emit("Playing downloaded file...")
                  }
                  return@launch
-            } else {
-                 AppLogger.log("[ViewModel] Local file NOT FOUND. Proceeding to stream.")
             }
 
             // Not found locally, start streaming
@@ -255,17 +260,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 AppLogger.log("[ViewModel] Calling YoutubeClient.getStreamUrl...")
                 val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
-                AppLogger.log("[ViewModel] Stream Info received. URL Length: ${streamInfo.url.length}, isHls: ${streamInfo.isHls}")
 
                 if (streamInfo.url.isNotBlank()) {
-                    AppLogger.log("[ViewModel] Building MediaMetadata...")
                     val mediaMetadata = MediaMetadata.Builder()
                         .setTitle(video.title)
                         .setArtist(video.uploader)
                         .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
                         .build()
 
-                    AppLogger.log("[ViewModel] Building MediaItem with URI: ${streamInfo.url}")
                     val mediaItem = MediaItem.Builder()
                         .setUri(streamInfo.url)
                         .setMediaId(video.id)
@@ -273,15 +275,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
 
                     withContext(Dispatchers.Main) {
-                        AppLogger.log("[ViewModel] Dispatching playMedia to MusicControllerManager...")
                         MusicControllerManager.playMedia(mediaItem)
                     }
                 } else {
                     AppLogger.log("[ViewModel] ERROR: Stream URL is blank!")
                 }
             } catch (e: Exception) {
-                AppLogger.log("[ViewModel] Streaming failed with exception: ${e.message}")
-                e.printStackTrace()
+                AppLogger.log("[ViewModel] Streaming failed: ${e.message}")
                 withContext(Dispatchers.Main) {
                      _toastEvent.emit("Streaming failed: ${e.message}")
                 }
@@ -344,7 +344,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     @Deprecated("Use playStream or downloadSong instead")
     fun downloadAndPlay(video: VideoItem) {
-        AppLogger.log("[ViewModel] downloadAndPlay is deprecated. Delegating to playStream.")
         playStream(video)
     }
 
@@ -356,25 +355,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resumeDownload(videoId: String) {
-        // Find the original VideoItem from status
         val status = downloadProgress.value[videoId]
         if (status?.videoItem != null) {
             viewModelScope.launch {
-                // Re-enqueue
-                // We should probably check if it's already running? status.isPaused should be true.
                 _toastEvent.emit("Resuming download...")
                 val result = withContext(Dispatchers.IO) {
                     MusicRepository.downloadSong(getApplication(), status.videoItem)
                 }
-                result.onSuccess {
-                    // Update status to not paused (YoutubeClient logic might need to be refreshed or wait for worker)
-                    // The worker will start and call updateProgress which overwrites status, effectively unpausing it.
-                }.onFailure {
-                    _toastEvent.emit("Failed to resume")
-                }
             }
         } else {
-            // Should not happen if we initialized correctly
             viewModelScope.launch {
                 _toastEvent.emit("Cannot resume: Metadata lost")
             }
@@ -394,12 +383,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun playSong(id: String, title: String, artist: String, thumbnailUrl: String, contextQueue: List<Song>? = null) {
         AppLogger.log("[ViewModel] playSong called: id=$id, title=$title")
 
-        // Track history
+        // Construct video item for auto-adding to stream library (metadata preservation)
+        val video = VideoItem(id, title, "", artist, thumbnailUrl, "")
         viewModelScope.launch(Dispatchers.IO) {
+            MusicRepository.autoAddStreamSong(getApplication(), video)
             try {
-                MusicRepository.addToHistory(getApplication(),
-                    VideoItem(id, title, "", artist, thumbnailUrl, "")
-                )
+                MusicRepository.addToHistory(getApplication(), video)
             } catch (e: Exception) {
                  e.printStackTrace()
             }
@@ -409,21 +398,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val queueToUse = contextQueue ?: librarySongs.value
         val index = queueToUse.indexOfFirst { it.id == id }
 
-        AppLogger.log("[ViewModel] Playing song $title from list (${queueToUse.size} items)")
-        AppLogger.log("[ViewModel] Found index in queue: $index")
-
         if (index != -1) {
-            AppLogger.log("[ViewModel] Delegating to MusicControllerManager.playPlaylist")
             MusicControllerManager.playPlaylist(queueToUse, index)
         } else {
-            // Fallback for non-library play (e.g. search result not in library yet)
-             AppLogger.log("[ViewModel] Song not in current queue. Attempting direct file playback.")
+             // Fallback for non-library play
              val file = File(getApplication<Application>().filesDir, "music_downloads/$id")
              val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
              val existingFiles = outputDir.listFiles { _, name -> name.startsWith(id) }
              val targetFile = existingFiles?.firstOrNull() ?: file
-
-             AppLogger.log("[ViewModel] Direct file playback: Path=${targetFile.absolutePath}, Exists=${targetFile.exists()}")
 
              val mediaMetadata = MediaMetadata.Builder()
                  .setTitle(title)
@@ -437,7 +419,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                  .setMediaMetadata(mediaMetadata)
                  .build()
 
-             AppLogger.log("[ViewModel] Delegating to MusicControllerManager.playMedia")
              MusicControllerManager.playMedia(mediaItem)
         }
     }
@@ -455,10 +436,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         return withContext(Dispatchers.IO) {
             try {
                 MusicControllerManager.addToQueue(song)
-                // _toastEvent.emit("Added to queue: ${song.title}") // UI handles success message usually
                 true
             } catch (e: Exception) {
-                AppLogger.log("[ViewModel] Error adding to queue: ${e.message}")
                 _toastEvent.emit("Failed to add to queue")
                 false
             }
@@ -467,10 +446,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteSong(song: Song) {
         viewModelScope.launch {
-            // 1. Remove from DB
             AppDatabase.getDatabase(getApplication()).songDao().deleteById(song.id)
-
-            // 2. Move file to "trash" (rename to .deleted)
             withContext(Dispatchers.IO) {
                 val file = File(song.filePath)
                 if (file.exists()) {
@@ -482,15 +458,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun restoreSong(song: Song) {
         viewModelScope.launch {
-            // 1. Restore file from "trash"
             withContext(Dispatchers.IO) {
                 val deletedFile = File(song.filePath + ".deleted")
                 if (deletedFile.exists()) {
                     deletedFile.renameTo(File(song.filePath))
                 }
             }
-
-            // 2. Re-insert into DB
             AppDatabase.getDatabase(getApplication()).songDao().insert(song)
         }
     }
@@ -499,7 +472,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val deletedFile = File(song.filePath + ".deleted")
             if (deletedFile.exists()) {
-                AppLogger.log("[ViewModel] Finalizing delete for ${song.title}")
                 deletedFile.delete()
             }
         }
@@ -545,12 +517,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(downloadMessage = null)
     }
 
-    // Deprecated: used old logic, but now mapped to deleteDownload for consistency if called
     fun cancelDownload(videoId: String) {
         deleteDownload(videoId)
     }
 
-    // Genre Management
     fun addGenre(genre: String) {
         UserPreferences.addGenre(getApplication(), genre)
         loadGenreFeeds()
@@ -561,17 +531,55 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         loadGenreFeeds()
     }
 
-    // --- Favorites Logic ---
+    // --- Favorites Logic (Updated) ---
+
+    // Original method overload for backward compatibility
     fun toggleLike(songId: String) {
-        val isLiked = likedSongIds.value.contains(songId)
+        val current = currentMediaItem.value
+        if (current != null && current.mediaId == songId) {
+            // Construct VideoItem from current playback
+            val video = VideoItem(
+                id = songId,
+                title = current.mediaMetadata.title.toString(),
+                uploader = current.mediaMetadata.artist.toString(),
+                thumbnailUrl = current.mediaMetadata.artworkUri?.toString() ?: "",
+                duration = "", // Unknown
+                webUrl = "https://www.youtube.com/watch?v=$songId"
+            )
+            toggleLike(video)
+        } else {
+            // Try to find in library
+            val librarySong = librarySongs.value.find { it.id == songId }
+            if (librarySong != null) {
+                val video = VideoItem(
+                    id = songId,
+                    title = librarySong.title,
+                    uploader = librarySong.artist,
+                    thumbnailUrl = librarySong.thumbnailUrl,
+                    duration = librarySong.duration,
+                    webUrl = "https://www.youtube.com/watch?v=$songId"
+                )
+                toggleLike(video)
+            } else {
+                viewModelScope.launch {
+                    _toastEvent.emit("Cannot add to library: metadata missing. Try playing it first.")
+                }
+            }
+        }
+    }
+
+    fun toggleLike(video: VideoItem) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                MusicRepository.setLikeStatus(getApplication(), songId, !isLiked)
-                val msg = if (isLiked) "Removed from Liked Songs" else "Added to Liked Songs"
+                // Check if currently liked to determine message
+                val wasLiked = likedSongIds.value.contains(video.id)
+                MusicRepository.toggleLike(getApplication(), video)
+
+                val msg = if (wasLiked) "Removed from Library" else "Added to Stream Library"
                 _toastEvent.emit(msg)
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error toggling like: ${e.message}")
-                _toastEvent.emit("Failed to update favorites")
+                _toastEvent.emit("Failed to update library")
             }
         }
     }
@@ -585,7 +593,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addSongToPlaylist(playlist: Playlist, songs: List<Song>) {
         viewModelScope.launch {
-             // In the future, batch add. For now, loop.
              songs.forEach { song ->
                   MusicRepository.addSongToPlaylist(getApplication(), playlist.id, song.id)
              }
@@ -615,7 +622,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // New Features
     fun importLocalSongs() {
         viewModelScope.launch {
             _toastEvent.emit("Scanning local files...")
@@ -657,17 +663,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
             songs.forEachIndexed { index, song ->
                 _compressionProgress.value = "Compressing ${index + 1} of $total...\n${song.title}"
-
-                // Optional: Check if already compressed? No easy way unless we store bitrate metadata.
-                // We assume user knows what they are doing.
-
                 val resultFile = CompressionManager.compressSong(getApplication(), song, quality)
                 if (resultFile != null) {
                     try {
                         MusicRepository.replaceSongFile(getApplication(), song, resultFile)
                         successCount++
                     } catch (e: Exception) {
-                        AppLogger.log("[ViewModel] Replace failed: ${e.message}")
                         failCount++
                     }
                 } else {

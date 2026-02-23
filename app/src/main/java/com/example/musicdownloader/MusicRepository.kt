@@ -13,12 +13,14 @@ import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.PlaylistEntry
 import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.data.StreamCache
+import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.workers.MusicDownloadWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -191,6 +193,10 @@ object MusicRepository {
     suspend fun syncFilesWithDatabase(context: Context) = withContext(Dispatchers.IO) {
         val database = AppDatabase.getDatabase(context)
         val outputDir = File(context.filesDir, "music_downloads")
+
+        // Migrate legacy favorites first
+        migrateLegacyFavorites(context)
+
         if (!outputDir.exists()) return@withContext
 
         val files = outputDir.listFiles() ?: return@withContext
@@ -312,43 +318,136 @@ object MusicRepository {
     // Helper method for Smart Shuffle
     suspend fun getTopArtistsList(context: Context): List<String> {
         return withContext(Dispatchers.IO) {
-            // This needs a DAO method that returns a list.
-            // For now, assume topArtist is one, we might need to expand PlayHistoryDao later.
-            // Using a simple query if possible, or defaulting to last history items artists.
-            val history = AppDatabase.getDatabase(context).playHistoryDao().getRecentHistory(50).map { it.distinctBy { h -> h.artist }.map { h -> h.artist } }
-            // Since we need a synchronous return (not flow) for the manager:
-            // This is a bit tricky with Flows. Let's rely on cached data or just blocking get if necessary,
-            // but for now let's query raw DB if we can, or just return empty and let manager handle defaults.
-            // A better approach is to add a List<ArtistCount> query to DAO.
-            // We will do a basic distinct artist fetch from recent history manually here:
-             emptyList() // Placeholder, logic will be in SmartShuffleManager mostly
+             emptyList() // Placeholder
         }
     }
 
-    // Favorites Methods
-    suspend fun setLikeStatus(context: Context, songId: String, isLiked: Boolean) {
-        val dao = AppDatabase.getDatabase(context).favoriteDao()
-        if (isLiked) {
-            dao.insert(FavoriteSong(songId))
+    // --- Stream Library Methods (New) ---
+
+    fun getStreamLibrary(context: Context): Flow<List<StreamSong>> {
+        // Returns ALL stream songs (both manual and auto, maybe? Or just manual?)
+        // User asked for "Stream Library" to contain liked/manual songs.
+        // Auto songs are for cache. But maybe we show them too?
+        // User: "in thst syream library we would need to have songs that we would periodically fectch the stream url awalys have it ready n those that we auto fetched which will be below what the users own manually added songs"
+        // So show ALL, but maybe sorted? Or manual first?
+        // StreamSongDao.getAllStreamSongs is ordered by dateAdded DESC.
+        // Let's filter in UI or return two flows. For now, let's return all Manual ones for the main "Library" view,
+        // unless requested otherwise. The prompt implies separation.
+        // Actually, the prompt says "Stream Library ... shows 'Liked Songs' ... and potentially Playlists".
+        // It also says "those that we auto fetched which will be below what the users own manually added songs".
+        // So we should return all, but maybe user wants them sectioned.
+        // Let's return all for now.
+        return AppDatabase.getDatabase(context).streamSongDao().getAllStreamSongs()
+    }
+
+    fun getManualStreamSongs(context: Context): Flow<List<StreamSong>> {
+        return AppDatabase.getDatabase(context).streamSongDao().getManualStreamSongs()
+    }
+
+    suspend fun toggleLike(context: Context, video: VideoItem) {
+        val dao = AppDatabase.getDatabase(context).streamSongDao()
+        val existing = dao.getStreamSong(video.id)
+
+        if (existing != null && existing.isManual) {
+            // Un-like: Change to auto? or Delete?
+            // "Unliking" usually removes from library.
+            // If we delete, it disappears from cache refresh too.
+            // Let's delete for now to be clean.
+            dao.delete(existing)
+            AppLogger.log("[Repo] Removed ${video.title} from Stream Library")
         } else {
-            dao.deleteById(songId)
+            // Like: Insert or Update as Manual
+            val song = StreamSong(
+                id = video.id,
+                title = video.title,
+                artist = video.uploader,
+                thumbnailUrl = video.thumbnailUrl,
+                dateAdded = System.currentTimeMillis(),
+                isManual = true,
+                duration = video.duration,
+                album = video.album ?: "Unknown Album"
+            )
+            dao.insert(song)
+            AppLogger.log("[Repo] Added ${video.title} to Stream Library")
+
+            // Trigger prefetch
+            prefetchStream(context, video.id)
+        }
+    }
+
+    suspend fun autoAddStreamSong(context: Context, video: VideoItem) {
+        val dao = AppDatabase.getDatabase(context).streamSongDao()
+        val existing = dao.getStreamSong(video.id)
+
+        if (existing == null) {
+            val song = StreamSong(
+                id = video.id,
+                title = video.title,
+                artist = video.uploader,
+                thumbnailUrl = video.thumbnailUrl,
+                dateAdded = System.currentTimeMillis(),
+                isManual = false, // Auto added
+                duration = video.duration,
+                album = video.album ?: "Unknown Album"
+            )
+            dao.insert(song)
+            AppLogger.log("[Repo] Auto-added ${video.title} to Stream Cache")
+        } else {
+            // Already exists. If it's manual, do nothing.
+            // If it's auto, maybe update dateAdded to keep it fresh?
+            if (!existing.isManual) {
+                dao.insert(existing.copy(dateAdded = System.currentTimeMillis()))
+            }
         }
     }
 
     fun getLikedSongIds(context: Context): Flow<List<String>> {
-        return AppDatabase.getDatabase(context).favoriteDao().getAllLikedIds()
-    }
-
-    suspend fun getLikedSongs(context: Context): List<String> {
-        // Synchronous fetch for SmartShuffleManager
-        // This requires adding a suspend function to FavoriteDao that returns List instead of Flow
-        // We can't easily change DAO interface without checking file.
-        // For now, we will skip this or assume flow collection elsewhere.
-        return emptyList()
+        // Used by ViewModel to check isLiked status
+        return AppDatabase.getDatabase(context).streamSongDao().getManualStreamSongs()
+            .map { list -> list.map { it.id } }
     }
 
     fun isLiked(context: Context, songId: String): Flow<Boolean> {
-        return AppDatabase.getDatabase(context).favoriteDao().isLiked(songId)
+        return AppDatabase.getDatabase(context).streamSongDao().isLiked(songId)
+    }
+
+    suspend fun migrateLegacyFavorites(context: Context) = withContext(Dispatchers.IO) {
+        val db = AppDatabase.getDatabase(context)
+        val favDao = db.favoriteDao()
+        val streamDao = db.streamSongDao()
+
+        val legacyIds = favDao.getAllLikedIdsSync()
+        if (legacyIds.isNotEmpty()) {
+            AppLogger.log("[Repo] Migrating ${legacyIds.size} legacy favorites...")
+            legacyIds.forEach { id ->
+                // Check if already in StreamSong
+                if (streamDao.getStreamSong(id) == null) {
+                    try {
+                        // Fetch Metadata
+                        val metadata = InnerTubeClient.fetchMetadata(context, id)
+                         if (metadata.title.isNotBlank() && metadata.title != "Unknown Title") {
+                            val song = StreamSong(
+                                id = id,
+                                title = metadata.title,
+                                artist = metadata.uploader,
+                                thumbnailUrl = metadata.thumbnailUrl,
+                                dateAdded = System.currentTimeMillis(),
+                                isManual = true,
+                                duration = metadata.duration,
+                                album = metadata.album ?: "Unknown Album"
+                            )
+                            streamDao.insert(song)
+                            AppLogger.log("[Repo] Migrated $id: ${metadata.title}")
+                         }
+                    } catch (e: Exception) {
+                         AppLogger.log("[Repo] Failed to migrate $id: ${e.message}")
+                    }
+                }
+                // Remove from legacy table
+                favDao.deleteById(id)
+            }
+            AppLogger.log("[Repo] Migration complete.")
+        }
     }
 
     // Playlist Methods
