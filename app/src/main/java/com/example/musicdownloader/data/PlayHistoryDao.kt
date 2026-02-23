@@ -29,6 +29,10 @@ interface PlayHistoryDao {
     @Query("SELECT COUNT(*) FROM play_history")
     fun getTotalPlayCount(): Flow<Int>
 
+    // Get all song IDs in history (for filtering recommendations)
+    @Query("SELECT DISTINCT songId FROM play_history")
+    fun getAllHistoryIds(): Flow<List<String>>
+
     // Sync query for Smart Shuffle
     @Query("SELECT artist, COUNT(*) as playCount FROM play_history GROUP BY artist ORDER BY playCount DESC LIMIT 1")
     suspend fun getTopArtistSync(): ArtistCount?

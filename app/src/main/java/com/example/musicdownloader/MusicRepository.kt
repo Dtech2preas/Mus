@@ -525,6 +525,18 @@ object MusicRepository {
         try {
             // This will trigger the cache logic
             getStreamUrlWithCache(context, videoId, webUrl)
+
+            // Also add to Recommendations (StreamSong isManual=0)
+            // We need metadata for this.
+            try {
+                val metadata = InnerTubeClient.fetchMetadata(context, videoId)
+                if (metadata.title.isNotBlank()) {
+                     autoAddStreamSong(context, metadata)
+                }
+            } catch (e: Exception) {
+                 AppLogger.log("[Repo] Failed to fetch metadata for prefetched song $videoId: ${e.message}")
+            }
+
         } catch (e: Exception) {
             AppLogger.log("[Repo] Prefetch failed for $videoId: ${e.message}")
         }
@@ -571,7 +583,59 @@ object MusicRepository {
     }
 
     fun getRecommendedSongs(context: Context): Flow<List<StreamSong>> {
-        return AppDatabase.getDatabase(context).streamSongDao().getRecommendedSongs()
+        val database = AppDatabase.getDatabase(context)
+        return combine(
+            database.streamSongDao().getRecommendedSongs(), // isManual=0
+            database.playHistoryDao().getAllHistoryIds(),
+            database.streamSongDao().getLibrarySongs() // isManual=1
+        ) { recommended, historyIds, library ->
+            val playedSet = historyIds.toSet()
+            val librarySet = library.map { it.id }.toSet()
+
+            recommended.filter {
+                it.id !in playedSet && it.id !in librarySet
+            }
+        }
+    }
+
+    suspend fun refreshRecommendations(context: Context) {
+        AppLogger.log("[Repo] Refreshing Recommendations...")
+        val database = AppDatabase.getDatabase(context)
+
+        // 1. Get Top Artist & Genre (Sync)
+        val topArtist = database.playHistoryDao().getTopArtistSync()
+        val genres = UserPreferences.getGenres(context)
+
+        val queries = mutableListOf<String>()
+        if (topArtist != null) {
+            queries.add("${topArtist.artist} mix")
+            queries.add("Similar to ${topArtist.artist}")
+        }
+        if (genres.isNotEmpty()) {
+            queries.add("${genres.random()} mix")
+        }
+
+        // If nothing, fallback
+        if (queries.isEmpty()) {
+            queries.add("Trending music")
+        }
+
+        // Fetch
+        queries.forEach { query ->
+            try {
+                AppLogger.log("[Repo] Fetching recs for: $query")
+                // Use InnerTube for search
+                val results = InnerTubeClient.search(query)
+                // Filter and Insert
+                results.forEach { video ->
+                    // Only add if not in history/library (checked in autoAddStreamSong logic usually? No, autoAdd just adds)
+                    // But getRecommendedSongs filters them out, so adding them is safe.
+                    autoAddStreamSong(context, video)
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[Repo] Failed to fetch recs for '$query': ${e.message}")
+            }
+        }
     }
 
     suspend fun addToLibrary(context: Context, video: VideoItem) {

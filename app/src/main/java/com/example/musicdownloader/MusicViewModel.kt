@@ -153,6 +153,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             MusicRepository.syncFilesWithDatabase(application)
         }
 
+        // Initialize Recommendations
+        viewModelScope.launch {
+            MusicRepository.refreshRecommendations(application)
+        }
+
         // Load Genre Feeds
         loadGenreFeeds()
 
@@ -195,6 +200,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val feeds = MusicRepository.fetchGenreFeeds(getApplication(), genres)
             _uiState.value = _uiState.value.copy(genreFeeds = feeds, isLoading = false)
+        }
+    }
+
+    fun refreshRecommendations() {
+        viewModelScope.launch {
+            MusicRepository.refreshRecommendations(getApplication())
         }
     }
 

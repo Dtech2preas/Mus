@@ -138,25 +138,37 @@ fun FullScreenPlayer(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(DeepBlack)) {
-        // 1. Background Gradient (Immersive)
+        // 1. Background Image (Fullscreen, dimmed for premium feel)
+        Image(
+            painter = rememberAsyncImagePainter(artworkUri),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(0.4f), // Subtle background
+            contentScale = ContentScale.Crop
+        )
+
+        // 2. Gradient Overlay (Smooth fade to black)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            animatedColor.copy(alpha = 0.6f),
+                            animatedColor.copy(alpha = 0.2f), // Tint top slightly
+                            DeepBlack.copy(alpha = 0.8f),
                             DeepBlack
                         )
                     )
                 )
         )
 
-        // 2. Content
+        // 3. Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding() // Avoid overlap with bottom gestures
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -182,7 +194,7 @@ fun FullScreenPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.5f))
+            Spacer(modifier = Modifier.height(16.dp)) // Replaced weight with fixed small spacer
 
             // Album Art
             Card(
@@ -212,15 +224,16 @@ fun FullScreenPlayer(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.headlineMedium, // Larger, more premium
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
                         maxLines = 1,
                         modifier = Modifier.basicMarquee()
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = artist,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = TextSecondary,
                         maxLines = 1,
                         modifier = Modifier.basicMarquee()
@@ -294,7 +307,30 @@ fun FullScreenPlayer(
                  }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Smart Shuffle Button (Moved Up)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = { viewModel.toggleSmartShuffle() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (smartShuffleEnabled) DTechBlue else Color.Transparent,
+                        contentColor = if (smartShuffleEnabled) TextPrimary else TextSecondary
+                    ),
+                    border = if (!smartShuffleEnabled) androidx.compose.foundation.BorderStroke(1.dp, TextSecondary.copy(alpha=0.3f)) else null,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(50)
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (smartShuffleEnabled) "Smart Shuffle On" else "Smart Shuffle")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Progress Section
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -340,7 +376,7 @@ fun FullScreenPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Main Controls
             Row(
@@ -348,13 +384,6 @@ fun FullScreenPlayer(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Shuffle (Combined Smart/Normal logic or separate?)
-                // User said: "smart shuffle, normal shuffle"
-                // We can toggle between Off -> Normal -> Smart -> Off?
-                // Or two buttons? User said "all this buttons... smart shuffle, normal shuffle".
-                // I'll put Smart Shuffle on left, Normal on right? Or stack?
-                // Let's use standard Shuffle icon for Normal, and AutoAwesome for Smart.
-
                 IconButton(onClick = { viewModel.toggleShuffle() }) {
                     Icon(
                         imageVector = Icons.Default.Shuffle,
@@ -367,23 +396,24 @@ fun FullScreenPlayer(
                     Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = TextPrimary, modifier = Modifier.size(36.dp))
                 }
 
-                // Play/Pause
+                // Play/Pause (Premium Look: Larger, maybe slight shadow/elevation implied by size)
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(80.dp) // Larger touch target
+                        .shadow(12.dp, CircleShape) // Soft shadow
                         .clip(CircleShape)
                         .background(TextPrimary)
                         .clickable { viewModel.togglePlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
                     if (uiState.isLoadingPlayer) {
-                        CircularProgressIndicator(color = DeepBlack, modifier = Modifier.size(32.dp))
+                        CircularProgressIndicator(color = DeepBlack, modifier = Modifier.size(36.dp))
                     } else {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = "Play/Pause",
                             tint = DeepBlack,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(48.dp) // Larger icon
                         )
                     }
                 }
@@ -392,7 +422,6 @@ fun FullScreenPlayer(
                     Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = TextPrimary, modifier = Modifier.size(36.dp))
                 }
 
-                // Repeat
                 IconButton(onClick = { viewModel.toggleRepeatMode() }) {
                     Icon(
                         imageVector = if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
@@ -400,26 +429,6 @@ fun FullScreenPlayer(
                         tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) DTechBlue else TextSecondary
                     )
                 }
-            }
-
-            // Smart Shuffle Button (Standalone as requested)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                 Button(
-                     onClick = { viewModel.toggleSmartShuffle() },
-                     colors = ButtonDefaults.buttonColors(
-                         containerColor = if (smartShuffleEnabled) DTechBlue else Color.Transparent,
-                         contentColor = if (smartShuffleEnabled) TextPrimary else TextSecondary
-                     ),
-                     border = if (!smartShuffleEnabled) androidx.compose.foundation.BorderStroke(1.dp, TextSecondary.copy(alpha=0.3f)) else null,
-                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                 ) {
-                     Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                     Spacer(modifier = Modifier.width(8.dp))
-                     Text(if (smartShuffleEnabled) "Smart Shuffle On" else "Smart Shuffle")
-                 }
             }
 
             Spacer(modifier = Modifier.weight(1f))
