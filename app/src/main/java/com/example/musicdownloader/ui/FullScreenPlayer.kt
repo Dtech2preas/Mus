@@ -53,14 +53,14 @@ import coil.ImageLoader
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.musicdownloader.MusicViewModel
-import com.example.musicdownloader.data.VideoItem
+import com.example.musicdownloader.VideoItem
 import com.example.musicdownloader.ui.AddToPlaylistSheet
 import com.example.musicdownloader.utils.HapticUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 // Theme Colors (Approximate D-Tech)
-private val DTechBlue = Color(0xFF2962FF)
+// DTechBlue is already defined in Theme.kt
 private val DeepBlack = Color(0xFF121212)
 private val TextPrimary = Color.White
 private val TextSecondary = Color.White.copy(alpha = 0.7f)
