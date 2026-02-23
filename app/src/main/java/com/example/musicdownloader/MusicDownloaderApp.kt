@@ -2,17 +2,24 @@ package com.example.musicdownloader
 
 import android.app.Application
 import android.widget.Toast
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
+import com.example.musicdownloader.workers.StreamRefresherWorker
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class MusicDownloaderApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
@@ -29,6 +36,24 @@ class MusicDownloaderApp : Application(), ImageLoaderFactory {
                 Toast.makeText(applicationContext, "Failed to initialize YoutubeDL: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
+
+        setupWorkers()
+    }
+
+    private fun setupWorkers() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val refreshWork = PeriodicWorkRequestBuilder<StreamRefresherWorker>(45, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "stream_refresher",
+            ExistingPeriodicWorkPolicy.KEEP,
+            refreshWork
+        )
     }
 
     override fun newImageLoader(): ImageLoader {

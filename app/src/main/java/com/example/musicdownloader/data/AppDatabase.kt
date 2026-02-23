@@ -11,12 +11,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         Song::class,
         PlayHistory::class,
-        FavoriteSong::class,
+        FavoriteSong::class, // Kept for migration
         Playlist::class,
         PlaylistEntry::class,
-        StreamCache::class
+        StreamCache::class,
+        StreamSong::class // New entity
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,6 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun favoriteDao(): FavoriteDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun streamCacheDao(): StreamCacheDao
+    abstract fun streamSongDao(): StreamSongDao
 
     companion object {
         @Volatile
@@ -37,8 +39,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "music_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
-                .fallbackToDestructiveMigration() // Simple migration strategy for this overhaul
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance
@@ -47,7 +49,6 @@ abstract class AppDatabase : RoomDatabase() {
 
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Add the 'album' column with a default value
                 database.execSQL("ALTER TABLE songs ADD COLUMN album TEXT NOT NULL DEFAULT 'Unknown Album'")
             }
         }
@@ -61,6 +62,24 @@ abstract class AppDatabase : RoomDatabase() {
                         `expireTime` INTEGER NOT NULL,
                         `cachedAt` INTEGER NOT NULL,
                         PRIMARY KEY(`videoId`)
+                    )
+                """.trimIndent())
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `stream_songs` (
+                        `id` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `artist` TEXT NOT NULL,
+                        `thumbnailUrl` TEXT NOT NULL,
+                        `dateAdded` INTEGER NOT NULL,
+                        `isManual` INTEGER NOT NULL,
+                        `duration` TEXT NOT NULL,
+                        `album` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
                     )
                 """.trimIndent())
             }
