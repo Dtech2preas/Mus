@@ -72,7 +72,7 @@ class MusicService : MediaSessionService() {
             override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                 if (dataSpec.uri.scheme == "dtech" && dataSpec.uri.pathSegments.firstOrNull() == "stream") {
                     val videoId = dataSpec.uri.lastPathSegment
-                    if (videoId != null) {
+                    if (!videoId.isNullOrBlank() && videoId != "stream") {
                         try {
                             // Resolve URL synchronously (blocking is allowed here)
                             val streamInfo = runBlocking {
