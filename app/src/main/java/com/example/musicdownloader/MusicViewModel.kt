@@ -412,6 +412,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playSong(id: String, title: String, artist: String, thumbnailUrl: String, contextQueue: List<Song>? = null) {
+        if (id.isBlank()) {
+            AppLogger.log("[ViewModel] playSong called with empty ID! Aborting.")
+            return
+        }
         AppLogger.log("[ViewModel] playSong called: id=$id, title=$title")
 
         // Track history
@@ -479,6 +483,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             MusicRepository.addToLibrary(getApplication(), video)
             _toastEvent.emit("Added to Library")
+        }
+    }
+
+    fun toggleLibraryStatus(video: VideoItem, isCurrentlySaved: Boolean) {
+        viewModelScope.launch {
+            if (isCurrentlySaved) {
+                MusicRepository.removeFromLibrary(getApplication(), video.id)
+                _toastEvent.emit("Removed from Library")
+            } else {
+                MusicRepository.addToLibrary(getApplication(), video)
+                _toastEvent.emit("Added to Library")
+            }
         }
     }
 

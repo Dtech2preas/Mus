@@ -299,7 +299,7 @@ fun FullScreenPlayer(
                 // Add/Remove Library Toggle
                 ScaleIconButton(
                     onClick = {
-                        if (!isSavedToLibrary && currentSongId != null) {
+                        if (currentSongId != null) {
                             val videoItem = VideoItem(
                                 id = currentSongId,
                                 title = title,
@@ -308,7 +308,7 @@ fun FullScreenPlayer(
                                 thumbnailUrl = artworkUri?.toString() ?: "",
                                 webUrl = "https://youtube.com/watch?v=$currentSongId"
                             )
-                            viewModel.addToLibrary(videoItem)
+                            viewModel.toggleLibraryStatus(videoItem, isSavedToLibrary)
                         }
                     }
                 ) {

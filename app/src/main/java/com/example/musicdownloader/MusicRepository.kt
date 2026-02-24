@@ -105,6 +105,11 @@ object MusicRepository {
      * Enqueues a download request to WorkManager.
      */
     suspend fun downloadSong(context: Context, video: VideoItem): Result<String> {
+        if (video.id.isBlank()) {
+            AppLogger.log("[Repo] downloadSong called with empty ID")
+            return Result.failure(Exception("Invalid Video ID"))
+        }
+
         val outputDir = File(context.filesDir, "music_downloads")
         if (!outputDir.exists()) outputDir.mkdirs()
 
@@ -192,6 +197,16 @@ object MusicRepository {
     // Helper to sync file system with DB on startup
     suspend fun syncFilesWithDatabase(context: Context) = withContext(Dispatchers.IO) {
         val database = AppDatabase.getDatabase(context)
+
+        // 1. Clean up invalid entries from DB first
+        try {
+            database.songDao().deleteById("")
+            database.streamSongDao().deleteById("")
+            AppLogger.log("[Repo] Cleaned up empty ID entries from DB")
+        } catch (e: Exception) {
+            AppLogger.log("[Repo] Failed to clean up DB: ${e.message}")
+        }
+
         val outputDir = File(context.filesDir, "music_downloads")
         if (!outputDir.exists()) return@withContext
 
@@ -203,9 +218,16 @@ object MusicRepository {
              it.delete()
         }
 
-        files.filter { !it.name.endsWith(".deleted") }.forEach { file ->
+        // Sync valid files
+        files.filter { !it.name.endsWith(".deleted") && !it.name.startsWith(".") }.forEach { file ->
             // Filename format: {id}.{ext} usually
             val id = file.nameWithoutExtension
+
+            if (id.isBlank()) {
+                AppLogger.log("[Repo] Found file with empty ID, deleting: ${file.name}")
+                file.delete()
+                return@forEach
+            }
 
             val existingSong = database.songDao().getSongById(id)
             if (existingSong == null) {
@@ -594,7 +616,7 @@ object MusicRepository {
 
             recommended.filter {
                 it.id !in playedSet && it.id !in librarySet
-            }
+            }.take(15) // Limit to 15 recommendations as requested
         }
     }
 
@@ -615,9 +637,12 @@ object MusicRepository {
             queries.add("${genres.random()} mix")
         }
 
-        // If nothing, fallback
+        // Check if we have any basis for recommendation
         if (queries.isEmpty()) {
-            queries.add("Trending music")
+            AppLogger.log("[Repo] No user history or preferences found. Skipping recommendations.")
+            // Ideally we might want to clear existing "wild" recommendations here if any exist from before?
+            // But let's just not add new ones.
+            return
         }
 
         // Fetch
@@ -628,8 +653,6 @@ object MusicRepository {
                 val results = InnerTubeClient.search(query)
                 // Filter and Insert
                 results.forEach { video ->
-                    // Only add if not in history/library (checked in autoAddStreamSong logic usually? No, autoAdd just adds)
-                    // But getRecommendedSongs filters them out, so adding them is safe.
                     autoAddStreamSong(context, video)
                 }
             } catch (e: Exception) {
@@ -651,6 +674,16 @@ object MusicRepository {
         )
         AppDatabase.getDatabase(context).streamSongDao().insert(song)
         AppLogger.log("[Repo] Added to Library (Stream): ${video.title}")
+    }
+
+    suspend fun removeFromLibrary(context: Context, songId: String) {
+        val dao = AppDatabase.getDatabase(context).streamSongDao()
+        val song = dao.getStreamSongById(songId)
+        if (song != null && song.isManual) {
+            // Downgrade to auto-added so it remains in cache/recs but not in library
+            dao.insert(song.copy(isManual = false))
+            AppLogger.log("[Repo] Removed from Library (Stream): ${song.title}")
+        }
     }
 
     suspend fun autoAddStreamSong(context: Context, video: VideoItem) {

@@ -152,7 +152,7 @@ object MusicControllerManager {
                     val itemCount = controller.mediaItemCount
                     val remaining = itemCount - currentIndex - 1
 
-                    if (remaining < 2) { // Logic: If less than 2 songs left
+                    if (remaining < 4) { // Increased threshold to 4 to ensure queue is always populated
                         AppLogger.log("[Controller] Smart Shuffle: Queue running low ($remaining left). Fetching recommendation...")
                         val recommendation = SmartShuffleManager.getNextRecommendation(context)
                         if (recommendation != null) {
