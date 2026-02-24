@@ -3,11 +3,19 @@ package com.example.musicdownloader.ui
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,11 +27,14 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.LibraryAddCheck
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -37,10 +48,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -60,7 +74,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 // Theme Colors (Approximate D-Tech)
-// DTechBlue is already defined in Theme.kt
 private val DeepBlack = Color(0xFF121212)
 private val TextPrimary = Color.White
 private val TextSecondary = Color.White.copy(alpha = 0.7f)
@@ -81,13 +94,12 @@ fun FullScreenPlayer(
     val repeatMode by viewModel.repeatMode.collectAsState()
     val likedSongs by viewModel.likedSongIds.collectAsState()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val audioSessionId by viewModel.audioSessionId.collectAsState()
 
     val context = LocalContext.current
     val currentSongId = currentMediaItem?.mediaId
     val isLiked = currentSongId != null && likedSongs.contains(currentSongId)
 
-    // Check if saved to library
+    // Check if saved to library (to show download status)
     val isSavedToLibrary by remember(currentSongId) {
         viewModel.isSavedToLibrary(currentSongId ?: "")
     }.collectAsState(initial = false)
@@ -127,36 +139,77 @@ fun FullScreenPlayer(
         }
     }
 
-    // Determine Status Text
-    val uri = currentMediaItem?.localConfiguration?.uri
-    val statusText = remember(uri) {
-        when {
-            uri?.scheme == "file" -> "Playing Offline"
-            uri?.scheme == "dtech" -> "Streaming • High Quality"
-            else -> "Streaming"
-        }
+    // Breathing Animation for Album Art
+    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.02f, // Very subtle breathing
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    // Smart Shuffle Sparkle Animation
+    val sparkleAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sparkle"
+    )
+
+    // Helper for VideoItem
+    val videoItem = remember(currentSongId, title, artist, artworkUri) {
+        if (currentSongId != null) {
+            VideoItem(
+                id = currentSongId,
+                title = title,
+                duration = formatTime(duration),
+                uploader = artist,
+                thumbnailUrl = artworkUri?.toString() ?: "",
+                webUrl = "https://youtube.com/watch?v=$currentSongId"
+            )
+        } else null
     }
 
     Box(modifier = Modifier.fillMaxSize().background(DeepBlack)) {
-        // 1. Background Gradient (Immersive)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            animatedColor.copy(alpha = 0.6f),
-                            DeepBlack
+        // 1. Background (Blurred & Dimmed)
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = rememberAsyncImagePainter(artworkUri),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(0.6f)
+                    .blur(50.dp),
+                contentScale = ContentScale.Crop
+            )
+            // Gradient Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.3f),
+                                DeepBlack.copy(alpha = 0.8f),
+                                DeepBlack
+                            )
                         )
                     )
-                )
-        )
+            )
+        }
 
         // 2. Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -175,23 +228,28 @@ fun FullScreenPlayer(
                     "NOW PLAYING",
                     style = MaterialTheme.typography.labelSmall,
                     color = TextSecondary,
-                    letterSpacing = 2.sp
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold
                 )
-                IconButton(onClick = { /* More Options? */ }) {
-                    // Placeholder for alignment
+                IconButton(onClick = { /* More Options */ }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = TextPrimary)
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.5f))
+            Spacer(modifier = Modifier.weight(1f))
 
             // Album Art
             Card(
                 modifier = Modifier
-                    .aspectRatio(1f)
                     .fillMaxWidth()
-                    .shadow(elevation = 24.dp, shape = RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+                    .aspectRatio(1f)
+                    .graphicsLayer {
+                        scaleX = if (isPlaying) scale else 1f
+                        scaleY = if (isPlaying) scale else 1f
+                    },
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Image(
                     painter = rememberAsyncImagePainter(artworkUri),
@@ -203,12 +261,13 @@ fun FullScreenPlayer(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Title & Artist
+            // Info & Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                // Text Info
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
@@ -218,6 +277,7 @@ fun FullScreenPlayer(
                         maxLines = 1,
                         modifier = Modifier.basicMarquee()
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = artist,
                         style = MaterialTheme.typography.bodyLarge,
@@ -226,72 +286,79 @@ fun FullScreenPlayer(
                         modifier = Modifier.basicMarquee()
                     )
                 }
-
-                // Add to Library (Toggle)
-                IconButton(onClick = {
-                    if (!isSavedToLibrary && currentSongId != null) {
-                         // Construct minimal VideoItem for saving
-                         // We need the ID. We can assume we have it.
-                         // For full metadata, we rely on currentMediaItem
-                         val videoItem = VideoItem(
-                             id = currentSongId,
-                             title = title,
-                             uploader = artist,
-                             duration = "", // Not critical
-                             thumbnailUrl = artworkUri?.toString() ?: "",
-                             webUrl = "https://youtube.com/watch?v=$currentSongId"
-                         )
-                         viewModel.addToLibrary(videoItem)
-                    } else {
-                        // TODO: Remove from library logic if desired, but user only asked for "Add"
-                        // Usually "Add" implies toggle, but removing is destructive.
-                        // I'll leave it as "Added" state visual only for now or implement remove if needed.
-                        // User said "Toggle for either to show...", that was for filtering list.
-                        // Here "Add to library button"
-                    }
-                }) {
-                    Icon(
-                        imageVector = if (isSavedToLibrary) Icons.Default.CheckCircle else Icons.Default.AddCircleOutline,
-                        contentDescription = "Add to Library",
-                        tint = if (isSavedToLibrary) DTechBlue else TextPrimary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Action Row: Playlist, Like
+            // Action Row (Playlist, Like, Download)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                  IconButton(onClick = { showAddToPlaylistDialog = true }) {
-                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                         Icon(Icons.Default.PlaylistAdd, contentDescription = "Playlist", tint = TextSecondary)
-                         // Text("Playlist", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                     }
+                     Icon(Icons.Default.PlaylistAdd, contentDescription = "Add to Playlist", tint = TextPrimary)
                  }
 
                  IconButton(onClick = {
-                     if (currentSongId != null) {
-                         val videoItem = VideoItem(
-                             id = currentSongId,
-                             title = title,
-                             uploader = artist,
-                             duration = "",
-                             thumbnailUrl = artworkUri?.toString() ?: "",
-                             webUrl = "https://youtube.com/watch?v=$currentSongId"
-                         )
-                         viewModel.toggleLike(videoItem)
-                     }
+                     videoItem?.let { viewModel.toggleLike(it) }
                  }) {
                       Icon(
                           imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                           contentDescription = "Like",
-                          tint = if (isLiked) DTechBlue else TextSecondary
+                          tint = if (isLiked) DTechBlue else TextPrimary
                       )
                  }
+
+                 IconButton(onClick = {
+                     videoItem?.let { viewModel.downloadSong(it) }
+                 }) {
+                     // Check if local file exists to show "Done"
+                     val isDownloaded = currentMediaItem?.localConfiguration?.uri?.scheme == "file"
+                     Icon(
+                         imageVector = if (isDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
+                         contentDescription = "Download",
+                         tint = if (isDownloaded) DTechBlue else TextPrimary
+                     )
+                 }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Smart Shuffle Pill
+            Surface(
+                onClick = { viewModel.toggleSmartShuffle() },
+                shape = CircleShape,
+                color = if (smartShuffleEnabled) DTechBlue else Color.Transparent,
+                border = if (!smartShuffleEnabled) androidx.compose.foundation.BorderStroke(1.dp, TextSecondary.copy(alpha=0.3f)) else null,
+                modifier = Modifier.height(36.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                     Icon(
+                         Icons.Default.AutoAwesome,
+                         contentDescription = null,
+                         modifier = Modifier
+                             .size(16.dp)
+                             .graphicsLayer {
+                                 if (smartShuffleEnabled) {
+                                     alpha = sparkleAlpha
+                                     scaleX = 1.1f
+                                     scaleY = 1.1f
+                                 }
+                             },
+                         tint = if (smartShuffleEnabled) TextPrimary else TextSecondary
+                     )
+                     Spacer(modifier = Modifier.width(8.dp))
+                     Text(
+                         text = "Smart Shuffle",
+                         style = MaterialTheme.typography.labelMedium,
+                         color = if (smartShuffleEnabled) TextPrimary else TextSecondary
+                     )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -329,18 +396,11 @@ fun FullScreenPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(formatTime(currentPosition), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                    // Status Text
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = DTechBlue,
-                        fontWeight = FontWeight.Bold
-                    )
                     Text(formatTime(duration), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Main Controls
             Row(
@@ -348,13 +408,7 @@ fun FullScreenPlayer(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Shuffle (Combined Smart/Normal logic or separate?)
-                // User said: "smart shuffle, normal shuffle"
-                // We can toggle between Off -> Normal -> Smart -> Off?
-                // Or two buttons? User said "all this buttons... smart shuffle, normal shuffle".
-                // I'll put Smart Shuffle on left, Normal on right? Or stack?
-                // Let's use standard Shuffle icon for Normal, and AutoAwesome for Smart.
-
+                // Shuffle (Normal)
                 IconButton(onClick = { viewModel.toggleShuffle() }) {
                     Icon(
                         imageVector = Icons.Default.Shuffle,
@@ -363,17 +417,24 @@ fun FullScreenPlayer(
                     )
                 }
 
-                IconButton(onClick = { viewModel.skipToPrevious() }, modifier = Modifier.size(48.dp)) {
+                // Previous
+                ScaleIconButton(onClick = { viewModel.skipToPrevious() }) {
                     Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = TextPrimary, modifier = Modifier.size(36.dp))
                 }
 
                 // Play/Pause
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val playButtonScale by animateFloatAsState(if (isPressed) 0.9f else 1f, label = "scale")
+
                 Box(
                     modifier = Modifier
                         .size(72.dp)
+                        .scale(playButtonScale)
+                        .shadow(elevation = 10.dp, shape = CircleShape)
                         .clip(CircleShape)
                         .background(TextPrimary)
-                        .clickable { viewModel.togglePlayPause() },
+                        .clickable(interactionSource = interactionSource, indication = null) { viewModel.togglePlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
                     if (uiState.isLoadingPlayer) {
@@ -388,7 +449,8 @@ fun FullScreenPlayer(
                     }
                 }
 
-                IconButton(onClick = { viewModel.skipToNext() }, modifier = Modifier.size(48.dp)) {
+                // Next
+                ScaleIconButton(onClick = { viewModel.skipToNext() }) {
                     Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = TextPrimary, modifier = Modifier.size(36.dp))
                 }
 
@@ -402,42 +464,19 @@ fun FullScreenPlayer(
                 }
             }
 
-            // Smart Shuffle Button (Standalone as requested)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                 Button(
-                     onClick = { viewModel.toggleSmartShuffle() },
-                     colors = ButtonDefaults.buttonColors(
-                         containerColor = if (smartShuffleEnabled) DTechBlue else Color.Transparent,
-                         contentColor = if (smartShuffleEnabled) TextPrimary else TextSecondary
-                     ),
-                     border = if (!smartShuffleEnabled) androidx.compose.foundation.BorderStroke(1.dp, TextSecondary.copy(alpha=0.3f)) else null,
-                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                 ) {
-                     Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                     Spacer(modifier = Modifier.width(8.dp))
-                     Text(if (smartShuffleEnabled) "Smart Shuffle On" else "Smart Shuffle")
-                 }
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Visualizer or bottom space
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 
     // Sheets
-    if (showAddToPlaylistDialog) {
+    if (showAddToPlaylistDialog && videoItem != null) {
         val currentSong = com.example.musicdownloader.data.Song(
-            id = currentSongId ?: "",
-            title = title,
-            artist = artist,
-            thumbnailUrl = artworkUri?.toString() ?: "",
+            id = videoItem.id,
+            title = videoItem.title,
+            artist = videoItem.uploader,
+            thumbnailUrl = videoItem.thumbnailUrl,
             filePath = "",
-            duration = ""
+            duration = videoItem.duration
         )
         AddToPlaylistSheet(
             playlists = playlists,
@@ -445,20 +484,31 @@ fun FullScreenPlayer(
             onDismiss = { showAddToPlaylistDialog = false },
             onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
             onAddToPlaylist = { playlist, _ ->
-                if (currentSongId != null) {
-                    val videoItem = VideoItem(
-                        id = currentSongId,
-                        title = title,
-                        uploader = artist,
-                        duration = "",
-                        thumbnailUrl = artworkUri?.toString() ?: "",
-                        webUrl = "https://youtube.com/watch?v=$currentSongId"
-                    )
-                    viewModel.addSongToPlaylist(playlist.id.toInt(), videoItem)
-                }
+                viewModel.addSongToPlaylist(playlist.id.toInt(), videoItem)
                 showAddToPlaylistDialog = false
             }
         )
+    }
+}
+
+@Composable
+fun ScaleIconButton(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.8f else 1f, label = "scale")
+
+    IconButton(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        modifier = Modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+    ) {
+        content()
     }
 }
 
