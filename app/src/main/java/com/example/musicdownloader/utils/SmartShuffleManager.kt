@@ -7,6 +7,7 @@ import com.example.musicdownloader.UserPreferences
 import com.example.musicdownloader.VideoItem
 import com.example.musicdownloader.data.AppDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 object SmartShuffleManager {
@@ -16,7 +17,31 @@ object SmartShuffleManager {
     suspend fun getNextRecommendation(context: Context): VideoItem? = withContext(Dispatchers.IO) {
         AppLogger.log("[SmartShuffle] Calculating next recommendation...")
 
-        // Simple Random Strategy Selection
+        // 0. Priority: Repo Recommendations (Filtered & Fresh)
+        try {
+            val recommendations = MusicRepository.getRecommendedSongs(context).first()
+            val candidate = recommendations.filter { !sessionHistory.contains(it.id) }.randomOrNull()
+
+            if (candidate != null) {
+                AppLogger.log("[SmartShuffle] Recommendation found from Repo: ${candidate.title}")
+                sessionHistory.add(candidate.id)
+                if (sessionHistory.size > 50) sessionHistory.clear()
+
+                return@withContext VideoItem(
+                    id = candidate.id,
+                    title = candidate.title,
+                    uploader = candidate.artist,
+                    duration = candidate.duration,
+                    thumbnailUrl = candidate.thumbnailUrl,
+                    webUrl = "https://youtube.com/watch?v=${candidate.id}",
+                    album = candidate.album
+                )
+            }
+        } catch (e: Exception) {
+            AppLogger.log("[SmartShuffle] Failed to fetch repo recommendations: ${e.message}")
+        }
+
+        // Simple Random Strategy Selection (Fallback if repo empty)
         val strategy = (1..3).random()
         var recommendation: VideoItem? = null
 
