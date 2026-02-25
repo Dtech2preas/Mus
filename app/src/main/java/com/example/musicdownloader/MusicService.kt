@@ -80,9 +80,14 @@ class MusicService : MediaSessionService() {
                             }
                             if (streamInfo.url.isNotBlank()) {
                                 return dataSpec.buildUpon().setUri(Uri.parse(streamInfo.url)).build()
+                            } else {
+                                AppLogger.log("[Service] Resolved URL was blank for $videoId")
+                                throw java.io.IOException("Stream URL resolution failed (blank URL) for $videoId")
                             }
                         } catch (e: Exception) {
                             AppLogger.log("[Service] Failed to resolve dtech URI: ${e.message}")
+                            // CRITICAL FIX: Throw IOException so ExoPlayer knows it failed and can retry/skip
+                            throw java.io.IOException("Failed to resolve stream for $videoId: ${e.message}", e)
                         }
                     }
                 }
