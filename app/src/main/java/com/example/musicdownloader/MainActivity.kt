@@ -131,7 +131,8 @@ fun MainScreen(viewModel: MusicViewModel) {
         is AppScreen.PlaylistDetail,
         is AppScreen.ArtistDetail -> 3
         is AppScreen.Settings,
-        is AppScreen.Compression -> 4
+        is AppScreen.Compression,
+        is AppScreen.Info -> 4
         // ActiveDownloads doesn't belong to a tab, usually sits on top of Search or Home?
         // Let's keep Search tab active if we are in ActiveDownloads for now
         is AppScreen.ActiveDownloads -> 1
@@ -371,8 +372,12 @@ fun MainScreen(viewModel: MusicViewModel) {
                     )
                     is AppScreen.Settings -> SettingsScreen(
                         onShowLogs = { showLogs = true },
+                        onNavigateToInfo = { navigateTo(AppScreen.Info) },
                         onNavigateToCompression = { navigateTo(AppScreen.Compression) },
                         contentPadding = PaddingValues(0.dp)
+                    )
+                    is AppScreen.Info -> InfoScreen(
+                        onBack = { popBackStack() }
                     )
                     is AppScreen.Compression -> CompressionScreen(
                         viewModel = viewModel,
