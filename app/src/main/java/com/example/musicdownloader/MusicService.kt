@@ -76,20 +76,35 @@ class MusicService : MediaSessionService() {
         // ResolvingDataSource to handle dtech://stream/{id}
         val resolvingDataSourceFactory = ResolvingDataSource.Factory(defaultDataSourceFactory, object : ResolvingDataSource.Resolver {
             override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
-                if (dataSpec.uri.scheme == "dtech" && dataSpec.uri.pathSegments.firstOrNull() == "stream") {
-                    val videoId = dataSpec.uri.lastPathSegment
-                    if (!videoId.isNullOrBlank() && videoId != "stream") {
-                        try {
-                            // Resolve URL synchronously (blocking is allowed here)
-                            val streamInfo = runBlocking {
-                                MusicRepository.getStreamUrlWithCache(this@MusicService, videoId, "https://www.youtube.com/watch?v=$videoId")
-                            }
-                            if (streamInfo.url.isNotBlank()) {
-                                return dataSpec.buildUpon().setUri(Uri.parse(streamInfo.url)).build()
-                            }
-                        } catch (e: Exception) {
-                            AppLogger.log("[Service] Failed to resolve dtech URI: ${e.message}")
+                // Determine if we need to resolve this URI
+                var videoId: String? = null
+
+                if (dataSpec.uri.scheme == "dtech") {
+                    // Case 1: dtech://stream/VIDEO_ID (Host = stream)
+                    if (dataSpec.uri.host == "stream") {
+                        videoId = dataSpec.uri.lastPathSegment
+                    }
+                    // Case 2: dtech:///stream/VIDEO_ID (Host = null, Path starts with stream)
+                    else if (dataSpec.uri.pathSegments.firstOrNull() == "stream") {
+                        videoId = dataSpec.uri.lastPathSegment
+                    }
+                }
+
+                if (!videoId.isNullOrBlank() && videoId != "stream") {
+                    try {
+                        AppLogger.log("[Service] Resolving dtech URI for videoId: $videoId")
+                        // Resolve URL synchronously (blocking is allowed here)
+                        val streamInfo = runBlocking {
+                            MusicRepository.getStreamUrlWithCache(this@MusicService, videoId!!, "https://www.youtube.com/watch?v=$videoId")
                         }
+                        if (streamInfo.url.isNotBlank()) {
+                            AppLogger.log("[Service] Resolved dtech URI to: ${streamInfo.url}")
+                            return dataSpec.buildUpon().setUri(Uri.parse(streamInfo.url)).build()
+                        } else {
+                            AppLogger.log("[Service] Failed to resolve dtech URI: Stream URL is blank")
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.log("[Service] Failed to resolve dtech URI: ${e.message}")
                     }
                 }
                 return dataSpec
