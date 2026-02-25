@@ -528,7 +528,40 @@ object MusicRepository {
         }
 
         // 2. Fetch new URL
-        val streamInfo = YoutubeClient.getStreamUrl(context, webUrl)
+        var streamInfo: StreamInfo? = null
+
+        // Try InnerTube first (Fast)
+        try {
+            AppLogger.log("[Repo] Trying InnerTube for stream...")
+            streamInfo = InnerTubeClient.getStreamUrl(context, videoId)
+            if (!isValidStreamUrl(streamInfo.url)) {
+                AppLogger.log("[Repo] InnerTube returned invalid URL.")
+                streamInfo = null
+            } else {
+                AppLogger.log("[Repo] InnerTube success.")
+            }
+        } catch (e: Exception) {
+            AppLogger.log("[Repo] InnerTube stream fetch failed: ${e.message}")
+        }
+
+        // Fallback to YoutubeClient (Slow but Reliable)
+        if (streamInfo == null) {
+            try {
+                AppLogger.log("[Repo] Fallback to YoutubeClient for stream...")
+                // Add timeout for YoutubeClient fallback (25s limit)
+                streamInfo = kotlinx.coroutines.withTimeoutOrNull(25_000L) {
+                    YoutubeClient.getStreamUrl(context, webUrl)
+                }
+
+                if (streamInfo == null) {
+                     AppLogger.log("[Repo] YoutubeClient timed out or returned null.")
+                     throw java.io.IOException("Stream fetch timed out")
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[Repo] YoutubeClient failed: ${e.message}")
+                throw e
+            }
+        }
 
         // 3. Parse Expiration & Cache
         if (isValidStreamUrl(streamInfo.url)) {

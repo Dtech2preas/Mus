@@ -310,14 +310,23 @@ fun FullScreenPlayer(
                             )
                             viewModel.toggleLibraryStatus(videoItem, isSavedToLibrary)
                         }
-                    }
+                    },
+                    enabled = !uiState.isLoadingPlayer
                 ) {
-                    Icon(
-                        imageVector = if (isSavedToLibrary) Icons.Rounded.CheckCircle else Icons.Rounded.AddCircleOutline,
-                        contentDescription = "Library",
-                        tint = if (isSavedToLibrary) AccentBlue else TextSecondary,
-                        modifier = Modifier.size(32.dp)
-                    )
+                    if (uiState.isLoadingPlayer) {
+                         CircularProgressIndicator(
+                             modifier = Modifier.size(24.dp),
+                             color = AccentBlue,
+                             strokeWidth = 2.dp
+                         )
+                    } else {
+                        Icon(
+                            imageVector = if (isSavedToLibrary) Icons.Rounded.CheckCircle else Icons.Rounded.AddCircleOutline,
+                            contentDescription = "Library",
+                            tint = if (isSavedToLibrary) AccentBlue else TextSecondary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                 }
             }
 
