@@ -61,8 +61,14 @@ class MusicService : MediaSessionService() {
         // 1. Base DataSource Factory (Global)
         // We now primarily play local files, but keep network capabilities for robustness.
         val userAgent = NetworkUtils.USER_AGENT
-        val httpDataSourceFactory = OkHttpDataSource.Factory(InnerTubeClient.client)
+
+        // CRITICAL: Use DefaultHttpDataSource with Cookies and Cross-Protocol Redirects
+        // This matches the robust configuration used in onCustomCommand for direct streams.
+        val cookie = CookieManager.getCookie(this)
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
+            .setAllowCrossProtocolRedirects(true)
+            .setDefaultRequestProperties(mapOf("Cookie" to cookie))
 
         // Wrap in DefaultDataSource.Factory to support File URIs
         val defaultDataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
