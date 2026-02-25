@@ -33,6 +33,7 @@ import com.example.musicdownloader.utils.AdManager
 @Composable
 fun SettingsScreen(
     onShowLogs: () -> Unit,
+    onNavigateToInfo: () -> Unit,
     onNavigateToCompression: () -> Unit,
     contentPadding: PaddingValues
 ) {
@@ -249,6 +250,12 @@ fun SettingsScreen(
         SettingsSectionTitle(title = "Support", icon = Icons.Default.Favorite)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
+                SettingsActionRow(
+                    label = "App Info & Guide",
+                    icon = Icons.Default.Info,
+                    onClick = onNavigateToInfo
+                )
+                Divider(color = MaterialTheme.colorScheme.background)
                 SettingsActionRow(
                     label = "Join Telegram Channel",
                     icon = Icons.Default.Send,

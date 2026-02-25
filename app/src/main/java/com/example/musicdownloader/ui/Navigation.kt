@@ -7,6 +7,7 @@ sealed class AppScreen {
     object Identify : AppScreen()
     object Library : AppScreen()
     object Settings : AppScreen()
+    object Info : AppScreen()
 
     // Library Sub-screens
     object Playlists : AppScreen()
