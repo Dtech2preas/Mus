@@ -641,68 +641,107 @@ object MusicRepository {
     }
 
     suspend fun refreshRecommendations(context: Context) {
-        AppLogger.log("[Repo] Refreshing Recommendations...")
+        AppLogger.log("[Repo] Refreshing Recommendations (New Logic)...")
         val database = AppDatabase.getDatabase(context)
         val dao = database.streamSongDao()
 
         // 1. Clear old recommendations
         dao.clearRecommended()
 
-        // 2. Prepare Queries
+        // 2. Prepare Inputs
         val topArtist = database.playHistoryDao().getTopArtistSync()
-        val genres = UserPreferences.getGenres(context)
+        val genres = UserPreferences.getGenres(context).toList()
 
-        val queries = mutableListOf<String>()
+        val finalSelection = mutableListOf<VideoItem>()
+        val targetSize = 15
+
+        // 3. Top Artist Logic (Allocate 2 spots)
         if (topArtist != null) {
-            queries.add("${topArtist.artist} mix")
-        }
-        if (genres.isNotEmpty()) {
-            // Shuffle and take up to 3 genres to mix it up
-            queries.addAll(genres.shuffled().take(3).map { "$it mix" })
-        }
-
-        // Check if we have any basis for recommendation
-        if (queries.isEmpty()) {
-            queries.add("Trending Music")
-        }
-
-        AppLogger.log("[Repo] Recommendation queries: $queries")
-
-        // 3. Fetch & Filter
-        val queryResults = mutableMapOf<String, List<VideoItem>>()
-
-        queries.forEach { query ->
+            val artistQuery = "${topArtist.artist} songs"
             try {
-                AppLogger.log("[Repo] Fetching recs for: $query")
-                val rawResults = InnerTubeClient.search(query)
-                // Filter: < 15 mins (900s)
-                val filtered = rawResults.filter { parseDuration(it.duration) < 900 }
-                queryResults[query] = filtered
+                AppLogger.log("[Repo] Fetching top artist recs: $artistQuery")
+                val results = InnerTubeClient.search(artistQuery)
+                val filtered = results.filter { parseDuration(it.duration) < 900 }
+
+                // Add up to 2 songs
+                var count = 0
+                for (video in filtered) {
+                    if (count >= 2) break
+                    if (finalSelection.none { it.id == video.id }) {
+                        finalSelection.add(video)
+                        count++
+                    }
+                }
             } catch (e: Exception) {
-                AppLogger.log("[Repo] Failed to fetch recs for '$query': ${e.message}")
+                AppLogger.log("[Repo] Failed to fetch top artist recs: ${e.message}")
             }
         }
 
-        // 4. Round-Robin Selection (Limit 15)
-        val finalSelection = mutableListOf<VideoItem>()
-        var active = true
-        var index = 0
+        // 4. Genre Logic
+        // Determine remaining slots
+        if (genres.isEmpty()) {
+            // Fallback if no genres selected
+            try {
+                val query = "Trending Music"
+                AppLogger.log("[Repo] Fetching fallback: $query")
+                val results = InnerTubeClient.search(query)
+                val filtered = results.filter { parseDuration(it.duration) < 900 }
 
-        while (active && finalSelection.size < 15) {
-            active = false
-            for (query in queries) {
-                val list = queryResults[query]
-                if (list != null && index < list.size) {
-                    val candidate = list[index]
-                    // Ensure uniqueness
-                    if (finalSelection.none { it.id == candidate.id }) {
-                        finalSelection.add(candidate)
+                for (video in filtered) {
+                    if (finalSelection.size >= targetSize) break
+                    if (finalSelection.none { it.id == video.id }) {
+                        finalSelection.add(video)
                     }
-                    active = true
-                    if (finalSelection.size >= 15) break
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[Repo] Fallback failed: ${e.message}")
+            }
+        } else {
+            // Use genres
+            val shuffledGenres = genres.shuffled()
+            val genreResults = mutableMapOf<String, List<VideoItem>>()
+
+            // We need to fetch from enough genres to fill the list.
+            // Since we round-robin, we should just fetch from all available genres (up to a limit)
+            // If user has many genres, we limit to 15 to avoid too many requests.
+            val activeGenres = shuffledGenres.take(15)
+
+            // Fetch results for each active genre
+            for (genre in activeGenres) {
+                try {
+                    // "remove the mix part" -> just use genre name
+                    val query = genre
+                    AppLogger.log("[Repo] Fetching genre recs: $query")
+                    val results = InnerTubeClient.search(query)
+                    val filtered = results.filter { parseDuration(it.duration) < 900 }
+                    if (filtered.isNotEmpty()) {
+                        genreResults[genre] = filtered
+                    }
+                } catch (e: Exception) {
+                    AppLogger.log("[Repo] Failed genre fetch for $genre: ${e.message}")
                 }
             }
-            index++
+
+            // Round Robin Fill
+            var index = 0
+            var addedAnything = true
+
+            while (finalSelection.size < targetSize && addedAnything) {
+                addedAnything = false
+                for (genre in activeGenres) {
+                    if (finalSelection.size >= targetSize) break
+
+                    val list = genreResults[genre]
+                    if (list != null && index < list.size) {
+                        val candidate = list[index]
+                        if (finalSelection.none { it.id == candidate.id }) {
+                            finalSelection.add(candidate)
+                            addedAnything = true
+                        }
+                    }
+                }
+                index++
+            }
         }
 
         // 5. Shuffle and Insert
