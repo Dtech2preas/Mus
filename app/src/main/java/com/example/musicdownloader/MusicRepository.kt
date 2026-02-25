@@ -717,7 +717,7 @@ object MusicRepository {
         }
     }
 
-    suspend fun addToLibrary(context: Context, video: VideoItem) {
+    suspend fun addToLibrary(context: Context, video: VideoItem, streamUrl: String? = null) {
         val song = StreamSong(
             id = video.id,
             title = video.title,
@@ -728,8 +728,23 @@ object MusicRepository {
             isManual = true,
             timestamp = System.currentTimeMillis()
         )
-        AppDatabase.getDatabase(context).streamSongDao().insert(song)
+        val database = AppDatabase.getDatabase(context)
+        database.streamSongDao().insert(song)
         AppLogger.log("[Repo] Added to Library (Stream): ${video.title}")
+
+        // Cache the stream URL if provided
+        if (streamUrl != null && isValidStreamUrl(streamUrl)) {
+            val expire = extractExpiration(streamUrl)
+            if (expire > 0) {
+                val currentTime = System.currentTimeMillis() / 1000
+                // Safety buffer: subtract 5 minutes
+                val safeExpire = expire - 300
+                if (safeExpire > currentTime) {
+                    database.streamCacheDao().insert(StreamCache(video.id, streamUrl, safeExpire, currentTime))
+                    AppLogger.log("[Repo] Cached stream for library song ${video.id}. Expires at $safeExpire")
+                }
+            }
+        }
     }
 
     suspend fun removeFromLibrary(context: Context, songId: String) {

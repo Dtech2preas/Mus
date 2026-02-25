@@ -68,7 +68,7 @@ fun FullScreenPlayer(
     viewModel: MusicViewModel,
     onCollapse: () -> Unit
 ) {
-    val currentMediaItem by viewModel.currentMediaItem.collectAsState()
+    val currentSongStatus by viewModel.currentSongStatus.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
@@ -76,18 +76,15 @@ fun FullScreenPlayer(
     val shuffleModeEnabled by viewModel.shuffleModeEnabled.collectAsState()
     val smartShuffleEnabled by viewModel.isSmartShuffleEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
-    val likedSongs by viewModel.likedSongIds.collectAsState()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val audioSessionId by viewModel.audioSessionId.collectAsState()
 
     val context = LocalContext.current
-    val currentSongId = currentMediaItem?.mediaId
-    val isLiked = currentSongId != null && likedSongs.contains(currentSongId)
 
-    // Check if saved to library
-    val isSavedToLibrary by remember(currentSongId) {
-        viewModel.isSavedToLibrary(currentSongId ?: "")
-    }.collectAsState(initial = false)
+    val currentMediaItem = currentSongStatus.mediaItem
+    val currentSongId = currentMediaItem?.mediaId
+    val isLiked = currentSongStatus.isLiked
+    val isSavedToLibrary = currentSongStatus.isInLibrary
 
     // Dynamic Color Extraction
     var dominantColor by remember { mutableStateOf(AccentBlue) }
