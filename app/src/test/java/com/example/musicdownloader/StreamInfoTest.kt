@@ -52,10 +52,9 @@ class StreamInfoTest {
     fun testStreamInfo() {
         val stream = StreamInfo(
             url = "http://test.com",
-            mimeType = "audio/mp4",
-            contentLength = 1000L
+            isHls = false
         )
-        assertTrue(stream.contentLength > 0)
-        assertEquals("audio/mp4", stream.mimeType)
+        assertEquals("http://test.com", stream.url)
+        assertEquals(false, stream.isHls)
     }
 }
