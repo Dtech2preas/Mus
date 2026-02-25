@@ -33,6 +33,10 @@ interface StreamSongDao {
     @Query("DELETE FROM stream_songs WHERE isManual = 0 AND timestamp < :timestamp")
     suspend fun deleteExpiredAutoSongs(timestamp: Long)
 
+    // Clear all recommended songs (isManual=0)
+    @Query("DELETE FROM stream_songs WHERE isManual = 0")
+    suspend fun clearRecommended()
+
     // Check if song exists in library (manual)
     @Query("SELECT EXISTS(SELECT 1 FROM stream_songs WHERE id = :id AND isManual = 1)")
     fun isSavedToLibrary(id: String): Flow<Boolean>
