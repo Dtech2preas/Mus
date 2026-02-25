@@ -202,6 +202,11 @@ object MusicRepository {
         try {
             database.songDao().deleteById("")
             database.streamSongDao().deleteById("")
+            // Also try to catch whitespace-only IDs which might slip through "deleteById('')"
+            // We can't query "isBlank" easily in SQL, so we trust "deleteById" cleans empty strings
+            // and we rely on preventing new ones.
+            // However, we can iterate all songs and check in code if we really want to be sure.
+            // For now, simple cleanup.
             AppLogger.log("[Repo] Cleaned up empty ID entries from DB")
         } catch (e: Exception) {
             AppLogger.log("[Repo] Failed to clean up DB: ${e.message}")
@@ -606,12 +611,16 @@ object MusicRepository {
                     thumbnailUrl = stream.thumbnailUrl,
                     filePath = "stream://${stream.id}" // Marker for Stream
                 )
-            }
+            }.filter { it.id.isNotBlank() } // Enforce valid IDs
+
+            // Filter downloads too just in case
+            val validDownloads = downloads.filter { it.id.isNotBlank() }
+
             // Combine and distinct by ID (Downloads take precedence)
-            val downloadIds = downloads.map { it.id }.toSet()
+            val downloadIds = validDownloads.map { it.id }.toSet()
             val uniqueStreams = mappedStreams.filter { it.id !in downloadIds }
 
-            downloads + uniqueStreams
+            validDownloads + uniqueStreams
         }
     }
 
@@ -718,6 +727,10 @@ object MusicRepository {
     }
 
     suspend fun addToLibrary(context: Context, video: VideoItem, streamUrl: String? = null) {
+        if (video.id.isBlank()) {
+            AppLogger.log("[Repo] addToLibrary aborted: Video ID is blank.")
+            return
+        }
         val song = StreamSong(
             id = video.id,
             title = video.title,
@@ -758,6 +771,10 @@ object MusicRepository {
     }
 
     suspend fun autoAddStreamSong(context: Context, video: VideoItem) {
+        if (video.id.isBlank()) {
+            AppLogger.log("[Repo] autoAddStreamSong aborted: Video ID is blank.")
+            return
+        }
         val dao = AppDatabase.getDatabase(context).streamSongDao()
         val existing = dao.getStreamSongById(video.id)
         if (existing == null) {

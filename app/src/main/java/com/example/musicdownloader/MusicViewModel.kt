@@ -437,6 +437,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun playSong(id: String, title: String, artist: String, thumbnailUrl: String, contextQueue: List<Song>? = null) {
         if (id.isBlank()) {
             AppLogger.log("[ViewModel] playSong called with empty ID! Aborting.")
+            viewModelScope.launch {
+                _toastEvent.emit("Cannot play: Song ID is invalid.")
+            }
             return
         }
         AppLogger.log("[ViewModel] playSong called: id=$id, title=$title")
