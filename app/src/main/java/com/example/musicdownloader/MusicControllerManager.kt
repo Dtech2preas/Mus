@@ -299,92 +299,13 @@ object MusicControllerManager {
         }
     }
 
-    suspend fun addToQueue(song: Song) {
-        AppLogger.log("[Controller] addToQueue: ${song.title}")
-
+    fun addMediaItemToQueue(mediaItem: MediaItem) {
+        AppLogger.log("[Controller] addMediaItemToQueue: ${mediaItem.mediaMetadata.title}")
         if (mediaController == null) {
-            AppLogger.log("[Controller] MediaController is null, cannot add to queue")
-            throw IllegalStateException("Player not initialized")
-        }
-
-        if (song.filePath.startsWith("stream://")) {
-            val id = song.filePath.removePrefix("stream://")
-            val uri = Uri.parse("dtech://stream/$id")
-
-            val metadata = MediaMetadata.Builder()
-                .setTitle(song.title)
-                .setArtist(song.artist)
-                .setArtworkUri(Uri.parse(song.thumbnailUrl))
-                .build()
-
-            val mediaItem = MediaItem.Builder()
-                .setUri(uri)
-                .setMediaId(song.id)
-                .setMediaMetadata(metadata)
-                .build()
-
-            mediaController!!.addMediaItem(mediaItem)
-            AppLogger.log("[Controller] Successfully added stream to queue")
+            AppLogger.log("[Controller] ERROR: MediaController is null, cannot add to queue")
             return
         }
-
-        // Validate File with Smart Discovery
-        val file = File(song.filePath)
-
-        var targetFile = file
-        if (!targetFile.exists()) {
-            AppLogger.log("[Controller] File not found at path: ${song.filePath}, attempting smart discovery...")
-            // We need to guess the parent directory. Usually it's the parent of the saved path.
-            val parentDir = file.parentFile
-            if (parentDir != null && parentDir.exists()) {
-                 val found = parentDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
-                 if (found != null) {
-                     AppLogger.log("[Controller] Smart discovery found file: ${found.absolutePath}")
-                     targetFile = found
-                 } else {
-                     AppLogger.log("[Controller] Smart discovery failed.")
-                     throw java.io.FileNotFoundException("File not found for ${song.title}")
-                 }
-            } else {
-                 // Try hardcoded path as fallback if parent is totally wrong
-                 val context = applicationContext
-                 if (context != null) {
-                      val downloadsDir = File(context.filesDir, "music_downloads")
-                      val found = downloadsDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
-                      if (found != null) {
-                           AppLogger.log("[Controller] Smart discovery (fallback) found file: ${found.absolutePath}")
-                           targetFile = found
-                      } else {
-                           throw java.io.FileNotFoundException("File path invalid and cannot be recovered: ${song.filePath}")
-                      }
-                 } else {
-                      throw java.io.FileNotFoundException("File path invalid and cannot be recovered: ${song.filePath}")
-                 }
-            }
-        }
-
-        try {
-            val metadata = MediaMetadata.Builder()
-                .setTitle(song.title)
-                .setArtist(song.artist)
-                .setArtworkUri(Uri.parse(song.thumbnailUrl))
-                .build()
-
-            val mediaItem = MediaItem.Builder()
-                .setUri(Uri.fromFile(targetFile))
-                .setMediaId(song.id)
-                .setMediaMetadata(metadata)
-                .build()
-
-            // Just add the item. MediaController implementation of Player returns void/Unit.
-            // Operations are asynchronous but we assume command is sent.
-            mediaController!!.addMediaItem(mediaItem)
-
-            AppLogger.log("[Controller] Successfully added to queue")
-        } catch (e: Exception) {
-            AppLogger.log("[Controller] Exception adding to queue: ${e.message}")
-            throw e
-        }
+        mediaController?.addMediaItem(mediaItem)
     }
 
     fun play() {

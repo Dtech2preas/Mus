@@ -52,6 +52,12 @@ data class MusicUiState(
     val genreFeeds: List<GenreFeed> = emptyList()
 )
 
+data class CurrentSongStatus(
+    val mediaItem: MediaItem? = null,
+    val isLiked: Boolean = false,
+    val isInLibrary: Boolean = false
+)
+
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(MusicUiState())
@@ -123,6 +129,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Playlists Flow
     val playlists: StateFlow<List<Playlist>> = MusicRepository.getPlaylists(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Unified Current Song Status (Atomic updates)
+    val currentSongStatus: StateFlow<CurrentSongStatus> = combine(
+        currentMediaItem,
+        likedSongIds,
+        librarySongs // Uses the unified list (downloads + manual streams)
+    ) { mediaItem, likedIds, library ->
+        val id = mediaItem?.mediaId
+        if (id == null) {
+            CurrentSongStatus()
+        } else {
+            val isLiked = likedIds.contains(id)
+            // Check if ID exists in the unified library list
+            val isInLibrary = library.any { it.id == id }
+            CurrentSongStatus(mediaItem, isLiked, isInLibrary)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CurrentSongStatus())
 
     // D-TECH DNA Stats Flow
     val dnaStats: StateFlow<DnaStats> = combine(
@@ -479,9 +502,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _filterDownloadedOnly.value = !_filterDownloadedOnly.value
     }
 
+    private fun getCurrentStreamUrl(videoId: String): String? {
+        val item = currentMediaItem.value
+        if (item?.mediaId == videoId) {
+            val uri = item.localConfiguration?.uri
+            if (uri != null && (uri.scheme == "http" || uri.scheme == "https")) {
+                return uri.toString()
+            }
+        }
+        return null
+    }
+
     fun addToLibrary(video: VideoItem) {
         viewModelScope.launch {
-            MusicRepository.addToLibrary(getApplication(), video)
+            val streamUrl = getCurrentStreamUrl(video.id)
+            MusicRepository.addToLibrary(getApplication(), video, streamUrl)
             _toastEvent.emit("Added to Library")
         }
     }
@@ -492,7 +527,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 MusicRepository.removeFromLibrary(getApplication(), video.id)
                 _toastEvent.emit("Removed from Library")
             } else {
-                MusicRepository.addToLibrary(getApplication(), video)
+                val streamUrl = getCurrentStreamUrl(video.id)
+                MusicRepository.addToLibrary(getApplication(), video, streamUrl)
                 _toastEvent.emit("Added to Library")
             }
         }
@@ -505,13 +541,82 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun addToQueue(song: Song): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                MusicControllerManager.addToQueue(song)
-                // _toastEvent.emit("Added to queue: ${song.title}") // UI handles success message usually
+                // Determine if it is a local file or stream
+                val isStream = song.filePath.startsWith("stream://")
+                val uri: android.net.Uri
+
+                if (isStream) {
+                    val id = song.filePath.removePrefix("stream://")
+                    uri = android.net.Uri.parse("dtech://stream/$id")
+                } else {
+                    val file = File(song.filePath)
+                    if (file.exists()) {
+                        uri = android.net.Uri.fromFile(file)
+                    } else {
+                        // Smart discovery fallback
+                        val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
+                        val found = outputDir.listFiles { _, name -> name.startsWith(song.id) }?.firstOrNull()
+                        if (found != null) {
+                            uri = android.net.Uri.fromFile(found)
+                        } else {
+                            // Fallback to stream if file completely missing
+                            uri = android.net.Uri.parse("dtech://stream/${song.id}")
+                        }
+                    }
+                }
+
+                val mediaItem = MediaItem.Builder()
+                    .setUri(uri)
+                    .setMediaId(song.id)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(song.title)
+                            .setArtist(song.artist)
+                            .setArtworkUri(android.net.Uri.parse(song.thumbnailUrl))
+                            .build()
+                    )
+                    .build()
+
+                MusicControllerManager.addMediaItemToQueue(mediaItem)
                 true
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding to queue: ${e.message}")
-                _toastEvent.emit("Failed to add to queue")
+                // _toastEvent.emit("Failed to add to queue") // Let caller handle
                 false
+            }
+        }
+    }
+
+    fun addToQueue(video: VideoItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Check if downloaded
+                val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
+                val found = outputDir.listFiles { _, name -> name.startsWith(video.id) }?.firstOrNull()
+
+                val uri = if (found != null) {
+                    android.net.Uri.fromFile(found)
+                } else {
+                    android.net.Uri.parse("dtech://stream/${video.id}")
+                }
+
+                val mediaItem = MediaItem.Builder()
+                    .setUri(uri)
+                    .setMediaId(video.id)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(video.title)
+                            .setArtist(video.uploader)
+                            .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
+                            .build()
+                    )
+                    .build()
+
+                MusicControllerManager.addMediaItemToQueue(mediaItem)
+                _toastEvent.emit("Added to queue")
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Error adding video to queue: ${e.message}")
+                _toastEvent.emit("Failed to add to queue")
             }
         }
     }
@@ -621,7 +726,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 MusicRepository.setLikeStatus(getApplication(), songId, !isLiked)
                 if (!isLiked) {
                     // Auto-add to library when liking
-                    MusicRepository.addToLibrary(getApplication(), video)
+                    // Pass stream URL if available
+                    // Note: Cannot call getCurrentStreamUrl from IO dispatcher if it accesses StateFlow value?
+                    // Actually StateFlow value is thread-safe.
+                    val streamUrl = getCurrentStreamUrl(video.id)
+                    MusicRepository.addToLibrary(getApplication(), video, streamUrl)
                 }
                 val msg = if (isLiked) "Removed from Liked Songs" else "Added to Liked Songs"
                 _toastEvent.emit(msg)
@@ -652,7 +761,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             MusicRepository.addSongToPlaylist(getApplication(), playlistId, video.id)
             // Auto-add to library when adding to playlist
-            MusicRepository.addToLibrary(getApplication(), video)
+            val streamUrl = getCurrentStreamUrl(video.id)
+            MusicRepository.addToLibrary(getApplication(), video, streamUrl)
         }
     }
 
