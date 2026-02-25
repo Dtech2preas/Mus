@@ -46,7 +46,9 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
     val playHistory by viewModel.playHistory.collectAsStateWithLifecycle()
 
     // Map of downloaded song IDs for quick lookup
-    val downloadedIds = remember(librarySongs) { librarySongs.map { it.id }.toSet() }
+    val downloadedIds = remember(librarySongs) {
+        librarySongs.filter { !it.filePath.startsWith("stream://") }.map { it.id }.toSet()
+    }
 
     Column(
         modifier = Modifier

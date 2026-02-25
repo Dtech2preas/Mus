@@ -512,11 +512,16 @@ object MusicRepository {
         // 1. Check DB Cache
         val cached = dao.getStreamCache(videoId)
         if (cached != null) {
-            if (cached.expireTime > currentTime) {
+            if (isValidStreamUrl(cached.streamUrl) && cached.expireTime > currentTime) {
                 AppLogger.log("[Repo] Stream Cache HIT for $videoId. Expires in ${(cached.expireTime - currentTime)}s")
                 return StreamInfo(cached.streamUrl, cached.streamUrl.contains(".m3u8"))
             } else {
-                AppLogger.log("[Repo] Stream Cache EXPIRED for $videoId")
+                if (cached.expireTime <= currentTime) {
+                     AppLogger.log("[Repo] Stream Cache EXPIRED for $videoId")
+                } else {
+                     AppLogger.log("[Repo] Stream Cache HIT but URL INVALID for $videoId. Deleting.")
+                     dao.deleteStreamCache(videoId)
+                }
             }
         } else {
             AppLogger.log("[Repo] Stream Cache MISS for $videoId")
@@ -526,7 +531,7 @@ object MusicRepository {
         val streamInfo = YoutubeClient.getStreamUrl(context, webUrl)
 
         // 3. Parse Expiration & Cache
-        if (streamInfo.url.isNotBlank()) {
+        if (isValidStreamUrl(streamInfo.url)) {
             val expire = extractExpiration(streamInfo.url)
             if (expire > 0) {
                 // Safety buffer: subtract 5 minutes from expiration
@@ -536,9 +541,15 @@ object MusicRepository {
                     AppLogger.log("[Repo] Cached stream for $videoId. Expires at $safeExpire")
                 }
             }
+        } else if (streamInfo.url.isNotBlank()) {
+             AppLogger.log("[Repo] Fetched URL is invalid, not caching.")
         }
 
         return streamInfo
+    }
+
+    private fun isValidStreamUrl(url: String): Boolean {
+        return url.isNotBlank() && url.startsWith("http") && !url.contains(" ")
     }
 
     suspend fun prefetchStream(context: Context, videoId: String) {
@@ -623,41 +634,86 @@ object MusicRepository {
     suspend fun refreshRecommendations(context: Context) {
         AppLogger.log("[Repo] Refreshing Recommendations...")
         val database = AppDatabase.getDatabase(context)
+        val dao = database.streamSongDao()
 
-        // 1. Get Top Artist & Genre (Sync)
+        // 1. Clear old recommendations
+        dao.clearRecommended()
+
+        // 2. Prepare Queries
         val topArtist = database.playHistoryDao().getTopArtistSync()
         val genres = UserPreferences.getGenres(context)
 
         val queries = mutableListOf<String>()
         if (topArtist != null) {
             queries.add("${topArtist.artist} mix")
-            queries.add("Similar to ${topArtist.artist}")
         }
         if (genres.isNotEmpty()) {
-            queries.add("${genres.random()} mix")
+            // Shuffle and take up to 3 genres to mix it up
+            queries.addAll(genres.shuffled().take(3).map { "$it mix" })
         }
 
         // Check if we have any basis for recommendation
         if (queries.isEmpty()) {
-            AppLogger.log("[Repo] No user history or preferences found. Skipping recommendations.")
-            // Ideally we might want to clear existing "wild" recommendations here if any exist from before?
-            // But let's just not add new ones.
-            return
+            queries.add("Trending Music")
         }
 
-        // Fetch
+        AppLogger.log("[Repo] Recommendation queries: $queries")
+
+        // 3. Fetch & Filter
+        val queryResults = mutableMapOf<String, List<VideoItem>>()
+
         queries.forEach { query ->
             try {
                 AppLogger.log("[Repo] Fetching recs for: $query")
-                // Use InnerTube for search
-                val results = InnerTubeClient.search(query)
-                // Filter and Insert
-                results.forEach { video ->
-                    autoAddStreamSong(context, video)
-                }
+                val rawResults = InnerTubeClient.search(query)
+                // Filter: < 15 mins (900s)
+                val filtered = rawResults.filter { parseDuration(it.duration) < 900 }
+                queryResults[query] = filtered
             } catch (e: Exception) {
                 AppLogger.log("[Repo] Failed to fetch recs for '$query': ${e.message}")
             }
+        }
+
+        // 4. Round-Robin Selection (Limit 15)
+        val finalSelection = mutableListOf<VideoItem>()
+        var active = true
+        var index = 0
+
+        while (active && finalSelection.size < 15) {
+            active = false
+            for (query in queries) {
+                val list = queryResults[query]
+                if (list != null && index < list.size) {
+                    val candidate = list[index]
+                    // Ensure uniqueness
+                    if (finalSelection.none { it.id == candidate.id }) {
+                        finalSelection.add(candidate)
+                    }
+                    active = true
+                    if (finalSelection.size >= 15) break
+                }
+            }
+            index++
+        }
+
+        // 5. Shuffle and Insert
+        finalSelection.shuffled().forEach { video ->
+            autoAddStreamSong(context, video)
+        }
+
+        AppLogger.log("[Repo] Added ${finalSelection.size} new recommendations.")
+    }
+
+    private fun parseDuration(durationStr: String): Long {
+        try {
+            val parts = durationStr.split(":").map { it.toLong() }
+            return when (parts.size) {
+                2 -> parts[0] * 60 + parts[1]
+                3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
+                else -> 0L
+            }
+        } catch (e: Exception) {
+            return 0L
         }
     }
 
