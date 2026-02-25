@@ -301,7 +301,7 @@ fun FullScreenPlayer(
                                 id = currentSongId,
                                 title = title,
                                 uploader = artist,
-                                duration = "",
+                                duration = formatTime(duration),
                                 thumbnailUrl = artworkUri?.toString() ?: "",
                                 webUrl = "https://youtube.com/watch?v=$currentSongId"
                             )
@@ -514,7 +514,7 @@ fun FullScreenPlayer(
                                 id = currentSongId,
                                 title = title,
                                 uploader = artist,
-                                duration = "",
+                                duration = formatTime(duration),
                                 thumbnailUrl = artworkUri?.toString() ?: "",
                                 webUrl = "https://youtube.com/watch?v=$currentSongId"
                             )
@@ -580,7 +580,7 @@ fun FullScreenPlayer(
                         id = currentSongId,
                         title = title,
                         uploader = artist,
-                        duration = "",
+                        duration = formatTime(duration),
                         thumbnailUrl = artworkUri?.toString() ?: "",
                         webUrl = "https://youtube.com/watch?v=$currentSongId"
                     )

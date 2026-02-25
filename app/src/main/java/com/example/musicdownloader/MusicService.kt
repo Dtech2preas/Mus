@@ -177,6 +177,7 @@ class MusicService : MediaSessionService() {
                 val title = args.getString("TITLE")
                 val artist = args.getString("ARTIST")
                 val artworkUri = args.getString("ARTWORK_URI")
+                val mediaId = args.getString("MEDIA_ID") ?: ""
 
                 if (url != null) {
                     serviceScope.launch(Dispatchers.Main) {
@@ -206,6 +207,7 @@ class MusicService : MediaSessionService() {
                             // 4. Build Media Item with Metadata
                             val mediaItem = MediaItem.Builder()
                                 .setUri(url)
+                                .setMediaId(mediaId)
                                 .setMediaMetadata(metadata)
                                 .build()
 
