@@ -152,8 +152,10 @@ object MusicControllerManager {
                     val itemCount = controller.mediaItemCount
                     val remaining = itemCount - currentIndex - 1
 
-                    if (remaining < 4) { // Increased threshold to 4 to ensure queue is always populated
-                        AppLogger.log("[Controller] Smart Shuffle: Queue running low ($remaining left). Fetching recommendation...")
+                    val bufferSize = UserPreferences.getSmartShuffleBuffer(context)
+
+                    if (remaining < bufferSize) {
+                        AppLogger.log("[Controller] Smart Shuffle: Queue running low ($remaining left, target $bufferSize). Fetching recommendation...")
                         val recommendation = SmartShuffleManager.getNextRecommendation(context)
                         if (recommendation != null) {
                             addVideoItemToQueue(recommendation)
@@ -357,6 +359,9 @@ object MusicControllerManager {
         mediaController?.seekTo(positionMs)
     }
 
+    fun setPlaybackSpeed(speed: Float) {
+        mediaController?.setPlaybackSpeed(speed)
+    }
 
     fun release() {
         mediaControllerFuture?.let { MediaController.releaseFuture(it) }

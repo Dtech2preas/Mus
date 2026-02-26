@@ -826,6 +826,48 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         MusicControllerManager.launchEqualizer(getApplication())
     }
 
+    // --- Sleep Timer ---
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
+    private val _sleepTimerRemaining = MutableStateFlow<Long?>(null)
+    val sleepTimerRemaining: StateFlow<Long?> = _sleepTimerRemaining.asStateFlow()
+
+    fun startSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        if (minutes <= 0) return
+
+        val durationMs = minutes * 60 * 1000L
+        val endTime = System.currentTimeMillis() + durationMs
+
+        viewModelScope.launch {
+             _toastEvent.emit("Sleep timer set for $minutes minutes")
+        }
+
+        sleepTimerJob = viewModelScope.launch {
+            while (System.currentTimeMillis() < endTime) {
+                _sleepTimerRemaining.value = endTime - System.currentTimeMillis()
+                delay(1000)
+            }
+            _sleepTimerRemaining.value = null
+            MusicControllerManager.pause()
+            _toastEvent.emit("Sleep timer finished")
+        }
+    }
+
+    fun cancelSleepTimer() {
+        if (sleepTimerJob != null) {
+            sleepTimerJob?.cancel()
+            sleepTimerJob = null
+            _sleepTimerRemaining.value = null
+            viewModelScope.launch {
+                 _toastEvent.emit("Sleep timer cancelled")
+            }
+        }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        MusicControllerManager.setPlaybackSpeed(speed)
+    }
+
     fun compressSongs(songs: List<Song>, quality: CompressionQuality) {
         viewModelScope.launch(Dispatchers.IO) {
             _isCompressing.value = true

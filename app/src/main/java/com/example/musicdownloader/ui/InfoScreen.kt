@@ -133,6 +133,48 @@ fun InfoScreen(
                 )
             }
 
+            // --- 4. NEW FEATURES ---
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                InfoSectionHeader("New Features (v1.2)")
+            }
+            item {
+                InfoCard(
+                    title = "Sleep Timer",
+                    description = "Fall asleep to your favorite tunes. Set a timer (from 5 to 120 minutes) in the player menu to automatically pause playback."
+                )
+            }
+            item {
+                InfoCard(
+                    title = "Playback Speed Control",
+                    description = "Listen at your own pace. Adjust playback speed from 0.25x to 2.0x via the player menu."
+                )
+            }
+            item {
+                InfoCard(
+                    title = "System Equalizer",
+                    description = "Fine-tune your audio experience. Access your device's built-in Equalizer directly from the Player menu or Settings."
+                )
+            }
+            item {
+                InfoCard(
+                    title = "Smart Shuffle Customization",
+                    description = "Control how many songs are pre-loaded in Smart Shuffle mode via Settings. Higher values mean smoother playback but more data usage."
+                )
+            }
+            item {
+                InfoCard(
+                    title = "Quick Queue",
+                    description = "Swipe right on any song in your library to quickly add it to your playback queue."
+                )
+            }
+            item {
+                 InfoCard(
+                    title = "Lyrics & Video",
+                    description = "Quickly search for lyrics or watch the official music video on YouTube directly from the player menu."
+                )
+            }
+
             item {
                 Spacer(modifier = Modifier.height(32.dp))
             }
