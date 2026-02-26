@@ -213,13 +213,8 @@ fun FullScreenPlayer(
                     )
                 }
 
-                IconButton(onClick = { /* More Options */ }) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = "More",
-                        tint = TextSecondary
-                    )
-                }
+                // Placeholder to balance the layout (keep title centered)
+                Spacer(modifier = Modifier.size(48.dp))
             }
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -134,6 +134,19 @@ fun MusicRowItem(
 
             Spacer(modifier = Modifier.width(8.dp))
 
+            if (isLibrary && !isDownloaded && !isWaiting && (downloadProgress == null || downloadProgress == 0f)) {
+                 IconButton(onClick = {
+                    HapticUtils.performHapticFeedback(context)
+                    onDownloadClick()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Download",
+                        tint = ElectricPurple
+                    )
+                }
+            }
+
             if (isLibrary) {
                 IconButton(onClick = onOptionClick) {
                     Icon(

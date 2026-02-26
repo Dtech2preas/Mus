@@ -181,6 +181,17 @@ fun LibraryScreen(
                             onClick = {
                                 viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
                             },
+                            onDownloadClick = {
+                                val videoItem = VideoItem(
+                                    id = song.id,
+                                    title = song.title,
+                                    uploader = song.artist,
+                                    duration = song.duration,
+                                    thumbnailUrl = song.thumbnailUrl,
+                                    webUrl = "https://youtube.com/watch?v=${song.id}"
+                                )
+                                viewModel.downloadSong(videoItem)
+                            },
                             onOptionClick = { showMenu = true }
                         )
 

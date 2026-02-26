@@ -150,14 +150,6 @@ fun SettingsScreen(
         SettingsSectionTitle(title = "Library & Audio", icon = Icons.Default.Settings)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
-                // Equalizer
-                SettingsActionRow(
-                    label = "System Equalizer",
-                    icon = Icons.Default.Settings, // Using Settings icon as placeholder or generic
-                    onClick = { viewModel.launchEqualizer() }
-                )
-                Divider(color = MaterialTheme.colorScheme.background)
-
                 // Import Local
                 val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
                      androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -202,10 +194,10 @@ fun SettingsScreen(
         }
 
         // --- 5. PREFERENCES (Genres) ---
-        SettingsSectionTitle(title = "Music Preferences", icon = Icons.Default.Favorite)
+        SettingsSectionTitle(title = "Your Vibe", icon = Icons.Default.Favorite)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Your 'Made For You' Genres:", style = MaterialTheme.typography.bodyMedium)
+                Text("Genres & Artists:", style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -228,7 +220,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = newGenreText,
                         onValueChange = { newGenreText = it },
-                        label = { Text("Add Genre") },
+                        label = { Text("Add Genre or Artist") },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )

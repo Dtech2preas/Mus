@@ -50,14 +50,14 @@ fun GenreSelectionScreen(
             Spacer(modifier = Modifier.height(48.dp))
 
             Text(
-                text = "Pick Your Vibe",
+                text = "Add your vibe",
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "What do you like to listen to? We'll build a feed just for you.",
+                text = "Add a genre or your favourite artists.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -69,7 +69,7 @@ fun GenreSelectionScreen(
                 OutlinedTextField(
                     value = customGenreText,
                     onValueChange = { customGenreText = it },
-                    label = { Text("Add your own (e.g. Lo-Fi)") },
+                    label = { Text("Add Genre or Artist") },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
