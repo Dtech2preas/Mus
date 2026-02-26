@@ -9,10 +9,10 @@ import com.example.musicdownloader.UserPreferences
 import com.example.musicdownloader.data.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -35,22 +35,8 @@ class StreamRefresherWorker(
         streamCacheDao.clearExpired(currentTime)
 
         // 2. Decide if we should run heavy operations
-        // If High-End Mode is OFF, we ONLY perform basic cleanup and potentially rotation of recommendations
-        // BUT we do not aggressively pre-fetch everything.
-        // The user requirement: "Always have a stream URL ready... in library" implies base functionality,
-        // but "High Tier option ... to auto all fetch stream URL from any and all visible stream songs".
-        // This suggests High-End mode IS the "Always Ready" feature for ALL songs.
-        // Without High-End mode, we rely on lazy fetching.
-        // However, recommendations rotate. We should handle rotation logic regardless of high-end mode?
-        // Let's assume High-End Mode controls ONLY the aggressive pre-fetching of URLs.
-        // Recommendation rotation (remove expired) should probably happen anyway to keep the list fresh.
-
         if (!isHighEndMode) {
              AppLogger.log("[StreamRefresher] High-End Mode is OFF. Skipping aggressive refresh.")
-             // We can still do a quick check for expired recommendations just to clean them up?
-             // Or just exit.
-             // Given "data usage" concerns, let's just exit.
-             // If recommendations expire, they will fail to play and trigger error handling or lazy refresh.
              return Result.success()
         }
 
@@ -65,7 +51,6 @@ class StreamRefresherWorker(
         }
 
         // 4. Filter candidates
-        // Since we are inside `if (isHighEndMode)`, we refresh EVERYTHING.
         val candidates = allStreamSongs
 
         AppLogger.log("[StreamRefresher] Found ${candidates.size} candidates for refresh (HighEnd: ON).")
@@ -81,10 +66,9 @@ class StreamRefresherWorker(
                 songsToRefresh.add(song.id)
             } else {
                 // Has cache, check expiry
-                // If expires in less than 10 minutes, refresh
                 if (cached.expireTime - currentTime < 600) {
                      if (!song.isManual) {
-                         // Expired Recommended -> Mark for rotation (remove and replace)
+                         // Expired Recommended -> Mark for rotation
                          expiredRecommendations.add(song.id)
                      } else {
                          // Expired Library -> Refresh
@@ -145,6 +129,6 @@ class StreamRefresherWorker(
             delay(staggerDelay)
         }
 
-        jobs.awaitAll()
+        jobs.joinAll()
     }
 }

@@ -656,8 +656,13 @@ object MusicRepository {
 
             validCandidates
         }.combine(getAllCachedIdsFlow(context)) { candidates, cachedIds ->
-            // Filter candidates that are in cachedIds
-            candidates.filter { it.id in cachedIds }
+            // Only apply cache filter if High-End Mode is enabled.
+            // If disabled, we show all candidates (allowing them to be fetched on demand).
+            if (UserPreferences.isHighEndModeEnabled(context)) {
+                candidates.filter { it.id in cachedIds }
+            } else {
+                candidates
+            }
         }
     }
 
