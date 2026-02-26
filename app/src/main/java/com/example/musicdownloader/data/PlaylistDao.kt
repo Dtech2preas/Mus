@@ -23,6 +23,9 @@ interface PlaylistDao {
     @Query("SELECT s.* FROM songs s INNER JOIN playlist_entries pe ON s.id = pe.songId WHERE pe.playlistId = :playlistId")
     fun getSongsForPlaylist(playlistId: Int): Flow<List<Song>>
 
+    @Query("SELECT * FROM playlist_entries WHERE playlistId = :playlistId")
+    fun getPlaylistEntriesFlow(playlistId: Int): Flow<List<PlaylistEntry>>
+
     @Query("DELETE FROM playlists WHERE id = :playlistId")
     suspend fun deletePlaylist(playlistId: Int)
 }

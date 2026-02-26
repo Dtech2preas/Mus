@@ -777,7 +777,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getSongsForPlaylist(playlistId: Int): kotlinx.coroutines.flow.Flow<List<Song>> {
-        return AppDatabase.getDatabase(getApplication()).playlistDao().getSongsForPlaylist(playlistId)
+        return MusicRepository.getSongsForPlaylist(getApplication(), playlistId)
     }
 
     fun rescanLibrary() {
