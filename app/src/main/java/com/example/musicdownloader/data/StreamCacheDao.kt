@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StreamCacheDao {
@@ -21,4 +22,7 @@ interface StreamCacheDao {
 
     @Query("DELETE FROM stream_cache")
     suspend fun clearAll()
+
+    @Query("SELECT videoId FROM stream_cache")
+    fun getAllCachedIds(): Flow<List<String>>
 }

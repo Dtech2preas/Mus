@@ -15,6 +15,7 @@ import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.data.StreamCache
 import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.workers.MusicDownloadWorker
+import com.example.musicdownloader.workers.StreamRefresherWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -648,10 +649,26 @@ object MusicRepository {
             val playedSet = historyIds.toSet()
             val librarySet = library.map { it.id }.toSet()
 
-            recommended.filter {
+            // Filter out played/library songs first
+            val validCandidates = recommended.filter {
                 it.id !in playedSet && it.id !in librarySet
-            }.take(15) // Limit to 15 recommendations as requested
+            }.take(15)
+
+            validCandidates
+        }.combine(getAllCachedIdsFlow(context)) { candidates, cachedIds ->
+            // Only apply cache filter if High-End Mode is enabled.
+            // If disabled, we show all candidates (allowing them to be fetched on demand).
+            if (UserPreferences.isHighEndModeEnabled(context)) {
+                candidates.filter { it.id in cachedIds }
+            } else {
+                candidates
+            }
         }
+    }
+
+    // Helper flow to get all cached IDs
+    private fun getAllCachedIdsFlow(context: Context): Flow<List<String>> {
+         return AppDatabase.getDatabase(context).streamCacheDao().getAllCachedIds()
     }
 
     suspend fun refreshRecommendations(context: Context) {
@@ -692,9 +709,7 @@ object MusicRepository {
         }
 
         // 4. Genre Logic
-        // Determine remaining slots
         if (genres.isEmpty()) {
-            // Fallback if no genres selected
             try {
                 val query = "Trending Music"
                 AppLogger.log("[Repo] Fetching fallback: $query")
@@ -711,19 +726,12 @@ object MusicRepository {
                 AppLogger.log("[Repo] Fallback failed: ${e.message}")
             }
         } else {
-            // Use genres
             val shuffledGenres = genres.shuffled()
             val genreResults = mutableMapOf<String, List<VideoItem>>()
-
-            // We need to fetch from enough genres to fill the list.
-            // Since we round-robin, we should just fetch from all available genres (up to a limit)
-            // If user has many genres, we limit to 15 to avoid too many requests.
             val activeGenres = shuffledGenres.take(15)
 
-            // Fetch results for each active genre
             for (genre in activeGenres) {
                 try {
-                    // "remove the mix part" -> just use genre name
                     val query = genre
                     AppLogger.log("[Repo] Fetching genre recs: $query")
                     val results = InnerTubeClient.search(query)
@@ -736,7 +744,6 @@ object MusicRepository {
                 }
             }
 
-            // Round Robin Fill
             var index = 0
             var addedAnything = true
 
@@ -763,7 +770,13 @@ object MusicRepository {
             autoAddStreamSong(context, video)
         }
 
-        AppLogger.log("[Repo] Added ${finalSelection.size} new recommendations.")
+        AppLogger.log("[Repo] Added ${finalSelection.size} new recommendations. Triggering StreamRefresherWorker...")
+
+        // 6. Trigger Stream Fetcher Immediate
+        val request = OneTimeWorkRequestBuilder<StreamRefresherWorker>()
+            .addTag("refresh_streams")
+            .build()
+        WorkManager.getInstance(context).enqueue(request)
     }
 
     private fun parseDuration(durationStr: String): Long {
@@ -810,6 +823,14 @@ object MusicRepository {
                     AppLogger.log("[Repo] Cached stream for library song ${video.id}. Expires at $safeExpire")
                 }
             }
+        }
+
+        // Trigger worker to ensure it stays fresh if High End Mode is on
+        if (UserPreferences.isHighEndModeEnabled(context)) {
+             val request = OneTimeWorkRequestBuilder<StreamRefresherWorker>()
+                .addTag("refresh_streams")
+                .build()
+            WorkManager.getInstance(context).enqueue(request)
         }
     }
 
