@@ -25,10 +25,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.musicdownloader.CookieManager
 import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.UserPreferences
 import com.example.musicdownloader.utils.AdManager
+import com.example.musicdownloader.workers.StreamRefresherWorker
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -50,6 +53,9 @@ fun SettingsScreen(
 
     // Toggle for DNA Dashboard
     var isDnaVisible by remember { mutableStateOf(false) }
+
+    // High End Mode State
+    var isHighEndMode by remember { mutableStateOf(UserPreferences.isHighEndModeEnabled(context)) }
 
     Column(
         modifier = Modifier
@@ -122,7 +128,7 @@ fun SettingsScreen(
         }
 
         // --- 3. APPEARANCE ---
-        SettingsSectionTitle(title = "Appearance", icon = Icons.Default.Face) // Face icon for appearance? Or something else.
+        SettingsSectionTitle(title = "Appearance", icon = Icons.Default.Face)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Accent Color", style = MaterialTheme.typography.titleMedium)
@@ -151,6 +157,43 @@ fun SettingsScreen(
         SettingsSectionTitle(title = "Library & Audio", icon = Icons.Default.Settings)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
+                // High End Mode Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "High-End Mode",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Auto-fetch URLs for all visible songs. Uses more data.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isHighEndMode,
+                        onCheckedChange = {
+                            isHighEndMode = it
+                            UserPreferences.setHighEndModeEnabled(context, it)
+                            if (it) {
+                                // Trigger immediate refresh if enabled
+                                Toast.makeText(context, "High-End Mode Enabled", Toast.LENGTH_SHORT).show()
+                                val request = OneTimeWorkRequestBuilder<StreamRefresherWorker>()
+                                    .addTag("refresh_streams_manual")
+                                    .build()
+                                WorkManager.getInstance(context).enqueue(request)
+                            }
+                        }
+                    )
+                }
+                Divider(color = MaterialTheme.colorScheme.background)
+
                 // Smart Shuffle Buffer
                 var bufferSize by remember { mutableIntStateOf(UserPreferences.getSmartShuffleBuffer(context)) }
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
