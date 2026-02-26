@@ -81,7 +81,7 @@ fun InfoScreen(
             item {
                 InfoCard(
                     title = "Downloading",
-                    description = "Tap the small blue download icon next to any song to add it to your library. This saves the song to your device for offline listening."
+                    description = "Tap the small download icon next to any song to add it to your library. For stream songs in your library, you can download them for offline playback."
                 )
             }
             item {
@@ -152,12 +152,6 @@ fun InfoScreen(
             }
             item {
                 InfoCard(
-                    title = "System Equalizer",
-                    description = "Fine-tune your audio experience. Access your device's built-in Equalizer directly from the Player menu or Settings."
-                )
-            }
-            item {
-                InfoCard(
                     title = "Smart Shuffle Customization",
                     description = "Control how many songs are pre-loaded in Smart Shuffle mode via Settings. Higher values mean smoother playback but more data usage."
                 )
@@ -166,12 +160,6 @@ fun InfoScreen(
                 InfoCard(
                     title = "Quick Queue",
                     description = "Swipe right on any song in your library to quickly add it to your playback queue."
-                )
-            }
-            item {
-                 InfoCard(
-                    title = "Lyrics & Video",
-                    description = "Quickly search for lyrics or watch the official music video on YouTube directly from the player menu."
                 )
             }
 

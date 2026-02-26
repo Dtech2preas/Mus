@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,93 +36,138 @@ fun GenreSelectionScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
                     .height(56.dp),
-                enabled = selectedGenres.isNotEmpty()
+                enabled = selectedGenres.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Done", style = MaterialTheme.typography.titleMedium)
+                Text("Start Your Journey", style = MaterialTheme.typography.titleMedium)
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp)
-        ) {
-            Spacer(modifier = Modifier.height(48.dp))
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            TechBackground()
 
-            Text(
-                text = "Pick Your Vibe",
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "What do you like to listen to? We'll build a feed just for you.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Custom Input
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = customGenreText,
-                    onValueChange = { customGenreText = it },
-                    label = { Text("Add your own (e.g. Lo-Fi)") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(
-                    onClick = {
-                        if (customGenreText.isNotBlank()) {
-                            selectedGenres = selectedGenres + customGenreText.trim()
-                            customGenreText = ""
-                        }
-                    },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Presets
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp)
             ) {
-                presets.forEach { genre ->
-                    val isSelected = selectedGenres.contains(genre)
-                    FilterChip(
-                        selected = isSelected,
+                Spacer(modifier = Modifier.height(48.dp))
+
+                Text(
+                    text = "Add your vibe",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Add a Genre or your favourite artists to build your unique feed.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Custom Input
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = customGenreText,
+                        onValueChange = { customGenreText = it },
+                        label = { Text("Add Artist or Genre") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
                         onClick = {
-                            selectedGenres = if (isSelected) {
-                                selectedGenres - genre
-                            } else {
-                                selectedGenres + genre
+                            if (customGenreText.isNotBlank()) {
+                                selectedGenres = selectedGenres + customGenreText.trim()
+                                customGenreText = ""
                             }
                         },
-                        label = { Text(genre) },
-                        leadingIcon = if (isSelected) {
-                            { Icon(Icons.Default.Check, contentDescription = null) }
-                        } else null
-                    )
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add")
+                    }
                 }
 
-                // Also display added custom genres as chips
-                selectedGenres.filter { !presets.contains(it) }.forEach { genre ->
-                    FilterChip(
-                        selected = true,
-                        onClick = { selectedGenres = selectedGenres - genre },
-                        label = { Text(genre) },
-                        leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
-                    )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Presets
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    presets.forEach { genre ->
+                        val isSelected = selectedGenres.contains(genre)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedGenres = if (isSelected) {
+                                    selectedGenres - genre
+                                } else {
+                                    selectedGenres + genre
+                                }
+                            },
+                            label = { Text(genre) },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null) }
+                            } else null
+                        )
+                    }
+
+                    // Also display added custom genres as chips
+                    selectedGenres.filter { !presets.contains(it) }.forEach { genre ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { selectedGenres = selectedGenres - genre },
+                            label = { Text(genre) },
+                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TechBackground() {
+    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+        val width = size.width
+        val height = size.height
+        val primaryColor = Color(0xFF2962FF) // AccentBlue
+
+        // Draw grid lines
+        val lineCount = 10
+        val stepX = width / lineCount
+        val stepY = height / lineCount
+
+        for (i in 0..lineCount) {
+             drawLine(
+                 color = primaryColor.copy(alpha = 0.05f),
+                 start = Offset(i * stepX, 0f),
+                 end = Offset(i * stepX, height),
+                 strokeWidth = 1.dp.toPx()
+             )
+             drawLine(
+                 color = primaryColor.copy(alpha = 0.05f),
+                 start = Offset(0f, i * stepY),
+                 end = Offset(width, i * stepY),
+                 strokeWidth = 1.dp.toPx()
+             )
+        }
+
+        // Draw glowing circles
+        drawCircle(
+             color = primaryColor.copy(alpha = 0.08f),
+             radius = 150.dp.toPx(),
+             center = Offset(width * 0.85f, height * 0.15f)
+        )
+         drawCircle(
+             color = primaryColor.copy(alpha = 0.08f),
+             radius = 120.dp.toPx(),
+             center = Offset(width * 0.15f, height * 0.85f)
+        )
     }
 }

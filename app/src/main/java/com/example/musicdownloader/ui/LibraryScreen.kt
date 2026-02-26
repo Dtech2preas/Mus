@@ -41,6 +41,8 @@ fun LibraryScreen(
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+    val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
     val filterDownloadedOnly by viewModel.filterDownloadedOnly.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -173,6 +175,8 @@ fun LibraryScreen(
                          val isStream = song.filePath.startsWith("stream://")
                          val baseSubtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
                          val subtitle = if (isStream) "$baseSubtitle • Stream" else baseSubtitle
+                         val downloadStatus = downloadProgress[song.id]
+                         val isInit = initializingDownloads.contains(song.id)
 
                          MusicRowItem(
                             title = song.title,
@@ -180,8 +184,21 @@ fun LibraryScreen(
                             thumbnailUrl = song.thumbnailUrl,
                             isLibrary = true,
                             isDownloaded = !isStream,
+                            downloadProgress = downloadStatus?.progress,
+                            isWaiting = isInit,
                             onClick = {
                                 viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
+                            },
+                            onDownloadClick = {
+                                val videoItem = VideoItem(
+                                    id = song.id,
+                                    title = song.title,
+                                    uploader = song.artist,
+                                    duration = song.duration,
+                                    thumbnailUrl = song.thumbnailUrl,
+                                    webUrl = "https://youtube.com/watch?v=${song.id}"
+                                )
+                                viewModel.downloadSong(videoItem)
                             },
                             onOptionClick = { showMenu = true }
                         )
