@@ -74,56 +74,57 @@ fun GenreSelectionScreen(
                         value = customGenreText,
                         onValueChange = { customGenreText = it },
                         label = { Text("Add Artist or Genre") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(
-                    onClick = {
-                        if (customGenreText.isNotBlank()) {
-                            selectedGenres = selectedGenres + customGenreText.trim()
-                            customGenreText = ""
-                        }
-                    },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Presets
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                presets.forEach { genre ->
-                    val isSelected = selectedGenres.contains(genre)
-                    FilterChip(
-                        selected = isSelected,
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
                         onClick = {
-                            selectedGenres = if (isSelected) {
-                                selectedGenres - genre
-                            } else {
-                                selectedGenres + genre
+                            if (customGenreText.isNotBlank()) {
+                                selectedGenres = selectedGenres + customGenreText.trim()
+                                customGenreText = ""
                             }
                         },
-                        label = { Text(genre) },
-                        leadingIcon = if (isSelected) {
-                            { Icon(Icons.Default.Check, contentDescription = null) }
-                        } else null
-                    )
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add")
+                    }
                 }
 
-                // Also display added custom genres as chips
-                selectedGenres.filter { !presets.contains(it) }.forEach { genre ->
-                    FilterChip(
-                        selected = true,
-                        onClick = { selectedGenres = selectedGenres - genre },
-                        label = { Text(genre) },
-                        leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
-                    )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Presets
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    presets.forEach { genre ->
+                        val isSelected = selectedGenres.contains(genre)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedGenres = if (isSelected) {
+                                    selectedGenres - genre
+                                } else {
+                                    selectedGenres + genre
+                                }
+                            },
+                            label = { Text(genre) },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null) }
+                            } else null
+                        )
+                    }
+
+                    // Also display added custom genres as chips
+                    selectedGenres.filter { !presets.contains(it) }.forEach { genre ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { selectedGenres = selectedGenres - genre },
+                            label = { Text(genre) },
+                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
+                        )
+                    }
                 }
             }
         }
