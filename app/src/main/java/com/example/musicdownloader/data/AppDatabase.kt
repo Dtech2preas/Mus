@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StreamCache::class,
         StreamSong::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,7 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "music_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .fallbackToDestructiveMigration() // Simple migration strategy for this overhaul
                 .build()
                 INSTANCE = instance
@@ -83,6 +83,30 @@ abstract class AppDatabase : RoomDatabase() {
                         PRIMARY KEY(`id`)
                     )
                 """.trimIndent())
+            }
+        }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Remove ForeignKey to Song to allow StreamSongs in Playlists
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `playlist_entries_new` (
+                        `playlistId` INTEGER NOT NULL,
+                        `songId` TEXT NOT NULL,
+                        PRIMARY KEY(`playlistId`, `songId`),
+                        FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                database.execSQL("""
+                    INSERT INTO `playlist_entries_new` (`playlistId`, `songId`)
+                    SELECT `playlistId`, `songId` FROM `playlist_entries`
+                """.trimIndent())
+
+                database.execSQL("DROP TABLE `playlist_entries`")
+                database.execSQL("ALTER TABLE `playlist_entries_new` RENAME TO `playlist_entries`")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_playlist_entries_playlistId` ON `playlist_entries` (`playlistId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_playlist_entries_songId` ON `playlist_entries` (`songId`)")
             }
         }
     }

@@ -135,6 +135,20 @@ fun MusicRowItem(
             Spacer(modifier = Modifier.width(8.dp))
 
             if (isLibrary) {
+                // Show download button for stream songs in library
+                if (!isDownloaded && !isWaiting && (downloadProgress == null || downloadProgress == 0f)) {
+                    IconButton(onClick = {
+                        HapticUtils.performHapticFeedback(context)
+                        onDownloadClick()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Download",
+                            tint = ElectricPurple
+                        )
+                    }
+                }
+
                 IconButton(onClick = onOptionClick) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,

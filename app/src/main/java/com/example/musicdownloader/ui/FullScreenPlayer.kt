@@ -247,52 +247,6 @@ fun FullScreenPlayer(
                             },
                             leadingIcon = { Icon(Icons.Rounded.SlowMotionVideo, contentDescription = null, tint = TextSecondary) }
                         )
-                        // Equalizer
-                        DropdownMenuItem(
-                            text = { Text("Equalizer", color = TextPrimary) },
-                            onClick = {
-                                showMoreOptions = false
-                                viewModel.launchEqualizer()
-                            },
-                            leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = TextSecondary) }
-                        )
-                        // Share
-                        DropdownMenuItem(
-                            text = { Text("Share Song", color = TextPrimary) },
-                            onClick = {
-                                showMoreOptions = false
-                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(android.content.Intent.EXTRA_TEXT, "Listen to $title by $artist on D-TECH Music!")
-                                }
-                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Share via"))
-                            },
-                            leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null, tint = TextSecondary) }
-                        )
-                        // Lyrics
-                        DropdownMenuItem(
-                            text = { Text("Search Lyrics", color = TextPrimary) },
-                            onClick = {
-                                showMoreOptions = false
-                                val query = "$title $artist lyrics"
-                                val url = "https://www.google.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                context.startActivity(intent)
-                            },
-                            leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null, tint = TextSecondary) }
-                        )
-                        // Watch Video
-                         DropdownMenuItem(
-                            text = { Text("Watch Video", color = TextPrimary) },
-                            onClick = {
-                                showMoreOptions = false
-                                if (currentSongId != null) {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://youtube.com/watch?v=$currentSongId"))
-                                    context.startActivity(intent)
-                                }
-                            },
-                            leadingIcon = { Icon(Icons.Rounded.OndemandVideo, contentDescription = null, tint = TextSecondary) }
-                        )
                     }
                 }
             }

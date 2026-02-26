@@ -393,6 +393,20 @@ object MusicRepository {
         AppDatabase.getDatabase(context).playlistDao().addSongToPlaylist(PlaylistEntry(playlistId, songId))
     }
 
+    fun getPlaylistSongs(context: Context, playlistId: Int): Flow<List<Song>> {
+        val database = AppDatabase.getDatabase(context)
+        return combine(
+            database.playlistDao().getPlaylistEntries(playlistId),
+            getLibrarySongs(context)
+        ) { entries, librarySongs ->
+            // Map entries to songs to preserve playlist order (if entries are ordered)
+            // and filter out missing songs
+            entries.mapNotNull { entry ->
+                librarySongs.find { it.id == entry.songId }
+            }
+        }
+    }
+
     suspend fun replaceSongFile(context: Context, oldSong: Song, newFile: File): Song = withContext(Dispatchers.IO) {
         val database = AppDatabase.getDatabase(context)
 
