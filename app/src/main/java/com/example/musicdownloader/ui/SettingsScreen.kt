@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.musicdownloader.CookieManager
 import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.UserPreferences
@@ -150,10 +151,38 @@ fun SettingsScreen(
         SettingsSectionTitle(title = "Library & Audio", icon = Icons.Default.Settings)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
+                // Smart Shuffle Buffer
+                var bufferSize by remember { mutableIntStateOf(UserPreferences.getSmartShuffleBuffer(context)) }
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(
+                        text = "Smart Shuffle Pre-load: $bufferSize songs",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = bufferSize.toFloat(),
+                        onValueChange = { bufferSize = it.toInt() },
+                        onValueChangeFinished = { UserPreferences.setSmartShuffleBuffer(context, bufferSize) },
+                        valueRange = 1f..10f,
+                        steps = 8,
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Text(
+                        text = "Higher value = smoother playback but more data/storage usage.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp
+                    )
+                }
+                Divider(color = MaterialTheme.colorScheme.background)
+
                 // Equalizer
                 SettingsActionRow(
-                    label = "System Equalizer",
-                    icon = Icons.Default.Settings, // Using Settings icon as placeholder or generic
+                    label = "System Equalizer (Audio FX)",
+                    icon = Icons.Default.Settings,
                     onClick = { viewModel.launchEqualizer() }
                 )
                 Divider(color = MaterialTheme.colorScheme.background)

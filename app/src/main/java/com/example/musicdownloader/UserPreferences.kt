@@ -13,6 +13,7 @@ object UserPreferences {
     private const val KEY_GENRES = "saved_genres"
     private const val KEY_LAST_REFRESHED = "last_genre_refreshed"
     private const val KEY_THEME_COLOR = "theme_color"
+    private const val KEY_SMART_SHUFFLE_BUFFER = "smart_shuffle_buffer_size"
 
     // Ad System Keys
     private const val KEY_FIRST_OPEN_TIME = "first_open_time"
@@ -74,6 +75,17 @@ object UserPreferences {
     fun setThemeColor(context: Context, color: Long) {
         getPrefs(context).edit {
             putLong(KEY_THEME_COLOR, color)
+        }
+    }
+
+    fun getSmartShuffleBuffer(context: Context): Int {
+        // Default buffer size of 3 songs
+        return getPrefs(context).getInt(KEY_SMART_SHUFFLE_BUFFER, 3)
+    }
+
+    fun setSmartShuffleBuffer(context: Context, size: Int) {
+        getPrefs(context).edit {
+            putInt(KEY_SMART_SHUFFLE_BUFFER, size.coerceIn(1, 10))
         }
     }
 

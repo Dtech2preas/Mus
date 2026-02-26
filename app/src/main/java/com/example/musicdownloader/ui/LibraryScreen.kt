@@ -162,7 +162,9 @@ fun LibraryScreen(
                     onSwipeToQueue = {
                         val success = viewModel.addToQueue(song)
                         if (success) {
-                            snackbarHostState.showSnackbar("Added to Queue")
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Added to Queue")
+                            }
                         }
                         success
                     }

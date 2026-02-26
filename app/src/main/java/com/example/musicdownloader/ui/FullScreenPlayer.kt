@@ -92,6 +92,9 @@ fun FullScreenPlayer(
 
     // Add to Playlist Sheet State
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var showMoreOptions by remember { mutableStateOf(false) }
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var showPlaybackSpeedDialog by remember { mutableStateOf(false) }
 
     if (currentMediaItem == null) return
 
@@ -213,12 +216,84 @@ fun FullScreenPlayer(
                     )
                 }
 
-                IconButton(onClick = { /* More Options */ }) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = "More",
-                        tint = TextSecondary
-                    )
+                Box {
+                    IconButton(onClick = { showMoreOptions = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = "More",
+                            tint = TextSecondary
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMoreOptions,
+                        onDismissRequest = { showMoreOptions = false },
+                        modifier = Modifier.background(DeepBlack.copy(alpha = 0.95f))
+                    ) {
+                        // Sleep Timer
+                        DropdownMenuItem(
+                            text = { Text("Sleep Timer", color = TextPrimary) },
+                            onClick = {
+                                showMoreOptions = false
+                                showSleepTimerDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = TextSecondary) }
+                        )
+                        // Playback Speed
+                        DropdownMenuItem(
+                            text = { Text("Playback Speed", color = TextPrimary) },
+                            onClick = {
+                                showMoreOptions = false
+                                showPlaybackSpeedDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.SlowMotionVideo, contentDescription = null, tint = TextSecondary) }
+                        )
+                        // Equalizer
+                        DropdownMenuItem(
+                            text = { Text("Equalizer", color = TextPrimary) },
+                            onClick = {
+                                showMoreOptions = false
+                                viewModel.launchEqualizer()
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = TextSecondary) }
+                        )
+                        // Share
+                        DropdownMenuItem(
+                            text = { Text("Share Song", color = TextPrimary) },
+                            onClick = {
+                                showMoreOptions = false
+                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, "Listen to $title by $artist on D-TECH Music!")
+                                }
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Share via"))
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null, tint = TextSecondary) }
+                        )
+                        // Lyrics
+                        DropdownMenuItem(
+                            text = { Text("Search Lyrics", color = TextPrimary) },
+                            onClick = {
+                                showMoreOptions = false
+                                val query = "$title $artist lyrics"
+                                val url = "https://www.google.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                context.startActivity(intent)
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null, tint = TextSecondary) }
+                        )
+                        // Watch Video
+                         DropdownMenuItem(
+                            text = { Text("Watch Video", color = TextPrimary) },
+                            onClick = {
+                                showMoreOptions = false
+                                if (currentSongId != null) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://youtube.com/watch?v=$currentSongId"))
+                                    context.startActivity(intent)
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.OndemandVideo, contentDescription = null, tint = TextSecondary) }
+                        )
+                    }
                 }
             }
 
@@ -588,6 +663,74 @@ fun FullScreenPlayer(
                 }
                 showAddToPlaylistDialog = false
             }
+        )
+    }
+
+    if (showSleepTimerDialog) {
+        val options = listOf(5, 10, 15, 30, 45, 60, 120)
+        AlertDialog(
+            onDismissRequest = { showSleepTimerDialog = false },
+            title = { Text("Sleep Timer", color = TextPrimary) },
+            text = {
+                Column {
+                    options.forEach { minutes ->
+                        Text(
+                            text = "$minutes minutes",
+                            color = TextSecondary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.startSleepTimer(minutes)
+                                    showSleepTimerDialog = false
+                                }
+                                .padding(vertical = 12.dp)
+                        )
+                    }
+                    Divider(color = TextSecondary.copy(alpha = 0.2f))
+                    Text(
+                        text = "Cancel Timer",
+                        color = Color.Red,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.cancelSleepTimer()
+                                showSleepTimerDialog = false
+                            }
+                            .padding(vertical = 12.dp)
+                    )
+                }
+            },
+            confirmButton = {},
+            containerColor = DeepBlack,
+            textContentColor = TextSecondary
+        )
+    }
+
+    if (showPlaybackSpeedDialog) {
+        val speeds = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+        AlertDialog(
+            onDismissRequest = { showPlaybackSpeedDialog = false },
+            title = { Text("Playback Speed", color = TextPrimary) },
+            text = {
+                Column {
+                    speeds.forEach { speed ->
+                        Text(
+                            text = "${speed}x" + if (speed == 1.0f) " (Normal)" else "",
+                            color = TextSecondary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setPlaybackSpeed(speed)
+                                    showPlaybackSpeedDialog = false
+                                }
+                                .padding(vertical = 12.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            containerColor = DeepBlack,
+            textContentColor = TextSecondary
         )
     }
 }
