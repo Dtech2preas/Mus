@@ -667,7 +667,7 @@ object MusicRepository {
     }
 
     // Helper flow to get all cached IDs
-    private fun getAllCachedIdsFlow(context: Context): Flow<List<String>> {
+    fun getAllCachedIdsFlow(context: Context): Flow<List<String>> {
          return AppDatabase.getDatabase(context).streamCacheDao().getAllCachedIds()
     }
 

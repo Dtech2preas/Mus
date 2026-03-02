@@ -27,6 +27,7 @@ fun LikedSongsScreen(
     val allSongs by viewModel.librarySongs.collectAsStateWithLifecycle()
 
     // Filter locally for now
+    val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
     val likedSongs = remember(likedIds, allSongs) {
         allSongs.filter { likedIds.contains(it.id) }
     }
@@ -81,6 +82,7 @@ fun LikedSongsScreen(
                              subtitle = subtitle,
                              thumbnailUrl = song.thumbnailUrl,
                              isLibrary = true,
+                             isCached = cachedStreamIds.contains(song.id),
                              onClick = {
                                  viewModel.playSong(
                                      id = song.id,

@@ -44,6 +44,7 @@ fun LibraryScreen(
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
     val filterDownloadedOnly by viewModel.filterDownloadedOnly.collectAsState()
+    val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -186,6 +187,7 @@ fun LibraryScreen(
                             isDownloaded = !isStream,
                             downloadProgress = downloadStatus?.progress,
                             isWaiting = isInit,
+                            isCached = cachedStreamIds.contains(song.id),
                             onClick = {
                                 viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
                             },
