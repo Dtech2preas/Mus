@@ -44,6 +44,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
     val playHistory by viewModel.playHistory.collectAsStateWithLifecycle()
+    val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
 
     // Map of downloaded song IDs for quick lookup
     val downloadedIds = remember(librarySongs) {
@@ -123,6 +124,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                 isDownloaded = false,
                                 downloadProgress = null,
                                 isWaiting = false,
+                                isCached = cachedStreamIds.contains(song.id),
                                 onClick = { viewModel.playStream(videoItem) },
                                 onDownload = { viewModel.downloadSong(videoItem) },
                                 modifier = Modifier.width(126.dp).height(180.dp)
@@ -162,6 +164,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                 isDownloaded = downloadedIds.contains(song.id),
                                     downloadProgress = downloadProgress[song.id]?.progress,
                                 isWaiting = initializingDownloads.contains(song.id),
+                                isCached = cachedStreamIds.contains(song.id),
                                 onClick = {
                                     if (downloadedIds.contains(song.id)) {
                                         viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)
@@ -216,6 +219,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                                  isDownloaded = downloadedIds.contains(song.id),
                                                  downloadProgress = downloadProgress[song.id]?.progress,
                                                  isWaiting = initializingDownloads.contains(song.id),
+                                                 isCached = cachedStreamIds.contains(song.id),
                                                  onClick = {
                                                      if (downloadedIds.contains(song.id)) {
                                                          viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)
@@ -269,6 +273,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                              isDownloaded = downloadedIds.contains(song.id),
                                              downloadProgress = downloadProgress[song.id]?.progress,
                                              isWaiting = initializingDownloads.contains(song.id),
+                                             isCached = cachedStreamIds.contains(song.id),
                                              onClick = {
                                                  if (downloadedIds.contains(song.id)) {
                                                      viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)

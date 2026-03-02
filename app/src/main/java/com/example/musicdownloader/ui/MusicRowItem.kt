@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ fun MusicRowItem(
     isDownloaded: Boolean = false,
     downloadProgress: Float? = null,
     isWaiting: Boolean = false,
+    isCached: Boolean = false,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
     onOptionClick: () -> Unit = {}
@@ -67,6 +69,25 @@ fun MusicRowItem(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                if (isCached && !isDownloaded && !isWaiting) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(2.dp)
+                            .size(16.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FlashOn,
+                            contentDescription = "Instant Play",
+                            tint = PremiumGold,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                }
 
                 if (isWaiting) {
                     Box(
@@ -189,6 +210,7 @@ fun MusicCard(
     isDownloaded: Boolean,
     downloadProgress: Float?,
     isWaiting: Boolean = false,
+    isCached: Boolean = false,
     onClick: () -> Unit,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier
@@ -209,6 +231,25 @@ fun MusicCard(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                if (isCached && !isDownloaded && !isWaiting) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(24.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FlashOn,
+                            contentDescription = "Instant Play",
+                            tint = PremiumGold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
 
                 if (isWaiting) {
                     Box(

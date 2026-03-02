@@ -24,6 +24,7 @@ fun ArtistDetailScreen(
     val allSongs by viewModel.librarySongs.collectAsStateWithLifecycle()
 
     // Filter for this artist
+    val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
     val artistSongs = remember(allSongs, artistName) {
         allSongs.filter { it.artist == artistName }
     }
@@ -71,6 +72,7 @@ fun ArtistDetailScreen(
                     subtitle = subtitle,
                     thumbnailUrl = song.thumbnailUrl,
                     isLibrary = true,
+                    isCached = cachedStreamIds.contains(song.id),
                     onClick = {
                          // Play this song, within the context of the Artist
                          viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl, artistSongs)

@@ -126,6 +126,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val likedSongIds: StateFlow<List<String>> = MusicRepository.getLikedSongIds(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Cached Stream IDs
+    val cachedStreamIds: StateFlow<List<String>> = MusicRepository.getAllCachedIdsFlow(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Playlists Flow
     val playlists: StateFlow<List<Playlist>> = MusicRepository.getPlaylists(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

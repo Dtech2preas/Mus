@@ -146,6 +146,7 @@ fun PlaylistDetailScreen(
 
     // We need all library songs to add
     val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
+    val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -178,6 +179,7 @@ fun PlaylistDetailScreen(
                         subtitle = subtitle,
                         thumbnailUrl = song.thumbnailUrl,
                         isLibrary = true, // Hide download button
+                        isCached = cachedStreamIds.contains(song.id),
                         onClick = {
                             viewModel.playSong(
                                 id = song.id,
