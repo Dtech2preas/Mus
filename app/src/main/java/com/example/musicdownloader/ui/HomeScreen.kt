@@ -61,12 +61,38 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Randomize the "Made for You" list only when feeds actually change,
+        // to prevent the UI from reshuffling when a user clicks play/download.
+        val randomizedAllGenreSongs = remember(homeFeedState.genreFeeds) {
+            homeFeedState.genreFeeds.flatMap { it.songs }.shuffled()
+        }
+
+        // Compute deduplicated lists sequentially to prevent UI state loop
+        val deduplicatedLists = remember(recommendedSongs, playHistory, homeFeedState.genreFeeds, downloadedIds, randomizedAllGenreSongs) {
+            val seenIds = mutableSetOf<String>()
+
+            val recommended = recommendedSongs.filter { !downloadedIds.contains(it.id) && seenIds.add(it.id) }
+            val history = playHistory.filter { seenIds.add(it.songId) }
+
+            val madeForYou = randomizedAllGenreSongs.filter { seenIds.add(it.id) }.distinctBy { it.id }.take(20)
+
+            val trendingFeeds = homeFeedState.genreFeeds.map { feed ->
+                feed.copy(songs = feed.songs.filter { seenIds.add(it.id) })
+            }
+
+            Triple(recommended, history, Pair(madeForYou, trendingFeeds))
+        }
+
+        val displayRecommended = deduplicatedLists.first
+        val displayHistory = deduplicatedLists.second
+        val displayMadeForYou = deduplicatedLists.third.first
+        val deduplicatedTrendingFeeds = deduplicatedLists.third.second
+
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             modifier = Modifier.weight(1f)
         ) {
             // 0. Recommended For You (Cached/Auto)
-            val displayRecommended = recommendedSongs.filter { !downloadedIds.contains(it.id) }
             if (displayRecommended.isNotEmpty()) {
                 item {
                     Text(
@@ -80,7 +106,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp)
                     ) {
-                        items(displayRecommended) { song ->
+                        items(displayRecommended, key = { it.id }) { song ->
                             val videoItem = VideoItem(
                                 id = song.id,
                                 title = song.title,
@@ -99,7 +125,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                 isWaiting = false,
                                 onClick = { viewModel.playStream(videoItem) },
                                 onDownload = { viewModel.downloadSong(videoItem) },
-                                modifier = Modifier.width(140.dp).height(200.dp)
+                                modifier = Modifier.width(126.dp).height(180.dp)
                             )
                         }
                     }
@@ -107,7 +133,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
             }
 
             // 1. Recently Played Section
-            if (playHistory.isNotEmpty()) {
+            if (displayHistory.isNotEmpty()) {
                 item {
                     Text(
                         text = "Recently Played",
@@ -117,7 +143,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(playHistory) { historyItem ->
+                        items(displayHistory, key = { "history_${it.songId}" }) { historyItem ->
                             // Convert History to VideoItem for Card
                             // History item doesn't have album info usually, so we just use artist.
                             // Unless we fetch it or store it. PlayHistory struct: songId, title, artist, thumbnailUrl.
@@ -144,7 +170,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                     }
                                 },
                                 onDownload = { viewModel.downloadSong(song) },
-                                modifier = Modifier.width(120.dp).height(160.dp) // Compact size
+                                modifier = Modifier.width(102.dp).height(136.dp) // Compact size
                             )
                         }
                     }
@@ -164,19 +190,63 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                     Text(text = "Error: ${homeFeedState.errorMessage}", color = Color.Red)
                 }
             } else {
-                 val feeds = homeFeedState.genreFeeds
+                 // Combine all genres to create a randomized "Made for You" list
+                 if (displayMadeForYou.isNotEmpty()) {
+                     item {
+                         Column {
+                             Text(
+                                 text = "Made for You",
+                                 fontSize = 20.sp,
+                                 fontWeight = FontWeight.Bold,
+                                 color = Color.White,
+                                 modifier = Modifier.padding(bottom = 12.dp)
+                             )
 
-                 feeds.forEachIndexed { index, feed ->
-                     if (index == 0) {
-                         // "Made for You" - 2 Rows Horizontal
+                             // Horizontal Grid (simulated with Column of 2 items per chunk)
+                             val chunks = displayMadeForYou.chunked(2)
+                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                 items(chunks) { chunk ->
+                                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                         chunk.forEach { song ->
+                                             val subtitle = if (song.album != null && song.album != "Unknown Album") "${song.uploader} • ${song.album}" else song.uploader
+                                             MusicCard(
+                                                 title = song.title,
+                                                 subtitle = subtitle,
+                                                 thumbnailUrl = song.thumbnailUrl,
+                                                 isDownloaded = downloadedIds.contains(song.id),
+                                                 downloadProgress = downloadProgress[song.id]?.progress,
+                                                 isWaiting = initializingDownloads.contains(song.id),
+                                                 onClick = {
+                                                     if (downloadedIds.contains(song.id)) {
+                                                         viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)
+                                                     } else {
+                                                         viewModel.playStream(song)
+                                                     }
+                                                 },
+                                                 onDownload = { viewModel.downloadSong(song) },
+                                                 modifier = Modifier.width(160.dp).height(220.dp)
+                                             )
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+
+                 // Display each individual genre as a single horizontal row
+                 deduplicatedTrendingFeeds.forEach { feed ->
+                     val displayTrending = feed.songs
+
+                     if (displayTrending.isNotEmpty()) {
                          item {
                              Column {
                                  Row(
-                                     modifier = Modifier.padding(bottom = 12.dp),
+                                     modifier = Modifier.padding(bottom = 8.dp),
                                      verticalAlignment = Alignment.CenterVertically
                                  ) {
                                      Text(
-                                         text = "Made for You: ",
+                                         text = "Trending in ",
                                          fontSize = 20.sp,
                                          fontWeight = FontWeight.Bold,
                                          color = Color.White
@@ -189,72 +259,15 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                      )
                                  }
 
-                                 // Horizontal Grid (simulated with Column of 2 items per chunk)
-                                 val chunks = feed.songs.chunked(2)
                                  LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                     items(chunks) { chunk ->
-                                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                             chunk.forEach { song ->
-                                                 val subtitle = if (song.album != null && song.album != "Unknown Album") "${song.uploader} • ${song.album}" else song.uploader
-                                                 MusicCard(
-                                                     title = song.title,
-                                                     subtitle = subtitle,
-                                                     thumbnailUrl = song.thumbnailUrl,
-                                                     isDownloaded = downloadedIds.contains(song.id),
-                                                    downloadProgress = downloadProgress[song.id]?.progress,
-                                                     isWaiting = initializingDownloads.contains(song.id),
-                                                     onClick = {
-                                                         if (downloadedIds.contains(song.id)) {
-                                                             viewModel.playSong(song.id, song.title, song.uploader, song.thumbnailUrl)
-                                                         } else {
-                                                             viewModel.playStream(song)
-                                                         }
-                                                     },
-                                                     onDownload = { viewModel.downloadSong(song) }
-                                                 )
-                                             }
-                                         }
-                                     }
-                                 }
-                             }
-                         }
-                     } else {
-                         // "Trending" - Vertical Grid (2 Columns)
-                         item {
-                             Row(
-                                 modifier = Modifier.padding(bottom = 8.dp),
-                                 verticalAlignment = Alignment.CenterVertically
-                             ) {
-                                 Text(
-                                     text = "Trending in ",
-                                     fontSize = 20.sp,
-                                     fontWeight = FontWeight.Bold,
-                                     color = Color.White
-                                 )
-                                 Text(
-                                     text = feed.genreName,
-                                     fontSize = 20.sp,
-                                     fontWeight = FontWeight.Bold,
-                                     color = PremiumGold
-                                 )
-                             }
-                         }
-
-                         val chunks = feed.songs.chunked(2)
-                         items(chunks) { chunk ->
-                             Row(
-                                 modifier = Modifier.fillMaxWidth(),
-                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
-                             ) {
-                                 chunk.forEach { song ->
-                                     Box(modifier = Modifier.weight(1f)) {
+                                     items(displayTrending, key = { "trending_${it.id}" }) { song ->
                                          val subtitle = if (song.album != null && song.album != "Unknown Album") "${song.uploader} • ${song.album}" else song.uploader
                                          MusicCard(
                                              title = song.title,
                                              subtitle = subtitle,
                                              thumbnailUrl = song.thumbnailUrl,
                                              isDownloaded = downloadedIds.contains(song.id),
-                                            downloadProgress = downloadProgress[song.id]?.progress,
+                                             downloadProgress = downloadProgress[song.id]?.progress,
                                              isWaiting = initializingDownloads.contains(song.id),
                                              onClick = {
                                                  if (downloadedIds.contains(song.id)) {
@@ -264,13 +277,9 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                                  }
                                              },
                                              onDownload = { viewModel.downloadSong(song) },
-                                             modifier = Modifier.fillMaxWidth().height(220.dp)
+                                             modifier = Modifier.width(160.dp).height(220.dp)
                                          )
                                      }
-                                 }
-                                 // Fill empty space if odd number
-                                 if (chunk.size < 2) {
-                                     Spacer(modifier = Modifier.weight(1f))
                                  }
                              }
                          }
