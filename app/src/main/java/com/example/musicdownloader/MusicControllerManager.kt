@@ -156,7 +156,13 @@ object MusicControllerManager {
 
                     if (remaining < bufferSize) {
                         AppLogger.log("[Controller] Smart Shuffle: Queue running low ($remaining left, target $bufferSize). Fetching recommendation...")
-                        val recommendation = SmartShuffleManager.getNextRecommendation(context)
+
+                        // Extract current song context
+                        val currentMediaItem = controller.currentMediaItem
+                        val currentTitle = currentMediaItem?.mediaMetadata?.title?.toString()
+                        val currentArtist = currentMediaItem?.mediaMetadata?.artist?.toString()
+
+                        val recommendation = SmartShuffleManager.getNextRecommendation(context, currentTitle, currentArtist)
                         if (recommendation != null) {
                             addVideoItemToQueue(recommendation)
                             AppLogger.log("[Controller] Smart Shuffle: Added ${recommendation.title}")
