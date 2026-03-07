@@ -75,7 +75,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
             val recommended = recommendedSongs.filter { !downloadedIds.contains(it.id) && seenIds.add(it.id) }
             val history = playHistory.filter { seenIds.add(it.songId) }
 
-            val madeForYou = randomizedAllGenreSongs.filter { seenIds.add(it.id) }.distinctBy { it.id }.take(20)
+            val madeForYou = randomizedAllGenreSongs.filter { seenIds.add(it.id) }.distinctBy { it.id }.take(100)
 
             val trendingFeeds = homeFeedState.genreFeeds.map { feed ->
                 feed.copy(songs = feed.songs.filter { seenIds.add(it.id) })
@@ -206,7 +206,7 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                              )
 
                              // Horizontal Grid (simulated with Column of 2 items per chunk)
-                             val chunks = displayMadeForYou.chunked(2)
+                             val chunks = displayMadeForYou.chunked(10)
                              LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                  items(chunks) { chunk ->
                                      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

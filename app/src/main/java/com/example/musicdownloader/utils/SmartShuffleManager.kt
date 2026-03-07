@@ -5,6 +5,7 @@ import com.example.musicdownloader.AppLogger
 import com.example.musicdownloader.MusicRepository
 import com.example.musicdownloader.UserPreferences
 import com.example.musicdownloader.VideoItem
+import com.example.musicdownloader.InnerTubeClient
 import com.example.musicdownloader.data.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -14,7 +15,7 @@ import java.util.LinkedList
 object SmartShuffleManager {
 
     private val sessionHistory = LinkedList<String>()
-    private const val MAX_HISTORY_SIZE = 100
+    private const val MAX_HISTORY_SIZE = 400
 
     private val PARENTHESIS_REGEX = Regex("\\(.*?\\)")
     private val BRACKET_REGEX = Regex("\\[.*?\\]")
@@ -64,9 +65,30 @@ object SmartShuffleManager {
     suspend fun getNextRecommendation(
         context: Context,
         currentTitle: String? = null,
-        currentArtist: String? = null
+        currentArtist: String? = null,
+        currentVideoId: String? = null
     ): VideoItem? = withContext(Dispatchers.IO) {
         AppLogger.log("[SmartShuffle] Calculating next recommendation...")
+
+        // Fetch long term history IDs
+        val db = AppDatabase.getDatabase(context)
+        val longTermHistoryIds = db.playHistoryDao().getAllHistoryIdsSync()
+
+        fun isDuplicate(videoItem: VideoItem): Boolean {
+            if (sessionHistory.contains(videoItem.id)) return true
+            if (longTermHistoryIds.contains(videoItem.id)) return true
+
+            val (cleanTitle, cleanArtist) = cleanTrackAndArtist(videoItem.title, videoItem.uploader)
+            if (currentTitle != null && currentArtist != null) {
+                 val (currentCleanTitle, currentCleanArtist) = cleanTrackAndArtist(currentTitle, currentArtist)
+                 if (cleanTitle.equals(currentCleanTitle, ignoreCase = true) &&
+                     cleanArtist.equals(currentCleanArtist, ignoreCase = true)) {
+                     return true
+                 }
+            }
+            return false
+        }
+
 
         // 1. Last.fm Similar Tracks Strategy
         if (!currentTitle.isNullOrEmpty() && !currentArtist.isNullOrEmpty()) {
@@ -80,7 +102,7 @@ object SmartShuffleManager {
                         val query = "${track.name} ${track.artist}"
                         AppLogger.log("[SmartShuffle] Searching YouTube for Last.fm rec: $query")
                         val results = MusicRepository.searchVideos(context, query).getOrNull()
-                        val validCandidate = results?.firstOrNull { !sessionHistory.contains(it.id) }
+                        val validCandidate = results?.firstOrNull { !isDuplicate(it) }
 
                         if (validCandidate != null) {
                             AppLogger.log("[SmartShuffle] Found Last.fm recommendation: ${validCandidate.title}")
@@ -99,7 +121,7 @@ object SmartShuffleManager {
         // 2. Priority: Repo Recommendations (Filtered & Fresh)
         try {
             val recommendations = MusicRepository.getRecommendedSongs(context).first()
-            val candidate = recommendations.filter { !sessionHistory.contains(it.id) }.randomOrNull()
+            val candidate = recommendations.filter { !sessionHistory.contains(it.id) && !longTermHistoryIds.contains(it.id) }.randomOrNull()
 
             if (candidate != null) {
                 AppLogger.log("[SmartShuffle] Recommendation found from Repo: ${candidate.title}")
@@ -120,23 +142,28 @@ object SmartShuffleManager {
         }
 
         // Simple Random Strategy Selection (Fallback if repo empty)
-        val strategy = (1..3).random()
+        // Ensure we don't reuse strategies too many times, add related videos strategy
+        val strategyList = mutableListOf(1, 2, 3, 4).shuffled()
         var recommendation: VideoItem? = null
 
-        try {
-            when (strategy) {
-                1 -> recommendation = getRecommendationFromFavorites(context)
-                2 -> recommendation = getRecommendationFromTopArtist(context)
-                3 -> recommendation = getRecommendationFromGenre(context)
+        for (strategy in strategyList) {
+            try {
+                when (strategy) {
+                    1 -> recommendation = getRecommendationFromFavorites(context, ::isDuplicate)
+                    2 -> recommendation = getRecommendationFromTopArtist(context, ::isDuplicate)
+                    3 -> recommendation = getRecommendationFromGenre(context, ::isDuplicate)
+                    4 -> if (currentVideoId != null) recommendation = getRecommendationFromRelated(context, currentVideoId, ::isDuplicate)
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[SmartShuffle] Error in strategy $strategy: ${e.message}")
             }
-        } catch (e: Exception) {
-            AppLogger.log("[SmartShuffle] Error in strategy $strategy: ${e.message}")
+            if (recommendation != null) break
         }
 
         if (recommendation == null) {
-            // Fallback
-            AppLogger.log("[SmartShuffle] Primary strategy failed, falling back to Genre...")
-            recommendation = getRecommendationFromGenre(context)
+            // Ultimate Fallback
+            AppLogger.log("[SmartShuffle] All primary strategies failed, falling back to Genre...")
+            recommendation = getRecommendationFromGenre(context, ::isDuplicate)
         }
 
         if (recommendation != null) {
@@ -149,7 +176,7 @@ object SmartShuffleManager {
         return@withContext recommendation
     }
 
-    private suspend fun getRecommendationFromFavorites(context: Context): VideoItem? {
+    private suspend fun getRecommendationFromFavorites(context: Context, isDuplicate: (VideoItem) -> Boolean): VideoItem? {
         AppLogger.log("[SmartShuffle] Strategy: Favorites")
         val likedIds = AppDatabase.getDatabase(context).favoriteDao().getAllLikedIdsSync()
         if (likedIds.isEmpty()) {
@@ -157,7 +184,9 @@ object SmartShuffleManager {
             return null
         }
 
-        val candidates = likedIds.filter { !sessionHistory.contains(it) }
+        // To properly use isDuplicate on IDs, we would need metadata, but we only have IDs. Let's just check session/history here
+        val longTermHistoryIds = AppDatabase.getDatabase(context).playHistoryDao().getAllHistoryIdsSync()
+        val candidates = likedIds.filter { !sessionHistory.contains(it) && !longTermHistoryIds.contains(it) }
         val randomId = if(candidates.isNotEmpty()) candidates.random() else likedIds.random() // break the loop if completely out
 
         // Check if we have song details in DB
@@ -176,7 +205,7 @@ object SmartShuffleManager {
         return null
     }
 
-    private suspend fun getRecommendationFromTopArtist(context: Context): VideoItem? {
+    private suspend fun getRecommendationFromTopArtist(context: Context, isDuplicate: (VideoItem) -> Boolean): VideoItem? {
         AppLogger.log("[SmartShuffle] Strategy: Top Artist")
         val topArtist = AppDatabase.getDatabase(context).playHistoryDao().getTopArtistSync()
         if (topArtist == null) {
@@ -188,12 +217,12 @@ object SmartShuffleManager {
         val results = MusicRepository.searchVideos(context, topArtist.artist).getOrNull()
         if (results.isNullOrEmpty()) return null
 
-        val candidates = results.filter { !sessionHistory.contains(it.id) }
+        val candidates = results.filter { !isDuplicate(it) }
         // Shuffle candidates so we don't always pick top 1
         return if (candidates.isNotEmpty()) candidates.shuffled().first() else null
     }
 
-    private suspend fun getRecommendationFromGenre(context: Context): VideoItem? {
+    private suspend fun getRecommendationFromGenre(context: Context, isDuplicate: (VideoItem) -> Boolean): VideoItem? {
         AppLogger.log("[SmartShuffle] Strategy: Genre")
         val genres = UserPreferences.getGenres(context)
         if (genres.isEmpty()) {
@@ -207,7 +236,16 @@ object SmartShuffleManager {
         val results = MusicRepository.searchVideos(context, randomGenre).getOrNull()
         if (results.isNullOrEmpty()) return null
 
-        val candidates = results.filter { !sessionHistory.contains(it.id) }
+        val candidates = results.filter { !isDuplicate(it) }
+        return if (candidates.isNotEmpty()) candidates.shuffled().first() else null
+    }
+
+    private suspend fun getRecommendationFromRelated(context: Context, videoId: String, isDuplicate: (VideoItem) -> Boolean): VideoItem? {
+        AppLogger.log("[SmartShuffle] Strategy: Related (Next)")
+        val results = com.example.musicdownloader.InnerTubeClient.getRelatedVideos(videoId)
+        if (results.isNullOrEmpty()) return null
+
+        val candidates = results.filter { !isDuplicate(it) }
         return if (candidates.isNotEmpty()) candidates.shuffled().first() else null
     }
 }
