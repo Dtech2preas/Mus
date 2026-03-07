@@ -161,8 +161,9 @@ object MusicControllerManager {
                         val currentMediaItem = controller.currentMediaItem
                         val currentTitle = currentMediaItem?.mediaMetadata?.title?.toString()
                         val currentArtist = currentMediaItem?.mediaMetadata?.artist?.toString()
+                        val currentVideoId = currentMediaItem?.mediaId
 
-                        val recommendation = SmartShuffleManager.getNextRecommendation(context, currentTitle, currentArtist)
+                        val recommendation = SmartShuffleManager.getNextRecommendation(context, currentTitle, currentArtist, currentVideoId)
                         if (recommendation != null) {
                             addVideoItemToQueue(recommendation)
                             AppLogger.log("[Controller] Smart Shuffle: Added ${recommendation.title}")
