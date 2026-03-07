@@ -16,6 +16,11 @@ object SmartShuffleManager {
     private val sessionHistory = LinkedList<String>()
     private const val MAX_HISTORY_SIZE = 100
 
+    private val PARENTHESIS_REGEX = Regex("\\(.*?\\)")
+    private val BRACKET_REGEX = Regex("\\[.*?\\]")
+    private val FEAT_REGEX = Regex("(?i)\\b(ft\\.?|feat\\.?|featuring)\\b.*$")
+    private val EMOJI_REGEX = Regex("[🎥🎬🔥].*$")
+
     private fun recordHistory(id: String) {
         if (!sessionHistory.contains(id)) {
             sessionHistory.addLast(id)
@@ -23,6 +28,37 @@ object SmartShuffleManager {
                 sessionHistory.removeFirst()
             }
         }
+    }
+
+    private fun cleanTrackAndArtist(title: String, artist: String): Pair<String, String> {
+        var cleanTitle = title
+        var cleanArtist = artist
+
+        // Check for "Artist - Track" format
+        if (cleanTitle.contains(" - ")) {
+            val parts = cleanTitle.split(" - ", limit = 2)
+            if (parts.size == 2) {
+                cleanArtist = parts[0].trim()
+                cleanTitle = parts[1].trim()
+            }
+        }
+
+        // Remove (Official Video), [Official Audio], etc.
+        cleanTitle = cleanTitle.replace(PARENTHESIS_REGEX, "")
+        cleanTitle = cleanTitle.replace(BRACKET_REGEX, "")
+
+        // Remove "ft.", "feat.", "featuring" and anything after
+        cleanTitle = cleanTitle.replace(FEAT_REGEX, "")
+
+        // Remove anything after a pipe "|"
+        if (cleanTitle.contains("|")) {
+            cleanTitle = cleanTitle.substringBefore("|")
+        }
+
+        // Remove common emojis often trailing in video titles
+        cleanTitle = cleanTitle.replace(EMOJI_REGEX, "")
+
+        return Pair(cleanTitle.trim(), cleanArtist.trim())
     }
 
     suspend fun getNextRecommendation(
@@ -35,8 +71,9 @@ object SmartShuffleManager {
         // 1. Last.fm Similar Tracks Strategy
         if (!currentTitle.isNullOrEmpty() && !currentArtist.isNullOrEmpty()) {
             try {
-                AppLogger.log("[SmartShuffle] Trying Last.fm for: $currentTitle - $currentArtist")
-                val similarTracks = LastFmClient.getSimilarTracks(currentTitle, currentArtist)
+                val (cleanTitle, cleanArtist) = cleanTrackAndArtist(currentTitle, currentArtist)
+                AppLogger.log("[SmartShuffle] Trying Last.fm for: $cleanTitle - $cleanArtist")
+                val similarTracks = LastFmClient.getSimilarTracks(cleanTitle, cleanArtist)
                 if (similarTracks.isNotEmpty()) {
                     // Try to find a track that isn't in our session history
                     for (track in similarTracks.shuffled()) { // Shuffle to pick random similar tracks
