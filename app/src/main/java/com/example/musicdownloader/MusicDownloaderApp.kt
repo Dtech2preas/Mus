@@ -13,6 +13,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import com.example.musicdownloader.workers.StreamRefresherWorker
+import com.example.musicdownloader.utils.RemoteConfigClient
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,7 @@ class MusicDownloaderApp : Application(), ImageLoaderFactory {
         }
 
         scheduleStreamRefresher()
+        CoroutineScope(Dispatchers.IO).launch { RemoteConfigClient.initConfig(this@MusicDownloaderApp) }
     }
 
     private fun scheduleStreamRefresher() {

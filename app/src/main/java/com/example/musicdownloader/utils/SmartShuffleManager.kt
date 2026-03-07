@@ -9,23 +9,64 @@ import com.example.musicdownloader.data.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.util.LinkedList
 
 object SmartShuffleManager {
 
-    private val sessionHistory = mutableSetOf<String>()
+    private val sessionHistory = LinkedList<String>()
+    private const val MAX_HISTORY_SIZE = 100
 
-    suspend fun getNextRecommendation(context: Context): VideoItem? = withContext(Dispatchers.IO) {
+    private fun recordHistory(id: String) {
+        if (!sessionHistory.contains(id)) {
+            sessionHistory.addLast(id)
+            if (sessionHistory.size > MAX_HISTORY_SIZE) {
+                sessionHistory.removeFirst()
+            }
+        }
+    }
+
+    suspend fun getNextRecommendation(
+        context: Context,
+        currentTitle: String? = null,
+        currentArtist: String? = null
+    ): VideoItem? = withContext(Dispatchers.IO) {
         AppLogger.log("[SmartShuffle] Calculating next recommendation...")
 
-        // 0. Priority: Repo Recommendations (Filtered & Fresh)
+        // 1. Last.fm Similar Tracks Strategy
+        if (!currentTitle.isNullOrEmpty() && !currentArtist.isNullOrEmpty()) {
+            try {
+                AppLogger.log("[SmartShuffle] Trying Last.fm for: $currentTitle - $currentArtist")
+                val similarTracks = LastFmClient.getSimilarTracks(currentTitle, currentArtist)
+                if (similarTracks.isNotEmpty()) {
+                    // Try to find a track that isn't in our session history
+                    for (track in similarTracks.shuffled()) { // Shuffle to pick random similar tracks
+                        val query = "${track.name} ${track.artist}"
+                        AppLogger.log("[SmartShuffle] Searching YouTube for Last.fm rec: $query")
+                        val results = MusicRepository.searchVideos(context, query).getOrNull()
+                        val validCandidate = results?.firstOrNull { !sessionHistory.contains(it.id) }
+
+                        if (validCandidate != null) {
+                            AppLogger.log("[SmartShuffle] Found Last.fm recommendation: ${validCandidate.title}")
+                            recordHistory(validCandidate.id)
+                            return@withContext validCandidate
+                        }
+                    }
+                } else {
+                    AppLogger.log("[SmartShuffle] No Last.fm similar tracks found.")
+                }
+            } catch (e: Exception) {
+                 AppLogger.log("[SmartShuffle] Error fetching from Last.fm: ${e.message}")
+            }
+        }
+
+        // 2. Priority: Repo Recommendations (Filtered & Fresh)
         try {
             val recommendations = MusicRepository.getRecommendedSongs(context).first()
             val candidate = recommendations.filter { !sessionHistory.contains(it.id) }.randomOrNull()
 
             if (candidate != null) {
                 AppLogger.log("[SmartShuffle] Recommendation found from Repo: ${candidate.title}")
-                sessionHistory.add(candidate.id)
-                if (sessionHistory.size > 50) sessionHistory.clear()
+                recordHistory(candidate.id)
 
                 return@withContext VideoItem(
                     id = candidate.id,
@@ -63,8 +104,7 @@ object SmartShuffleManager {
 
         if (recommendation != null) {
             AppLogger.log("[SmartShuffle] Recommendation found: ${recommendation.title} (${recommendation.id})")
-            sessionHistory.add(recommendation.id)
-            if (sessionHistory.size > 50) sessionHistory.clear()
+            recordHistory(recommendation.id)
         } else {
             AppLogger.log("[SmartShuffle] No recommendation found.")
         }
@@ -80,7 +120,8 @@ object SmartShuffleManager {
             return null
         }
 
-        val randomId = likedIds.random()
+        val candidates = likedIds.filter { !sessionHistory.contains(it) }
+        val randomId = if(candidates.isNotEmpty()) candidates.random() else likedIds.random() // break the loop if completely out
 
         // Check if we have song details in DB
         val song = AppDatabase.getDatabase(context).songDao().getSongById(randomId)
@@ -95,9 +136,6 @@ object SmartShuffleManager {
                  album = song.album
              )
         }
-
-        // If not in DB (should be rare for favorites), maybe search for it?
-        // Or just return null and let fallback handle it.
         return null
     }
 
@@ -114,7 +152,8 @@ object SmartShuffleManager {
         if (results.isNullOrEmpty()) return null
 
         val candidates = results.filter { !sessionHistory.contains(it.id) }
-        return if (candidates.isNotEmpty()) candidates.random() else null
+        // Shuffle candidates so we don't always pick top 1
+        return if (candidates.isNotEmpty()) candidates.shuffled().first() else null
     }
 
     private suspend fun getRecommendationFromGenre(context: Context): VideoItem? {
@@ -132,6 +171,6 @@ object SmartShuffleManager {
         if (results.isNullOrEmpty()) return null
 
         val candidates = results.filter { !sessionHistory.contains(it.id) }
-        return if (candidates.isNotEmpty()) candidates.random() else null
+        return if (candidates.isNotEmpty()) candidates.shuffled().first() else null
     }
 }
