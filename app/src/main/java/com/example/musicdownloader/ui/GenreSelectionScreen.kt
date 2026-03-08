@@ -21,22 +21,25 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GenreSelectionScreen(
-    onDone: (Set<String>) -> Unit
+    onDone: (Set<String>, Set<String>) -> Unit
 ) {
     var selectedGenres by remember { mutableStateOf(setOf<String>()) }
     var customGenreText by remember { mutableStateOf("") }
 
-    val presets = listOf("Amapiano", "Hip Hop", "Afro Soul", "Gospel", "R&B", "Deep House", "Pop", "Jazz")
+    var selectedArtists by remember { mutableStateOf(setOf<String>()) }
+    var customArtistText by remember { mutableStateOf("") }
+
+    val genrePresets = listOf("Amapiano", "Hip Hop", "Afro Soul", "Gospel", "R&B", "Deep House", "Pop", "Jazz")
 
     Scaffold(
         bottomBar = {
             Button(
-                onClick = { onDone(selectedGenres) },
+                onClick = { onDone(selectedGenres, selectedArtists) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
                     .height(56.dp),
-                enabled = selectedGenres.isNotEmpty(),
+                enabled = selectedGenres.isNotEmpty() || selectedArtists.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text("Start Your Journey", style = MaterialTheme.typography.titleMedium)
@@ -53,78 +56,134 @@ fun GenreSelectionScreen(
             ) {
                 Spacer(modifier = Modifier.height(48.dp))
 
-                Text(
-                    text = "Add your vibe",
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Add a Genre or your favourite artists to build your unique feed.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Custom Input
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = customGenreText,
-                        onValueChange = { customGenreText = it },
-                        label = { Text("Add Artist or Genre") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            if (customGenreText.isNotBlank()) {
-                                selectedGenres = selectedGenres + customGenreText.trim()
-                                customGenreText = ""
-                            }
-                        },
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Presets
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(1),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
-                    presets.forEach { genre ->
-                        val isSelected = selectedGenres.contains(genre)
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                selectedGenres = if (isSelected) {
-                                    selectedGenres - genre
-                                } else {
-                                    selectedGenres + genre
-                                }
-                            },
-                            label = { Text(genre) },
-                            leadingIcon = if (isSelected) {
-                                { Icon(Icons.Default.Check, contentDescription = null) }
-                            } else null
+                    item {
+                        Text(
+                            text = "Add your vibe",
+                            style = MaterialTheme.typography.displayMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
+                    }
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    item {
+                        Text(
+                            text = "Select your favourite genres and artists to build your unique feed.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(32.dp)) }
+
+                    // --- GENRES SECTION ---
+                    item {
+                        Text("Favorite Genres", style = MaterialTheme.typography.titleLarge)
+                    }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = customGenreText,
+                                onValueChange = { customGenreText = it },
+                                label = { Text("Add Genre") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = {
+                                    if (customGenreText.isNotBlank()) {
+                                        selectedGenres = selectedGenres + customGenreText.trim()
+                                        customGenreText = ""
+                                    }
+                                },
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add")
+                            }
+                        }
+                    }
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    item {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            genrePresets.forEach { genre ->
+                                val isSelected = selectedGenres.contains(genre)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        selectedGenres = if (isSelected) selectedGenres - genre else selectedGenres + genre
+                                    },
+                                    label = { Text(genre) },
+                                    leadingIcon = if (isSelected) {
+                                        { Icon(Icons.Default.Check, contentDescription = null) }
+                                    } else null
+                                )
+                            }
+                            selectedGenres.filter { !genrePresets.contains(it) }.forEach { genre ->
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedGenres = selectedGenres - genre },
+                                    label = { Text(genre) },
+                                    leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
+                                )
+                            }
+                        }
                     }
 
-                    // Also display added custom genres as chips
-                    selectedGenres.filter { !presets.contains(it) }.forEach { genre ->
-                        FilterChip(
-                            selected = true,
-                            onClick = { selectedGenres = selectedGenres - genre },
-                            label = { Text(genre) },
-                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
-                        )
+                    item { Spacer(modifier = Modifier.height(32.dp)) }
+
+                    // --- ARTISTS SECTION ---
+                    item {
+                        Text("Favorite Artists", style = MaterialTheme.typography.titleLarge)
                     }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = customArtistText,
+                                onValueChange = { customArtistText = it },
+                                label = { Text("Add Artist") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = {
+                                    if (customArtistText.isNotBlank()) {
+                                        selectedArtists = selectedArtists + customArtistText.trim()
+                                        customArtistText = ""
+                                    }
+                                },
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add")
+                            }
+                        }
+                    }
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    item {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            selectedArtists.forEach { artist ->
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedArtists = selectedArtists - artist },
+                                    label = { Text(artist) },
+                                    leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
+                                )
+                            }
+                        }
+                    }
+                    item { Spacer(modifier = Modifier.height(56.dp)) }
                 }
             }
         }

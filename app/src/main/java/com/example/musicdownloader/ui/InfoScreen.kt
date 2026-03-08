@@ -50,8 +50,8 @@ fun InfoScreen(
             }
             item {
                 InfoCard(
-                    title = "Speed Optimization",
-                    description = "We've reduced the typical waiting time for free music sites from 2 minutes down to just ~20 seconds. We are actively working on updates to make this even faster, aiming for near-instant playback."
+                    title = "Speed Optimization & High-End Mode",
+                    description = "We've vastly improved loading speeds. Standard streaming is fast, but if you enable 'High-End Mode' in Settings, the app works in the background to pre-fetch your library songs, offering near-instant, offline-like playback."
                 )
             }
             item {
@@ -63,7 +63,7 @@ fun InfoScreen(
             item {
                 InfoCard(
                     title = "Streaming & Downloads",
-                    description = "For streaming and downloads, we use advanced audio extraction technology (powered by yt-dlp) to retrieve high-quality audio streams directly from the source. This ensures the best possible sound quality."
+                    description = "We prioritize fast native APIs for instant streaming. For downloading offline copies, we utilize advanced audio extraction technology to retrieve high-quality audio streams directly from the source."
                 )
             }
 
@@ -75,7 +75,7 @@ fun InfoScreen(
             item {
                 InfoCard(
                     title = "Playing Music",
-                    description = "Simply click on any song to start streaming. It may take about 20 seconds to prepare the high-quality stream. We are working hard to reduce this time in future updates."
+                    description = "Simply click on any song to start streaming. Most songs start playing within a few seconds. Background playback is fully supported, so you can lock your screen or use other apps while listening."
                 )
             }
             item {
@@ -160,6 +160,12 @@ fun InfoScreen(
                 InfoCard(
                     title = "Quick Queue",
                     description = "Swipe right on any song in your library to quickly add it to your playback queue."
+                )
+            }
+            item {
+                InfoCard(
+                    title = "Seamless Background Playback",
+                    description = "Your music continues playing seamlessly in the background. The app is deeply integrated with the Android system, allowing you to control playback directly from your notifications or lock screen."
                 )
             }
 

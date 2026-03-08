@@ -148,24 +148,38 @@ object MusicControllerManager {
             try {
                 // 1. Smart Shuffle Logic
                 if (_isSmartShuffleEnabled.value) {
-                    val currentIndex = controller.currentMediaItemIndex
-                    val itemCount = controller.mediaItemCount
-                    val remaining = itemCount - currentIndex - 1
+                    var currentIndex = controller.currentMediaItemIndex
+                    var itemCount = controller.mediaItemCount
+                    var remaining = itemCount - currentIndex - 1
 
                     val bufferSize = UserPreferences.getSmartShuffleBuffer(context)
+                    val targetRemaining = (bufferSize / 2).coerceAtLeast(1)
 
                     if (remaining < bufferSize) {
-                        AppLogger.log("[Controller] Smart Shuffle: Queue running low ($remaining left, target $bufferSize). Fetching recommendation...")
+                        AppLogger.log("[Controller] Smart Shuffle: Queue running low ($remaining left, target buffer $bufferSize). Fetching recommendations...")
 
                         // Extract current song context
-                        val currentMediaItem = controller.currentMediaItem
-                        val currentTitle = currentMediaItem?.mediaMetadata?.title?.toString()
-                        val currentArtist = currentMediaItem?.mediaMetadata?.artist?.toString()
+                        var currentTitle = controller.currentMediaItem?.mediaMetadata?.title?.toString()
+                        var currentArtist = controller.currentMediaItem?.mediaMetadata?.artist?.toString()
 
-                        val recommendation = SmartShuffleManager.getNextRecommendation(context, currentTitle, currentArtist)
-                        if (recommendation != null) {
-                            addVideoItemToQueue(recommendation)
-                            AppLogger.log("[Controller] Smart Shuffle: Added ${recommendation.title}")
+                        // Loop until we reach at least 50% of the buffer size
+                        var attempts = 0
+                        val maxAttempts = 10 // Prevent infinite loop if no recommendations found
+                        while (remaining < targetRemaining && attempts < maxAttempts) {
+                            attempts++
+                            val recommendation = SmartShuffleManager.getNextRecommendation(context, currentTitle, currentArtist)
+                            if (recommendation != null) {
+                                addVideoItemToQueue(recommendation)
+                                AppLogger.log("[Controller] Smart Shuffle: Added ${recommendation.title}")
+
+                                // Update logic for next iteration
+                                remaining++
+                                currentTitle = recommendation.title
+                                currentArtist = recommendation.uploader
+                            } else {
+                                AppLogger.log("[Controller] Smart Shuffle: Could not fetch more recommendations.")
+                                break // Stop if we can't get any more
+                            }
                         }
                     }
                 }

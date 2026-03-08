@@ -84,8 +84,9 @@ fun AppNavigation(viewModel: MusicViewModel) {
 
     if (isFirstRun) {
         GenreSelectionScreen(
-            onDone = { genres ->
+            onDone = { genres, artists ->
                 UserPreferences.saveGenres(context, genres)
+                UserPreferences.saveArtists(context, artists)
                 UserPreferences.setFirstRunCompleted(context)
                 isFirstRun = false
                 viewModel.loadGenreFeeds()

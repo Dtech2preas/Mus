@@ -47,9 +47,11 @@ fun SettingsScreen(
 
     var showCookieDialog by remember { mutableStateOf(false) }
 
-    // Manage Genres State
+    // Manage Genres & Artists State
     var savedGenres by remember { mutableStateOf(UserPreferences.getGenres(context)) }
     var newGenreText by remember { mutableStateOf("") }
+    var savedArtists by remember { mutableStateOf(UserPreferences.getArtists(context)) }
+    var newArtistText by remember { mutableStateOf("") }
 
     // Toggle for DNA Dashboard
     var isDnaVisible by remember { mutableStateOf(false) }
@@ -270,7 +272,8 @@ fun SettingsScreen(
         SettingsSectionTitle(title = "Your Vibe", icon = Icons.Default.Favorite)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Your Genres & Artists:", style = MaterialTheme.typography.bodyMedium)
+                // Genres section
+                Text("Your Genres:", style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -293,7 +296,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = newGenreText,
                         onValueChange = { newGenreText = it },
-                        label = { Text("Add Artist or Genre") },
+                        label = { Text("Add Genre") },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
@@ -303,6 +306,50 @@ fun SettingsScreen(
                             UserPreferences.addGenre(context, newGenreText.trim())
                             savedGenres = UserPreferences.getGenres(context)
                             newGenreText = ""
+                        }
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Divider(color = MaterialTheme.colorScheme.background)
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Artists section
+                Text("Your Artists:", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    savedArtists.sorted().forEach { artist ->
+                        InputChip(
+                            selected = true,
+                            onClick = {
+                                UserPreferences.removeArtist(context, artist)
+                                savedArtists = UserPreferences.getArtists(context)
+                            },
+                            label = { Text(artist) },
+                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove") }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newArtistText,
+                        onValueChange = { newArtistText = it },
+                        label = { Text("Add Artist") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = {
+                        if (newArtistText.isNotBlank()) {
+                            UserPreferences.addArtist(context, newArtistText.trim())
+                            savedArtists = UserPreferences.getArtists(context)
+                            newArtistText = ""
                         }
                     }) {
                         Icon(Icons.Default.Add, contentDescription = "Add")

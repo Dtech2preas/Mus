@@ -120,7 +120,7 @@ object SmartShuffleManager {
         }
 
         // Simple Random Strategy Selection (Fallback if repo empty)
-        val strategy = (1..3).random()
+        val strategy = (1..4).random()
         var recommendation: VideoItem? = null
 
         try {
@@ -128,6 +128,7 @@ object SmartShuffleManager {
                 1 -> recommendation = getRecommendationFromFavorites(context)
                 2 -> recommendation = getRecommendationFromTopArtist(context)
                 3 -> recommendation = getRecommendationFromGenre(context)
+                4 -> recommendation = getRecommendationFromFavoriteArtists(context)
             }
         } catch (e: Exception) {
             AppLogger.log("[SmartShuffle] Error in strategy $strategy: ${e.message}")
@@ -135,8 +136,8 @@ object SmartShuffleManager {
 
         if (recommendation == null) {
             // Fallback
-            AppLogger.log("[SmartShuffle] Primary strategy failed, falling back to Genre...")
-            recommendation = getRecommendationFromGenre(context)
+            AppLogger.log("[SmartShuffle] Primary strategy failed, falling back to Genre/Artists...")
+            recommendation = getRecommendationFromFavoriteArtists(context) ?: getRecommendationFromGenre(context)
         }
 
         if (recommendation != null) {
@@ -190,6 +191,24 @@ object SmartShuffleManager {
 
         val candidates = results.filter { !sessionHistory.contains(it.id) }
         // Shuffle candidates so we don't always pick top 1
+        return if (candidates.isNotEmpty()) candidates.shuffled().first() else null
+    }
+
+    private suspend fun getRecommendationFromFavoriteArtists(context: Context): VideoItem? {
+        AppLogger.log("[SmartShuffle] Strategy: Favorite Artists")
+        val artists = UserPreferences.getArtists(context)
+        if (artists.isEmpty()) {
+            AppLogger.log("[SmartShuffle] No favorite artists found.")
+            return null
+        }
+
+        val randomArtist = artists.random()
+        AppLogger.log("[SmartShuffle] Selected Artist: $randomArtist")
+
+        val results = MusicRepository.searchVideos(context, randomArtist).getOrNull()
+        if (results.isNullOrEmpty()) return null
+
+        val candidates = results.filter { !sessionHistory.contains(it.id) }
         return if (candidates.isNotEmpty()) candidates.shuffled().first() else null
     }
 

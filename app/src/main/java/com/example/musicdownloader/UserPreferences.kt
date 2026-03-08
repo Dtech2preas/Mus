@@ -11,6 +11,7 @@ object UserPreferences {
     private const val PREF_NAME = "user_prefs"
     private const val KEY_IS_FIRST_RUN = "is_first_run"
     private const val KEY_GENRES = "saved_genres"
+    private const val KEY_ARTISTS = "saved_artists"
     private const val KEY_LAST_REFRESHED = "last_genre_refreshed"
     private const val KEY_THEME_COLOR = "theme_color"
     private const val KEY_SMART_SHUFFLE_BUFFER = "smart_shuffle_buffer_size"
@@ -56,6 +57,28 @@ object UserPreferences {
         val current = getGenres(context).toMutableSet()
         current.remove(genre)
         saveGenres(context, current)
+    }
+
+    fun getArtists(context: Context): Set<String> {
+        return getPrefs(context).getStringSet(KEY_ARTISTS, emptySet()) ?: emptySet()
+    }
+
+    fun saveArtists(context: Context, artists: Set<String>) {
+        getPrefs(context).edit {
+            putStringSet(KEY_ARTISTS, artists)
+        }
+    }
+
+    fun addArtist(context: Context, artist: String) {
+        val current = getArtists(context).toMutableSet()
+        current.add(artist)
+        saveArtists(context, current)
+    }
+
+    fun removeArtist(context: Context, artist: String) {
+        val current = getArtists(context).toMutableSet()
+        current.remove(artist)
+        saveArtists(context, current)
     }
 
     fun getLastGenreRefreshTime(context: Context): Long {
