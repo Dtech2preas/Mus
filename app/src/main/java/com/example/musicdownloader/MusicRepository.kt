@@ -703,7 +703,7 @@ object MusicRepository {
             try {
                 AppLogger.log("[Repo] Fetching artist recs: $artistQuery")
                 val results = InnerTubeClient.search(artistQuery)
-                val filtered = results.filter { parseDuration(it.duration) < 900 }
+                val filtered = results.filter { parseDuration(it.duration) in 60..600 }
 
                 var count = 0
                 for (video in filtered) {
@@ -724,7 +724,7 @@ object MusicRepository {
                 val query = "Trending Music"
                 AppLogger.log("[Repo] Fetching fallback: $query")
                 val results = InnerTubeClient.search(query)
-                val filtered = results.filter { parseDuration(it.duration) < 900 }
+                val filtered = results.filter { parseDuration(it.duration) in 60..600 }
 
                 for (video in filtered) {
                     if (finalSelection.size >= targetSize) break
@@ -745,7 +745,7 @@ object MusicRepository {
                     val query = genre
                     AppLogger.log("[Repo] Fetching genre recs: $query")
                     val results = InnerTubeClient.search(query)
-                    val filtered = results.filter { parseDuration(it.duration) < 900 }
+                    val filtered = results.filter { parseDuration(it.duration) in 60..600 }
                     if (filtered.isNotEmpty()) {
                         genreResults[genre] = filtered
                     }
