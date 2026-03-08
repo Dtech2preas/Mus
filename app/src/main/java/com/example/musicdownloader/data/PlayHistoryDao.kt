@@ -19,6 +19,9 @@ interface PlayHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(history: PlayHistory)
 
+    @Query("DELETE FROM play_history WHERE timestamp NOT IN (SELECT timestamp FROM play_history ORDER BY timestamp DESC LIMIT 400)")
+    suspend fun enforceLimit()
+
     @Query("DELETE FROM play_history")
     suspend fun clearHistory()
 

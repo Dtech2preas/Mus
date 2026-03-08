@@ -316,7 +316,9 @@ object MusicRepository {
             artist = video.uploader,
             thumbnailUrl = video.thumbnailUrl
         )
-        AppDatabase.getDatabase(context).playHistoryDao().insert(history)
+        val dao = AppDatabase.getDatabase(context).playHistoryDao()
+        dao.insert(history)
+        dao.enforceLimit()
     }
 
     suspend fun addToHistory(context: Context, song: Song) {
@@ -327,7 +329,9 @@ object MusicRepository {
             artist = song.artist,
             thumbnailUrl = song.thumbnailUrl
         )
-        AppDatabase.getDatabase(context).playHistoryDao().insert(history)
+        val dao = AppDatabase.getDatabase(context).playHistoryDao()
+        dao.insert(history)
+        dao.enforceLimit()
     }
 
     // DNA Stats Methods
@@ -682,29 +686,35 @@ object MusicRepository {
         // 2. Prepare Inputs
         val topArtist = database.playHistoryDao().getTopArtistSync()
         val genres = UserPreferences.getGenres(context).toList()
+        val favoriteArtists = UserPreferences.getArtists(context).toList()
 
         val finalSelection = mutableListOf<VideoItem>()
         val targetSize = 15
 
-        // 3. Top Artist Logic (Allocate 2 spots)
-        if (topArtist != null) {
-            val artistQuery = "${topArtist.artist} songs"
+        // 3. Artists Logic (Top Artist & Favorite Artists)
+        val selectedArtists = mutableSetOf<String>()
+        if (topArtist != null) selectedArtists.add(topArtist.artist)
+        if (favoriteArtists.isNotEmpty()) selectedArtists.add(favoriteArtists.random())
+
+        for (artist in selectedArtists) {
+            if (finalSelection.size >= 5) break // Allow max 5 slots for artists initially
+
+            val artistQuery = "$artist songs"
             try {
-                AppLogger.log("[Repo] Fetching top artist recs: $artistQuery")
+                AppLogger.log("[Repo] Fetching artist recs: $artistQuery")
                 val results = InnerTubeClient.search(artistQuery)
                 val filtered = results.filter { parseDuration(it.duration) < 900 }
 
-                // Add up to 2 songs
                 var count = 0
                 for (video in filtered) {
-                    if (count >= 2) break
+                    if (count >= 2) break // Max 2 per artist
                     if (finalSelection.none { it.id == video.id }) {
                         finalSelection.add(video)
                         count++
                     }
                 }
             } catch (e: Exception) {
-                AppLogger.log("[Repo] Failed to fetch top artist recs: ${e.message}")
+                AppLogger.log("[Repo] Failed to fetch artist recs for $artist: ${e.message}")
             }
         }
 
