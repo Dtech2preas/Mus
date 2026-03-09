@@ -36,6 +36,10 @@ interface PlayHistoryDao {
     @Query("SELECT DISTINCT songId FROM play_history")
     fun getAllHistoryIds(): Flow<List<String>>
 
+    @Query("SELECT songId FROM play_history")
+    suspend fun getAllHistoryIdsSync(): List<String>
+
+
     // Sync query for Smart Shuffle
     @Query("SELECT artist, COUNT(*) as playCount FROM play_history GROUP BY artist ORDER BY playCount DESC LIMIT 1")
     suspend fun getTopArtistSync(): ArtistCount?

@@ -23,6 +23,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -84,22 +85,60 @@ object MusicRepository {
     suspend fun fetchGenreFeeds(context: Context, genres: Set<String>): List<GenreFeed> = coroutineScope {
         val lastRefreshed = UserPreferences.getLastGenreRefreshTime(context)
         val currentTime = System.currentTimeMillis()
-        val shouldRefresh = (currentTime - lastRefreshed) > CACHE_DURATION_MS
+        val TWO_HOURS_MS = 2 * 60 * 60 * 1000L
+        val shouldRefresh = (currentTime - lastRefreshed) > TWO_HOURS_MS
 
         if (shouldRefresh) {
-            // Clear memory cache if we are due for a refresh
-            searchCache.clear()
+            // Instead of fully clearing the memory cache, we'll keep 75% of existing results and fetch 25% new ones.
+            // Since `searchVideos` uses InnerTubeClient.search, we can just remove the cache for genres,
+            // fetch new ones, and merge them, keeping 75% old, 25% new.
+            for (genre in genres) {
+                val oldList = searchCache[genre] ?: emptyList()
+                if (oldList.isNotEmpty()) {
+                    try {
+                        // Fetch new ones
+                        val newResults = InnerTubeClient.search(genre)
+                        val newFiltered = newResults.filter { parseDuration(it.duration) in 60..600 }
+                        // Take 25% (roughly 3 new ones if size is 10)
+                        val numNew = (oldList.size * 0.25).toInt().coerceAtLeast(1)
+                        val distinctNew = newFiltered.filter { newVideo -> oldList.none { it.id == newVideo.id } }.take(numNew)
+
+                        // Shift: drop the oldest `distinctNew.size` items and append new ones
+                        val combined = oldList.drop(distinctNew.size) + distinctNew
+                        searchCache[genre] = combined
+                    } catch (e: Exception) {
+                        AppLogger.log("[Repo] Failed to fetch partial genre update for $genre: ${e.message}")
+                    }
+                } else {
+                    // Initial fetch
+                    try {
+                        val newResults = InnerTubeClient.search(genre)
+                        searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(10)
+                    } catch (e: Exception) {
+                        AppLogger.log("[Repo] Failed initial fetch for $genre: ${e.message}")
+                    }
+                }
+            }
             UserPreferences.setLastGenreRefreshTime(context, currentTime)
+        } else {
+            // Make sure cache has data if it's empty in memory (app restart)
+            genres.forEach { genre ->
+                if (searchCache[genre].isNullOrEmpty()) {
+                    try {
+                        val newResults = InnerTubeClient.search(genre)
+                        searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(10)
+                    } catch (e: Exception) {
+                        // Ignore
+                    }
+                }
+            }
         }
 
-        // Fetch feeds in parallel
+        // Return feeds from cache
         genres.map { genre ->
-            async {
-                val results = searchVideos(context, genre).getOrDefault(emptyList())
-                // Limit to 10 items for the feed
-                GenreFeed(genre, results.take(10))
-            }
-        }.awaitAll()
+            val results = searchCache[genre] ?: emptyList()
+            GenreFeed(genre, results.take(10))
+        }
     }
 
     /**
@@ -316,9 +355,23 @@ object MusicRepository {
             artist = video.uploader,
             thumbnailUrl = video.thumbnailUrl
         )
-        val dao = AppDatabase.getDatabase(context).playHistoryDao()
+        val db = AppDatabase.getDatabase(context)
+        val dao = db.playHistoryDao()
         dao.insert(history)
         dao.enforceLimit()
+
+        // Hook: if this was a recommended song, remove it and fetch a new one
+        val streamSongDao = db.streamSongDao()
+        val streamSong = streamSongDao.getStreamSongById(video.id)
+        if (streamSong != null && !streamSong.isManual) {
+            AppLogger.log("[Repo] Recommended song played. Rotating out: ${video.title}")
+            streamSongDao.deleteById(video.id)
+            db.streamCacheDao().deleteStreamCache(video.id)
+            // Fetch single replacement
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                fetchSingleRecommendation(context)
+            }
+        }
     }
 
     suspend fun addToHistory(context: Context, song: Song) {
@@ -329,9 +382,23 @@ object MusicRepository {
             artist = song.artist,
             thumbnailUrl = song.thumbnailUrl
         )
-        val dao = AppDatabase.getDatabase(context).playHistoryDao()
+        val db = AppDatabase.getDatabase(context)
+        val dao = db.playHistoryDao()
         dao.insert(history)
         dao.enforceLimit()
+
+        // Hook: if this was a recommended song, remove it and fetch a new one
+        val streamSongDao = db.streamSongDao()
+        val streamSong = streamSongDao.getStreamSongById(song.id)
+        if (streamSong != null && !streamSong.isManual) {
+            AppLogger.log("[Repo] Recommended song played. Rotating out: ${song.title}")
+            streamSongDao.deleteById(song.id)
+            db.streamCacheDao().deleteStreamCache(song.id)
+            // Fetch single replacement
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                fetchSingleRecommendation(context)
+            }
+        }
     }
 
     // DNA Stats Methods
@@ -787,6 +854,58 @@ object MusicRepository {
             .addTag("refresh_streams")
             .build()
         WorkManager.getInstance(context).enqueue(request)
+    }
+
+
+    suspend fun fetchSingleRecommendation(context: Context) {
+        AppLogger.log("[Repo] Fetching a single new recommendation...")
+        val database = AppDatabase.getDatabase(context)
+
+        // Prepare Inputs
+        val topArtist = database.playHistoryDao().getTopArtistSync()
+        val genres = UserPreferences.getGenres(context).toList()
+        val favoriteArtists = UserPreferences.getArtists(context).toList()
+
+        val selectedArtists = mutableSetOf<String>()
+        if (topArtist != null) selectedArtists.add(topArtist.artist)
+        if (favoriteArtists.isNotEmpty()) selectedArtists.add(favoriteArtists.random())
+
+        val queries = mutableListOf<String>()
+        if (selectedArtists.isNotEmpty()) queries.add("${selectedArtists.random()} songs")
+        if (genres.isNotEmpty()) queries.add(genres.random())
+        if (queries.isEmpty()) queries.add("Trending Music")
+
+        val query = queries.random()
+        try {
+            AppLogger.log("[Repo] Fetching single rec for query: $query")
+            val results = InnerTubeClient.search(query)
+            val filtered = results.filter { parseDuration(it.duration) < 900 }
+
+            // Need to filter out already recommended or in library
+            val currentRecs = database.streamSongDao().getRecommendedSongsSync() ?: emptyList()
+            val library = database.streamSongDao().getLibrarySongsSync() ?: emptyList()
+            val history = database.playHistoryDao().getAllHistoryIdsSync() ?: emptyList()
+
+            val excludeIds = currentRecs.map { it.id }.toSet() + library.map { it.id }.toSet() + history.toSet()
+
+            for (video in filtered) {
+                if (video.id !in excludeIds) {
+                    autoAddStreamSong(context, video)
+                    AppLogger.log("[Repo] Added single recommendation: ${video.title}")
+
+                    // Trigger refresh to cache stream URL if High End mode is on
+                    if (UserPreferences.isHighEndModeEnabled(context)) {
+                        val request = androidx.work.OneTimeWorkRequestBuilder<com.example.musicdownloader.workers.StreamRefresherWorker>()
+                            .addTag("refresh_streams")
+                            .build()
+                        androidx.work.WorkManager.getInstance(context).enqueue(request)
+                    }
+                    return
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.log("[Repo] Failed to fetch single rec: ${e.message}")
+        }
     }
 
     private fun parseDuration(durationStr: String): Long {

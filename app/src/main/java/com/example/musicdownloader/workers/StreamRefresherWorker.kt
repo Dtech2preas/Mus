@@ -80,12 +80,13 @@ class StreamRefresherWorker(
 
         // 6. Handle Expired Recommendations (Rotation)
         if (expiredRecommendations.isNotEmpty()) {
-            AppLogger.log("[StreamRefresher] Rotating ${expiredRecommendations.size} expired recommendations...")
+            AppLogger.log("[StreamRefresher] Rotating ${expiredRecommendations.size} expired recommendations individually...")
             expiredRecommendations.forEach { id ->
                 streamSongDao.deleteById(id)
                 streamCacheDao.deleteStreamCache(id)
+                // Fetch a single replacement to maintain the list size without wiping everything
+                MusicRepository.fetchSingleRecommendation(context)
             }
-            MusicRepository.refreshRecommendations(context)
         }
 
         // 7. Batch Fetch URLs (Concurrency Limit: 7, Stagger: 5s)
