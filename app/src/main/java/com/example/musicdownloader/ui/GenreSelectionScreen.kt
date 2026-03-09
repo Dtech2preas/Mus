@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -18,6 +17,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+
+import android.content.Intent
+import android.app.PendingIntent
+import android.app.AlarmManager
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GenreSelectionScreen(
@@ -29,12 +39,52 @@ fun GenreSelectionScreen(
     var selectedArtists by remember { mutableStateOf(setOf<String>()) }
     var customArtistText by remember { mutableStateOf("") }
 
+    var showRestartPopup by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     val genrePresets = listOf("Amapiano", "Hip Hop", "Afro Soul", "Gospel", "R&B", "Deep House", "Pop", "Jazz")
+
+    if (showRestartPopup) {
+        AlertDialog(
+            onDismissRequest = { /* Force them to use the button */ },
+            title = {
+                Text("App Reload Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Please close the app and open it again to get your customized playlists, or click the Reload App button below.", style = MaterialTheme.typography.bodyLarge)
+                    Text("Tip: Visit Settings to toggle 'High-End Mode' for faster new song playback, and increase the 'Prefetch Limit for Smart Shuffle'.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Version " + "X.24" + " - Smart Shuffle Update", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDone(selectedGenres, selectedArtists)
+                        // Trigger App Restart
+                        val packageManager = context.packageManager
+                        val intent = packageManager.getLaunchIntentForPackage(context.packageName)
+                        val componentName = intent?.component
+                        val mainIntent = Intent.makeRestartActivityTask(componentName)
+                        context.startActivity(mainIntent)
+                        Runtime.getRuntime().exit(0)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Reload App")
+                }
+            },
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    }
 
     Scaffold(
         bottomBar = {
             Button(
-                onClick = { onDone(selectedGenres, selectedArtists) },
+                onClick = { showRestartPopup = true },
+
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)

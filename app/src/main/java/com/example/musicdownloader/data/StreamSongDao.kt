@@ -29,6 +29,14 @@ interface StreamSongDao {
     @Query("SELECT * FROM stream_songs")
     fun getAllStreamSongs(): Flow<List<StreamSong>>
 
+    // Sync methods for synchronous access
+    @Query("SELECT * FROM stream_songs WHERE isManual = 1 ORDER BY timestamp DESC")
+    suspend fun getLibrarySongsSync(): List<StreamSong>
+
+    @Query("SELECT * FROM stream_songs WHERE isManual = 0 ORDER BY timestamp DESC")
+    suspend fun getRecommendedSongsSync(): List<StreamSong>
+
+
     // Pruning: Delete auto songs older than X timestamp
     @Query("DELETE FROM stream_songs WHERE isManual = 0 AND timestamp < :timestamp")
     suspend fun deleteExpiredAutoSongs(timestamp: Long)
