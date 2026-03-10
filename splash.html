@@ -21,28 +21,48 @@
             position: relative;
             width: 100vw;
             height: 100vh;
-            background: radial-gradient(circle at 20% 30%, #001a2b, #000 70%);
+            background: radial-gradient(circle at 50% 10%, #001a2b, #000 80%);
             display: flex;
             align-items: center;
             justify-content: center;
             isolation: isolate;
+            perspective: 1000px;
         }
 
-        /* Grid background */
+        /* 3D Grid background */
         .grid {
+            position: absolute;
+            bottom: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background-image:
+                linear-gradient(rgba(0, 166, 255, 0.15) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 166, 255, 0.15) 2px, transparent 2px);
+            background-size: 80px 80px;
+            z-index: 1;
+            transform-origin: top;
+            transform: rotateX(75deg);
+            animation: gridMove 20s linear infinite;
+            mask-image: linear-gradient(to bottom, transparent 10%, black 70%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 10%, black 70%);
+        }
+
+        /* Secondary subtle purple grid overlay */
+        .grid::after {
+            content: '';
             position: absolute;
             inset: 0;
             background-image:
-                linear-gradient(rgba(0, 166, 255, 0.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 166, 255, 0.08) 1px, transparent 1px);
-            background-size: 40px 40px;
-            z-index: 1;
-            animation: gridPulse 4s infinite alternate;
+                linear-gradient(rgba(138, 43, 226, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(138, 43, 226, 0.1) 1px, transparent 1px);
+            background-size: 160px 160px;
+            pointer-events: none;
         }
 
-        @keyframes gridPulse {
-            0% { opacity: 0.3; }
-            100% { opacity: 0.8; }
+        @keyframes gridMove {
+            0% { transform: rotateX(75deg) translateY(0); }
+            100% { transform: rotateX(75deg) translateY(160px); }
         }
 
         /* Animated waveform (canvas) */
@@ -76,13 +96,13 @@
                 0 0 20px #00a6ff,
                 2px 2px 0 #003366,
                 -2px -2px 0 #0066aa;
-            animation: glitch 3s infinite;
+            animation: glitch 5s infinite;
             margin-bottom: 0.1em;
         }
 
         .dtech span {
             display: inline-block;
-            animation: flicker 5s infinite;
+            animation: flicker 8s infinite;
         }
 
         /* MUSIC */
@@ -97,7 +117,7 @@
             margin-left: 0.4em; /* compensate for spacing */
             text-shadow: 0 0 10px rgba(0, 166, 255, 0.5);
             margin-bottom: 0.5em;
-            animation: pulseText 2s infinite alternate;
+            animation: pulseText 3s infinite alternate;
         }
 
         @keyframes pulseText {
@@ -105,19 +125,27 @@
             100% { text-shadow: 0 0 25px rgba(0, 166, 255, 1); }
         }
 
-        /* Preasx24 */
-        .preasx {
-            font-size: clamp(1.2rem, 4vw, 2.5rem);
+        /* Preasx24 (Made by) */
+        .preasx-footer {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(0.9rem, 2vw, 1.2rem);
             font-family: 'Courier New', monospace;
+            color: #8a2be2; /* Subtle purple matching the secondary grid color */
+            text-shadow: 0 0 10px rgba(138, 43, 226, 0.8);
+            letter-spacing: 0.2em;
+            z-index: 15;
+            opacity: 0;
+            animation: fadeInSlow 3s ease-out 1s forwards;
+            white-space: nowrap;
+        }
+
+        .preasx-footer span {
             color: #00a6ff;
+            font-weight: bold;
             text-shadow: 0 0 15px #00a6ff;
-            letter-spacing: 0.3em;
-            margin-right: -0.3em; /* compensate for letter spacing */
-            border-right: 3px solid #00a6ff;
-            padding-right: 0.5em;
-            display: inline-block;
-            animation: blink 1.5s step-end infinite;
-            margin-bottom: 2rem;
         }
 
         /* Progress bar */
@@ -125,7 +153,7 @@
             width: min(500px, 80vw);
             height: 3px;
             background: rgba(0, 166, 255, 0.2);
-            margin: 2rem auto;
+            margin: 3rem auto 2rem auto; /* Extra top margin to balance the removed preasx text */
             position: relative;
             overflow: hidden;
             border-radius: 2px;
@@ -136,7 +164,7 @@
             width: 0%;
             background: #00a6ff;
             box-shadow: 0 0 20px #00a6ff;
-            animation: fillProgress 4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            animation: fillProgress 6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
             position: relative;
         }
 
@@ -149,7 +177,7 @@
             height: 100%;
             background: white;
             filter: blur(10px);
-            animation: scan 2s linear infinite;
+            animation: scan 3s linear infinite;
         }
 
         /* Terminal lines */
@@ -174,17 +202,17 @@
             width: 0;
         }
 
-        .terminal-line:nth-child(1) { animation: typing 1.5s steps(40, end) forwards; animation-delay: 0.2s; }
-        .terminal-line:nth-child(2) { animation: typing 1.5s steps(40, end) forwards; animation-delay: 1.7s; }
-        .terminal-line:nth-child(3) { animation: typing 1.5s steps(40, end) forwards; animation-delay: 3.2s; }
-        .terminal-line:nth-child(4) { animation: typing 1.5s steps(40, end) forwards; animation-delay: 4.7s; }
+        .terminal-line:nth-child(1) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 0.5s; }
+        .terminal-line:nth-child(2) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 3.5s; }
+        .terminal-line:nth-child(3) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 6.5s; }
+        .terminal-line:nth-child(4) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 9.5s; }
 
         .terminal-line::before {
             content: '>';
             margin-right: 0.8rem;
             color: #00a6ff;
             opacity: 0.8;
-            animation: blink 1s step-end infinite;
+            animation: blink 1.5s step-end infinite;
         }
 
         /* Data stream (right side) */
@@ -203,7 +231,7 @@
 
         .data-stream div {
             margin: 0.4rem 0;
-            animation: dataFade 2s infinite;
+            animation: dataFade 4s infinite;
         }
 
         /* Scanning line overlay */
@@ -218,7 +246,7 @@
             opacity: 0.5;
             z-index: 20;
             pointer-events: none;
-            animation: scanMove 6s linear infinite;
+            animation: scanMove 12s linear infinite;
         }
 
         /* Floating particles */
@@ -234,7 +262,7 @@
             color: #00a6ff;
             font-size: 14px;
             opacity: 0.3;
-            animation: floatParticle 12s linear infinite;
+            animation: floatParticle 20s linear infinite;
             text-shadow: 0 0 5px #00a6ff;
         }
 
@@ -296,12 +324,17 @@
             0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
             10% { opacity: 0.4; }
             90% { opacity: 0.4; }
-            100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+            100% { transform: translateY(-100px) rotate(180deg); opacity: 0; }
         }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes fadeInSlow {
+            from { opacity: 0; transform: translate(-50%, 10px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
         }
 
         /* Responsive */
@@ -322,10 +355,13 @@
                 <span>D</span>T<span>E</span>C<span>H</span>
             </div>
             <div class="music">MUSIC</div>
-            <div class="preasx">PREASX24</div>
             <div class="progress">
                 <div class="progress-fill"></div>
             </div>
+        </div>
+
+        <div class="preasx-footer">
+            made by <span>preasx24</span>
         </div>
 
         <div class="terminal">
@@ -385,15 +421,15 @@
                         const centerY = height / 2;
 
                         // Amplitudes scale with screen size but stay bounded
-                        const amplitude1 = (height * 0.15) * Math.sin(time * 0.01 + i);
-                        const amplitude2 = (height * 0.08) * Math.cos(time * 0.02 - i);
+                        const amplitude1 = (height * 0.15) * Math.sin(time * 0.005 + i);
+                        const amplitude2 = (height * 0.08) * Math.cos(time * 0.01 - i);
 
-                        // Simulated music "beat" pulsing effect
-                        const beat = Math.pow(Math.sin(time * 0.05 + i), 4) * (height * 0.05);
+                        // Simulated music "beat" pulsing effect, slowed down
+                        const beat = Math.pow(Math.sin(time * 0.02 + i), 4) * (height * 0.05);
 
                         const y = centerY
-                                + Math.sin(x * frequency1 + time * 0.03 + i) * amplitude1
-                                + Math.cos(x * frequency2 - time * 0.02 + i) * (amplitude2 + beat);
+                                + Math.sin(x * frequency1 + time * 0.015 + i) * amplitude1
+                                + Math.cos(x * frequency2 - time * 0.01 + i) * (amplitude2 + beat);
 
                         if (x === 0) {
                             ctx.moveTo(x, y);
@@ -404,7 +440,8 @@
                     ctx.stroke();
                 }
 
-                time += 1;
+                // Slow down the time increment for smoother waveform movement
+                time += 0.4;
                 requestAnimationFrame(drawWaveform);
             }
             drawWaveform();
@@ -412,12 +449,12 @@
             // Floating particles (music notes / audio symbols)
             const particleContainer = document.getElementById('particles');
             const notes = ['♫', '♪', '♩', '♬', 'ıllıllı', 'ılı.lıllılı.ıllı'];
-            for (let i = 0; i < 25; i++) {
+            for (let i = 0; i < 20; i++) {
                 const p = document.createElement('div');
                 p.className = 'particle';
                 p.textContent = notes[Math.floor(Math.random() * notes.length)];
                 p.style.left = Math.random() * 100 + '%';
-                p.style.animationDelay = Math.random() * 12 + 's';
+                p.style.animationDelay = Math.random() * 20 + 's';
                 p.style.fontSize = (Math.random() * 15 + 10) + 'px';
                 particleContainer.appendChild(p);
             }
