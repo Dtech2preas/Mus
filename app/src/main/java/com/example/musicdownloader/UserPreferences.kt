@@ -16,6 +16,7 @@ object UserPreferences {
     private const val KEY_THEME_COLOR = "theme_color"
     private const val KEY_SMART_SHUFFLE_BUFFER = "smart_shuffle_buffer_size"
     private const val KEY_HIGH_END_MODE = "high_end_mode_enabled"
+    private const val KEY_MADE_FOR_YOU_IDS = "made_for_you_ids"
 
     // Ad System Keys
     private const val KEY_FIRST_OPEN_TIME = "first_open_time"
@@ -120,6 +121,18 @@ object UserPreferences {
     fun setHighEndModeEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit {
             putBoolean(KEY_HIGH_END_MODE, enabled)
+        }
+    }
+
+    fun getMadeForYouIds(context: Context): List<String> {
+        val stringList = getPrefs(context).getString(KEY_MADE_FOR_YOU_IDS, "") ?: ""
+        if (stringList.isBlank()) return emptyList()
+        return stringList.split(",")
+    }
+
+    fun setMadeForYouIds(context: Context, ids: List<String>) {
+        getPrefs(context).edit {
+            putString(KEY_MADE_FOR_YOU_IDS, ids.joinToString(","))
         }
     }
 

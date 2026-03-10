@@ -181,8 +181,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Initialize Recommendations
-        viewModelScope.launch {
-            MusicRepository.refreshRecommendations(application)
+        viewModelScope.launch(Dispatchers.IO) {
+            val existingRecs = AppDatabase.getDatabase(application).streamSongDao().getRecommendedSongsSync()
+            if (existingRecs.isNullOrEmpty()) {
+                MusicRepository.refreshRecommendations(application)
+            } else {
+                AppLogger.log("[ViewModel] Existing recommendations found. Skipping initial refresh.")
+            }
         }
 
         // Load Genre Feeds

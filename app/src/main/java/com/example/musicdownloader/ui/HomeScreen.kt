@@ -62,21 +62,32 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Randomize the "Made for You" list only when feeds actually change,
-        // to prevent the UI from reshuffling when a user clicks play/download.
-        val randomizedAllGenreSongs = remember(homeFeedState.genreFeeds) {
-            homeFeedState.genreFeeds.flatMap { it.songs }.shuffled()
+        val context = androidx.compose.ui.platform.LocalContext.current
+        // Load the persistent order of IDs for "Made for You"
+        val savedMadeForYouIds = remember(homeFeedState.genreFeeds) {
+            com.example.musicdownloader.UserPreferences.getMadeForYouIds(context)
         }
 
         // Compute deduplicated lists sequentially to prevent UI state loop
-        val deduplicatedLists = remember(recommendedSongs, playHistory, homeFeedState.genreFeeds, downloadedIds, randomizedAllGenreSongs) {
+        val deduplicatedLists = remember(recommendedSongs, playHistory, homeFeedState.genreFeeds, downloadedIds, savedMadeForYouIds) {
             val seenIds = mutableSetOf<String>()
 
             val recommended = recommendedSongs.filter { !downloadedIds.contains(it.id) && seenIds.add(it.id) }
             val history = playHistory.filter { seenIds.add(it.songId) }
 
-            // Take up to 40 or 50 items so we can have 10 rows of 4-5 items
-            val madeForYou = randomizedAllGenreSongs.filter { seenIds.add(it.id) }.distinctBy { it.id }.take(50)
+            // Reconstruct the "Made for You" list based on the saved ID order
+            val allFeedSongsMap = homeFeedState.genreFeeds.flatMap { it.songs }.associateBy { it.id }
+            val orderedMadeForYouSongs = savedMadeForYouIds.mapNotNull { allFeedSongsMap[it] }
+
+            // Fallback in case there are missing songs or the list is completely empty
+            val finalMadeForYouSongs = if (orderedMadeForYouSongs.isEmpty() && homeFeedState.genreFeeds.isNotEmpty()) {
+                 homeFeedState.genreFeeds.flatMap { it.songs }.shuffled()
+            } else {
+                 orderedMadeForYouSongs
+            }
+
+            // Take up to 50 items so we can have 10 columns of 5 items
+            val madeForYou = finalMadeForYouSongs.filter { seenIds.add(it.id) }.distinctBy { it.id }.take(50)
 
             val trendingFeeds = homeFeedState.genreFeeds.map { feed ->
                 feed.copy(songs = feed.songs.filter { seenIds.add(it.id) })
@@ -206,9 +217,10 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
                                  modifier = Modifier.padding(bottom = 12.dp)
                              )
 
-                             // Horizontal Grid (simulated with Column of 10 items per chunk)
-                             // So it scrolls horizontally, but has 10 items stacked vertically
-                             val chunks = displayMadeForYou.chunked(10)
+                             // Horizontal Grid (simulated with Column of 5 items per chunk)
+                             // User requested exactly 50 items total: 10 columns across, 5 items down.
+                             // We are enforcing exactly 5 items down per column, up to 10 columns (if size is 50).
+                             val chunks = displayMadeForYou.chunked(5)
                              LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                  items(chunks) { chunk ->
                                      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

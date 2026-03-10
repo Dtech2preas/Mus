@@ -152,6 +152,7 @@ class MusicService : MediaSessionService() {
         return mediaSession
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private inner class CustomNotificationProvider : androidx.media3.session.DefaultMediaNotificationProvider(this) {
         init {
             setSmallIcon(R.drawable.dtech_logo)
@@ -172,6 +173,7 @@ class MusicService : MediaSessionService() {
     private inner class CustomMediaSessionCallback : MediaSession.Callback {
 
         // --- CRITICAL FIX: Whitelist the Custom Command ---
+        @OptIn(UnstableApi::class)
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo
