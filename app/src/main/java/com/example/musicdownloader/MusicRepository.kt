@@ -87,6 +87,7 @@ object MusicRepository {
         val currentTime = System.currentTimeMillis()
         val TWO_HOURS_MS = 2 * 60 * 60 * 1000L
         val shouldRefresh = (currentTime - lastRefreshed) > TWO_HOURS_MS
+        var feedsChanged = false
 
         if (shouldRefresh) {
             // Instead of fully clearing the memory cache, we'll keep 75% of existing results and fetch 25% new ones.
@@ -106,6 +107,7 @@ object MusicRepository {
                         // Shift: drop the oldest `distinctNew.size` items and append new ones
                         val combined = oldList.drop(distinctNew.size) + distinctNew
                         searchCache[genre] = combined
+                        feedsChanged = true
                     } catch (e: Exception) {
                         AppLogger.log("[Repo] Failed to fetch partial genre update for $genre: ${e.message}")
                     }
@@ -114,6 +116,7 @@ object MusicRepository {
                     try {
                         val newResults = InnerTubeClient.search(genre)
                         searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(10)
+                        feedsChanged = true
                     } catch (e: Exception) {
                         AppLogger.log("[Repo] Failed initial fetch for $genre: ${e.message}")
                     }
@@ -127,11 +130,20 @@ object MusicRepository {
                     try {
                         val newResults = InnerTubeClient.search(genre)
                         searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(10)
+                        feedsChanged = true
                     } catch (e: Exception) {
                         // Ignore
                     }
                 }
             }
+        }
+
+        // If feeds changed or the Made For You IDs list is empty, regenerate the order
+        if (feedsChanged || UserPreferences.getMadeForYouIds(context).isEmpty()) {
+            val allIds = genres.flatMap { genre ->
+                searchCache[genre]?.map { it.id } ?: emptyList()
+            }.distinct().shuffled()
+            UserPreferences.setMadeForYouIds(context, allIds)
         }
 
         // Return feeds from cache
