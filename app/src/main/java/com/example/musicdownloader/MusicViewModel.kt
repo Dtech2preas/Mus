@@ -15,6 +15,7 @@ import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.utils.DnaAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -49,7 +50,8 @@ data class MusicUiState(
     val isLoadingPlayer: Boolean = false,
     val errorMessage: String? = null,
     val downloadMessage: String? = null,
-    val genreFeeds: List<GenreFeed> = emptyList()
+    val genreFeeds: List<GenreFeed> = emptyList(),
+    val madeForYou: List<VideoItem> = emptyList()
 )
 
 data class CurrentSongStatus(
@@ -225,8 +227,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(isLoading = true)
 
         viewModelScope.launch {
-            val feeds = MusicRepository.fetchGenreFeeds(getApplication(), genres)
-            _uiState.value = _uiState.value.copy(genreFeeds = feeds, isLoading = false)
+            // Launch both fetches concurrently
+            val feedsDeferred = async { MusicRepository.fetchGenreFeeds(getApplication(), genres) }
+            val madeForYouDeferred = async { MusicRepository.fetchMadeForYou(getApplication()) }
+
+            val feeds = feedsDeferred.await()
+            val madeForYou = madeForYouDeferred.await()
+
+            _uiState.value = _uiState.value.copy(
+                genreFeeds = feeds,
+                madeForYou = madeForYou,
+                isLoading = false
+            )
         }
     }
 

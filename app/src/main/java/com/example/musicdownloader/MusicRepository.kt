@@ -1004,4 +1004,59 @@ object MusicRepository {
     fun isSavedToLibrary(context: Context, songId: String): Flow<Boolean> {
         return AppDatabase.getDatabase(context).streamSongDao().isSavedToLibrary(songId)
     }
+
+    suspend fun fetchMadeForYou(context: Context, targetCount: Int = 50): List<VideoItem> {
+        AppLogger.log("[Repo] Fetching Made for You to ensure $targetCount items...")
+        val database = AppDatabase.getDatabase(context)
+
+        val recommendedIds = database.streamSongDao().getRecommendedSongsSync()?.map { it.id }?.toSet() ?: emptySet()
+        val historyIds = database.playHistoryDao().getAllHistoryIdsSync()?.toSet() ?: emptySet()
+        val genres = UserPreferences.getGenres(context).toList()
+        val favoriteArtists = UserPreferences.getArtists(context).toList()
+
+        val madeForYou = mutableListOf<VideoItem>()
+        val seenIds = mutableSetOf<String>().apply {
+            addAll(recommendedIds)
+            addAll(historyIds)
+        }
+
+        val searchTerms = mutableListOf<String>()
+        if (genres.isNotEmpty()) {
+            searchTerms.addAll(genres.map { "$it music" })
+        } else {
+            searchTerms.add("trending music")
+        }
+        if (favoriteArtists.isNotEmpty()) {
+            searchTerms.addAll(favoriteArtists.map { "$it songs" })
+        }
+        searchTerms.shuffle()
+
+        var attempts = 0
+        val maxAttempts = 10
+
+        while (madeForYou.size < targetCount && attempts < maxAttempts) {
+            val term = searchTerms[attempts % searchTerms.size]
+            try {
+                AppLogger.log("[Repo] Made for You fetch attempt ${attempts + 1}: querying '$term'")
+                val results = InnerTubeClient.search(term)
+                val filtered = results.filter { parseDuration(it.duration) in 60..600 }
+
+                // Shuffle to avoid getting the exact same top results if we query the same term again
+                val randomizedResults = filtered.shuffled()
+
+                for (video in randomizedResults) {
+                    if (madeForYou.size >= targetCount) break
+                    if (seenIds.add(video.id)) {
+                        madeForYou.add(video)
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[Repo] Failed to fetch Made for You for term '$term': ${e.message}")
+            }
+            attempts++
+        }
+
+        AppLogger.log("[Repo] Made for You fetched ${madeForYou.size} items.")
+        return madeForYou
+    }
 }

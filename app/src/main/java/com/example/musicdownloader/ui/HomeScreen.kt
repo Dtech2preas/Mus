@@ -64,31 +64,31 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
 
         // Randomize the "Made for You" list only when feeds actually change,
         // to prevent the UI from reshuffling when a user clicks play/download.
-        val randomizedAllGenreSongs = remember(homeFeedState.genreFeeds) {
-            homeFeedState.genreFeeds.flatMap { it.songs }.shuffled()
+        val displayMadeForYou = remember(homeFeedState.madeForYou) {
+            homeFeedState.madeForYou.shuffled()
         }
 
         // Compute deduplicated lists sequentially to prevent UI state loop
-        val deduplicatedLists = remember(recommendedSongs, playHistory, homeFeedState.genreFeeds, downloadedIds, randomizedAllGenreSongs) {
+        val deduplicatedLists = remember(recommendedSongs, playHistory, homeFeedState.genreFeeds, downloadedIds, displayMadeForYou) {
             val seenIds = mutableSetOf<String>()
 
             val recommended = recommendedSongs.filter { !downloadedIds.contains(it.id) && seenIds.add(it.id) }
             val history = playHistory.filter { seenIds.add(it.songId) }
 
-            // Take up to 40 or 50 items so we can have 10 rows of 4-5 items
-            val madeForYou = randomizedAllGenreSongs.filter { seenIds.add(it.id) }.distinctBy { it.id }.take(50)
+            // "Made for You" is pre-deduplicated in Repository to ensure count,
+            // but we add them to seenIds so they aren't stolen by trending feeds
+            displayMadeForYou.forEach { seenIds.add(it.id) }
 
             val trendingFeeds = homeFeedState.genreFeeds.map { feed ->
                 feed.copy(songs = feed.songs.filter { seenIds.add(it.id) })
             }
 
-            Triple(recommended, history, Pair(madeForYou, trendingFeeds))
+            Triple(recommended, history, trendingFeeds)
         }
 
         val displayRecommended = deduplicatedLists.first
         val displayHistory = deduplicatedLists.second
-        val displayMadeForYou = deduplicatedLists.third.first
-        val deduplicatedTrendingFeeds = deduplicatedLists.third.second
+        val deduplicatedTrendingFeeds = deduplicatedLists.third
 
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(24.dp),
