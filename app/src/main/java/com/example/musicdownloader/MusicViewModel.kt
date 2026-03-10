@@ -767,6 +767,41 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renamePlaylist(playlistId: Int, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                AppDatabase.getDatabase(getApplication()).playlistDao().renamePlaylist(playlistId, newName)
+                _toastEvent.emit("Playlist renamed")
+            } catch (e: Exception) {
+                _toastEvent.emit("Failed to rename playlist")
+            }
+        }
+    }
+
+    fun deletePlaylist(playlistId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val db = AppDatabase.getDatabase(getApplication())
+                db.playlistDao().deletePlaylist(playlistId)
+                db.playlistDao().removePlaylistEntries(playlistId)
+                _toastEvent.emit("Playlist deleted")
+            } catch (e: Exception) {
+                _toastEvent.emit("Failed to delete playlist")
+            }
+        }
+    }
+
+    fun removeSongFromPlaylist(playlistId: Int, songId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                AppDatabase.getDatabase(getApplication()).playlistDao().removeSongFromPlaylist(playlistId, songId)
+                _toastEvent.emit("Removed from playlist")
+            } catch (e: Exception) {
+                _toastEvent.emit("Failed to remove song")
+            }
+        }
+    }
+
     fun addSongToPlaylist(playlist: Playlist, songs: List<Song>) {
         viewModelScope.launch {
              // In the future, batch add. For now, loop.
