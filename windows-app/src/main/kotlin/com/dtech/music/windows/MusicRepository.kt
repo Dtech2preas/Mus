@@ -24,8 +24,12 @@ class MusicRepository(private val preferences: UserPreferences) {
     private val _recentlyPlayed = MutableStateFlow<List<VideoItem>>(emptyList())
     val recentlyPlayed: StateFlow<List<VideoItem>> = _recentlyPlayed.asStateFlow()
 
-    private val _recommended = MutableStateFlow<List<VideoItem>>(emptyList())
-    val recommended: StateFlow<List<VideoItem>> = _recommended.asStateFlow()
+    private val _recommendedSongs = MutableStateFlow<List<VideoItem>>(emptyList())
+    val recommendedSongs: StateFlow<List<VideoItem>> = _recommendedSongs.asStateFlow()
+
+    data class GenreFeed(val genreName: String, val songs: List<VideoItem>)
+    private val _genreFeeds = MutableStateFlow<List<GenreFeed>>(emptyList())
+    val genreFeeds: StateFlow<List<GenreFeed>> = _genreFeeds.asStateFlow()
 
     init {
         refreshRecentlyPlayed()
@@ -106,21 +110,36 @@ class MusicRepository(private val preferences: UserPreferences) {
         refreshRecentlyPlayed()
     }
 
+    suspend fun refreshRecommendations() {
+        // Implement simple recommendation fetch based on artists or recent
+        val artists = preferences.favoriteArtists.value
+        if (artists.isNotEmpty()) {
+            val results = search("${artists.random()} music mix").take(15)
+            _recommendedSongs.value = results
+        } else if (preferences.favoriteGenres.value.isNotEmpty()) {
+            val results = search("${preferences.favoriteGenres.value.random()} mix").take(15)
+            _recommendedSongs.value = results
+        }
+    }
+
     suspend fun fetchMadeForYou() {
         val genres = preferences.favoriteGenres.value
         if (genres.isEmpty()) return
 
         val shuffledGenres = genres.shuffled()
         val results = mutableListOf<VideoItem>()
-        for (genre in shuffledGenres.take(3)) {
+        val feeds = mutableListOf<GenreFeed>()
+        for (genre in shuffledGenres.take(5)) {
              try {
                  val searchResults = search("$genre music")
                  results.addAll(searchResults.take(10))
+                 feeds.add(GenreFeed(genre, searchResults.take(10)))
              } catch (e: Exception) {
                  println("Failed fetching genre $genre")
              }
         }
         _madeForYou.value = results.shuffled().distinctBy { it.id }
+        _genreFeeds.value = feeds
     }
 
     fun getAllLibrarySongs(): Flow<List<VideoItem>> = flow {

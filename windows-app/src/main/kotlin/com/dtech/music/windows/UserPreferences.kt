@@ -18,6 +18,9 @@ class UserPreferences {
     private val _favoriteGenres = MutableStateFlow(prefs.get("favoriteGenres", "").split(",").filter { it.isNotBlank() })
     val favoriteGenres: StateFlow<List<String>> = _favoriteGenres.asStateFlow()
 
+    private val _favoriteArtists = MutableStateFlow(prefs.get("favoriteArtists", "").split(",").filter { it.isNotBlank() })
+    val favoriteArtists: StateFlow<List<String>> = _favoriteArtists.asStateFlow()
+
     private val _firstTimeSetupComplete = MutableStateFlow(prefs.getBoolean("firstTimeSetupComplete", false))
     val firstTimeSetupComplete: StateFlow<Boolean> = _firstTimeSetupComplete.asStateFlow()
 
@@ -35,6 +38,12 @@ class UserPreferences {
         val joined = genres.joinToString(",")
         prefs.put("favoriteGenres", joined)
         _favoriteGenres.value = genres
+    }
+
+    fun setFavoriteArtists(artists: List<String>) {
+        val joined = artists.joinToString(",")
+        prefs.put("favoriteArtists", joined)
+        _favoriteArtists.value = artists
     }
 
     fun setFirstTimeSetupComplete(complete: Boolean) {
