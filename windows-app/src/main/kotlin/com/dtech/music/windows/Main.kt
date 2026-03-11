@@ -23,8 +23,13 @@ import androidx.compose.ui.window.rememberWindowState
 val TechBlack = Color(0xFF121212)
 val NeonBlue = Color(0xFF00A6FF)
 
-fun main() = application {
-    val windowState = rememberWindowState(width = 1200.dp, height = 800.dp)
+fun main() {
+    // Force software rendering to prevent "LoadLibrary failed with error 1114"
+    // caused by problematic OpenGL/Direct3D driver initialization on some dual-GPU Windows machines.
+    System.setProperty("skiko.renderApi", "SOFTWARE")
+
+    application {
+        val windowState = rememberWindowState(width = 1200.dp, height = 800.dp)
 
     Window(
         onCloseRequest = ::exitApplication,
@@ -41,6 +46,7 @@ fun main() = application {
             MainScreen()
         }
     }
+}
 }
 
 @Composable
