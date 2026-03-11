@@ -11,8 +11,10 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = java.net.URI("https://jitpack.io") }
+        maven { url = java.net.URI("https://maven.pkg.jetbrains.space/public/p/compose/dev") }
     }
 }
 
 rootProject.name = "MusicDownloader"
 include(":app")
+include(":windows-app")
