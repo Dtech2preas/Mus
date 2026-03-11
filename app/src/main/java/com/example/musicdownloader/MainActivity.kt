@@ -33,6 +33,7 @@ import androidx.core.content.ContextCompat
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.ui.*
 import com.example.musicdownloader.ui.DTechBlue
+import com.example.musicdownloader.ui.SplashScreen
 import com.example.musicdownloader.ui.PremiumGold
 import com.example.musicdownloader.ui.FullScreenPlayer
 import com.example.musicdownloader.utils.AdManager
@@ -81,19 +82,24 @@ fun RequestPermissions() {
 fun AppNavigation(viewModel: MusicViewModel) {
     val context = LocalContext.current
     var isFirstRun by remember { mutableStateOf(UserPreferences.isFirstRun(context)) }
+    val isAppReady by viewModel.isAppReady.collectAsStateWithLifecycle()
 
-    if (isFirstRun) {
-        GenreSelectionScreen(
-            onDone = { genres, artists ->
-                UserPreferences.saveGenres(context, genres)
-                UserPreferences.saveArtists(context, artists)
-                UserPreferences.setFirstRunCompleted(context)
-                isFirstRun = false
-                viewModel.loadGenreFeeds()
-            }
-        )
+    if (!isAppReady) {
+        SplashScreen()
     } else {
-        MainScreen(viewModel)
+        if (isFirstRun) {
+            GenreSelectionScreen(
+                onDone = { genres, artists ->
+                    UserPreferences.saveGenres(context, genres)
+                    UserPreferences.saveArtists(context, artists)
+                    UserPreferences.setFirstRunCompleted(context)
+                    isFirstRun = false
+                    viewModel.loadGenreFeeds()
+                }
+            )
+        } else {
+            MainScreen(viewModel)
+        }
     }
 }
 
