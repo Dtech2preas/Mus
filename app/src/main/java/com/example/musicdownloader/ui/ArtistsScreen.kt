@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -33,9 +34,11 @@ fun ArtistsScreen(
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
 
+    var searchQuery by remember { mutableStateOf("") }
+
     // Group songs by artist
-    val artists = remember(songs) {
-        songs.groupBy { it.artist }
+    val artists = remember(songs, searchQuery) {
+        var grouped = songs.groupBy { it.artist }
              .filterKeys {
                  // Filter out bad keys, "Unknown Artist" (and variants), and empty strings
                  it.isNotBlank() &&
@@ -43,6 +46,11 @@ fun ArtistsScreen(
              }
              .toList()
              .sortedBy { it.first.lowercase() } // A-Z
+
+        if (searchQuery.isNotBlank()) {
+            grouped = grouped.filter { it.first.contains(searchQuery, ignoreCase = true) }
+        }
+        grouped
     }
 
     Scaffold(
@@ -59,20 +67,45 @@ fun ArtistsScreen(
         },
         containerColor = Color(0xFF0F0F13)
     ) { padding ->
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            contentPadding = PaddingValues(16.dp),
-            modifier = Modifier.padding(padding),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
         ) {
-            items(artists) { (artistName, artistSongs) ->
-                ArtistCard(
-                    name = artistName,
-                    songCount = artistSongs.size,
-                    thumbnailUrl = artistSongs.firstOrNull()?.thumbnailUrl ?: "",
-                    onClick = { onNavigateToArtist(artistName) }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Search artists", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = ElectricPurple,
+                    unfocusedBorderColor = Color.Gray,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
                 )
+            )
+
+            if (artists.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(if (searchQuery.isNotBlank()) "No matches found" else "No artists yet", color = Color.Gray)
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(16.dp),
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(artists) { (artistName, artistSongs) ->
+                        ArtistCard(
+                            name = artistName,
+                            songCount = artistSongs.size,
+                            thumbnailUrl = artistSongs.firstOrNull()?.thumbnailUrl ?: "",
+                            onClick = { onNavigateToArtist(artistName) }
+                        )
+                    }
+                }
             }
         }
     }
