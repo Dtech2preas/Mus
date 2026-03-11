@@ -180,59 +180,11 @@
             animation: scan 3s linear infinite;
         }
 
-        /* Terminal lines */
-        .terminal {
-            position: absolute;
-            bottom: 2rem;
-            left: 2rem;
-            color: #00a6ff;
-            font-size: 0.9rem;
-            opacity: 0.7;
-            z-index: 11;
-            text-align: left;
-            max-width: 450px;
-        }
+        /* --- Terminal (BOTTOM LEFT) REMOVED as requested --- */
+        /* .terminal block completely removed */
 
-        .terminal-line {
-            margin: 0.5rem 0;
-            white-space: nowrap;
-            overflow: hidden;
-            border-right: 2px solid transparent;
-            /* staggered typing animation */
-            width: 0;
-        }
-
-        .terminal-line:nth-child(1) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 0.5s; }
-        .terminal-line:nth-child(2) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 3.5s; }
-        .terminal-line:nth-child(3) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 6.5s; }
-        .terminal-line:nth-child(4) { animation: typing 2.5s steps(40, end) forwards; animation-delay: 9.5s; }
-
-        .terminal-line::before {
-            content: '>';
-            margin-right: 0.8rem;
-            color: #00a6ff;
-            opacity: 0.8;
-            animation: blink 1.5s step-end infinite;
-        }
-
-        /* Data stream (right side) */
-        .data-stream {
-            position: absolute;
-            top: 2rem;
-            right: 2rem;
-            color: #00a6ff;
-            font-size: 0.8rem;
-            opacity: 0.6;
-            z-index: 11;
-            text-align: right;
-            font-family: monospace;
-            pointer-events: none;
-        }
-
-        .data-stream div {
-            margin: 0.4rem 0;
-            animation: dataFade 4s infinite;
-        }
+        /* --- Data stream (TOP RIGHT) REMOVED as requested --- */
+        /* .data-stream block completely removed */
 
         /* Scanning line overlay */
         .scanner {
@@ -337,10 +289,9 @@
             to { opacity: 1; transform: translate(-50%, 0); }
         }
 
-        /* Responsive */
+        /* Responsive: only preasx-footer remains visible */
         @media (max-width: 600px) {
-            .terminal { bottom: 1rem; left: 1rem; font-size: 0.7rem; max-width: 80vw; }
-            .data-stream { top: 1rem; right: 1rem; font-size: 0.6rem; }
+            /* No adjustments needed for removed elements */
         }
     </style>
 </head>
@@ -361,21 +312,11 @@
         </div>
 
         <div class="preasx-footer">
-            made by <span>preasx24</span>
+            <span>preasx24</span>
         </div>
 
-        <div class="terminal">
-            <div class="terminal-line">INITIALIZING AUDIO ENGINE...</div>
-            <div class="terminal-line">LOADING YT-DLP BACKEND...</div>
-            <div class="terminal-line">ESTABLISHING STREAM TUBE LINK...</div>
-            <div class="terminal-line">BUFFERING HIGH-RES AUDIO...</div>
-        </div>
-
-        <div class="data-stream" id="dataStream">
-            <div>BITRATE: 320kbps</div>
-            <div>CODEC: OPUS</div>
-            <div>FREQ: 44.1kHz</div>
-        </div>
+        <!-- BOTTOM LEFT TERMINAL BLOCK REMOVED -->
+        <!-- TOP RIGHT DATA STREAM BLOCK REMOVED -->
 
         <div class="scanner"></div>
     </div>
@@ -459,29 +400,9 @@
                 particleContainer.appendChild(p);
             }
 
-            // Update data stream periodically with audio stats
-            const dataStream = document.getElementById('dataStream');
-            const stats = [
-                () => `BITRATE: ${[128, 192, 256, 320][Math.floor(Math.random()*4)]}kbps`,
-                () => `CODEC: ${['OPUS', 'AAC', 'FLAC', 'ALAC', 'VORBIS'][Math.floor(Math.random()*5)]}`,
-                () => `FREQ: ${[44.1, 48.0, 96.0, 192.0][Math.floor(Math.random()*4)]}kHz`,
-                () => `CHANNELS: ${['STEREO', 'SURROUND', 'MONO', '7.1'][Math.floor(Math.random()*4)]}`,
-                () => `BUFFER: ${Math.floor(Math.random() * 30 + 70)}%`, // 70-100%
-                () => `LATENCY: ${Math.floor(Math.random() * 40) + 12}ms`,
-                () => `PEAK: -${(Math.random() * 6).toFixed(1)}dB`,
-                () => `ENGINE: CORE_AUDIO_V2`,
-                () => `DSP: ACTIVE`
-            ];
-
-            function refreshData() {
-                const newDiv = document.createElement('div');
-                newDiv.textContent = stats[Math.floor(Math.random() * stats.length)]();
-                dataStream.insertBefore(newDiv, dataStream.firstChild);
-                if (dataStream.children.length > 5) {
-                    dataStream.removeChild(dataStream.lastChild);
-                }
-            }
-            setInterval(refreshData, 1500);
+            // TOP RIGHT DATA STREAM REMOVED — no setInterval for dataStream
+            // BOTTOM LEFT TERMINAL REMOVED — no typing animation elements
+            // Therefore the associated JavaScript for those features is omitted.
 
         })();
     </script>
