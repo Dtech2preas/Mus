@@ -17,4 +17,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "MusicDownloader"
 include(":app")
-include(":windows-app")
