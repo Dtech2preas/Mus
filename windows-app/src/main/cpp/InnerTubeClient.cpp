@@ -53,7 +53,7 @@ void InnerTubeClient::search(const QString& query) {
     QJsonDocument doc(jsonBody);
     QByteArray data = doc.toJson();
 
-    QNetworkRequest request(QUrl(baseUrl));
+    QNetworkRequest request{QUrl(baseUrl)};
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36");
 
@@ -129,7 +129,7 @@ void InnerTubeClient::getStreamUrl(const QString& videoId) {
     QJsonDocument doc(jsonBody);
     QByteArray data = doc.toJson();
 
-    QNetworkRequest request(QUrl(playerUrl));
+    QNetworkRequest request{QUrl(playerUrl)};
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 14; Build/UPB2.230407.019)");
 
@@ -197,7 +197,7 @@ void InnerTubeClient::fetchMetadata(const QString& videoId) {
     QJsonDocument doc(jsonBody);
     QByteArray data = doc.toJson();
 
-    QNetworkRequest request(QUrl(playerUrl));
+    QNetworkRequest request{QUrl(playerUrl)};
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 14; Build/UPB2.230407.019)");
 
