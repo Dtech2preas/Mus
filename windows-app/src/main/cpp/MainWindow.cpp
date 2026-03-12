@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "DebugWindow.h"
 #include <QVBoxLayout>
+#include <QEvent>
 #include <QGridLayout>
 #include <QScrollArea>
 #include <QTimer>
