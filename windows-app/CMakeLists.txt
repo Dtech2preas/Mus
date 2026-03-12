@@ -26,6 +26,8 @@ set(PROJECT_SOURCES
     src/main/cpp/NetworkClient.h
     src/main/cpp/MusicPlayer.cpp
     src/main/cpp/MusicPlayer.h
+    src/main/cpp/InnerTubeClient.cpp
+    src/main/cpp/InnerTubeClient.h
 )
 
 if(${CMAKE_VERSION} VERSION_LESS "3.19.0")
