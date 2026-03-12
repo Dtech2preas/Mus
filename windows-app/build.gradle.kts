@@ -47,6 +47,7 @@ compose.desktop {
             description = "DTECH Music Application for Windows"
             vendor = "PREASX24"
             windows {
+                includeAllModules = true
                 menuGroup = "DTECH MUSIC"
                 shortcut = true
             }
