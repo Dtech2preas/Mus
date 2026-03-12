@@ -49,6 +49,7 @@ compose.desktop {
             windows {
                 menuGroup = "DTECH MUSIC"
                 shortcut = true
+                includeAllModules = true
             }
         }
     }
