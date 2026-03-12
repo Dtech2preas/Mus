@@ -28,6 +28,10 @@ set(PROJECT_SOURCES
     src/main/cpp/MusicPlayer.h
     src/main/cpp/InnerTubeClient.cpp
     src/main/cpp/InnerTubeClient.h
+    src/main/cpp/DebugWindow.cpp
+    src/main/cpp/DebugWindow.h
+    src/main/cpp/YtDlpManager.cpp
+    src/main/cpp/YtDlpManager.h
 )
 
 if(${CMAKE_VERSION} VERSION_LESS "3.19.0")

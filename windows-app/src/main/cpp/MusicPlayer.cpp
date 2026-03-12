@@ -7,18 +7,18 @@ MusicPlayer::MusicPlayer(QObject *parent) : QObject(parent), currentIndex(-1) {
     player->setAudioOutput(audioOutput);
     audioOutput->setVolume(1.0); // 100%
 
-    innerTube = new InnerTubeClient(this);
+    ytDlp = new YtDlpManager(this);
 
     connect(player, &QMediaPlayer::playbackStateChanged, this, &MusicPlayer::handleStateChanged);
     connect(player, &QMediaPlayer::positionChanged, this, &MusicPlayer::positionChanged);
     connect(player, &QMediaPlayer::durationChanged, this, &MusicPlayer::durationChanged);
 
-    connect(innerTube, &InnerTubeClient::streamUrlFetched, this, &MusicPlayer::handleStreamUrlFetched);
-    connect(innerTube, &InnerTubeClient::streamUrlFailed, this, &MusicPlayer::handleStreamUrlFailed);
+    connect(ytDlp, &YtDlpManager::streamUrlFetched, this, &MusicPlayer::handleStreamUrlFetched);
+    connect(ytDlp, &YtDlpManager::streamUrlFailed, this, &MusicPlayer::handleStreamUrlFailed);
 }
 
 MusicPlayer::~MusicPlayer() {
-    // Parent cleans up player, audioOutput, and innerTube
+    // Parent cleans up player, audioOutput, and ytDlp
 }
 
 void MusicPlayer::playUrl(const QString &url) {
@@ -31,7 +31,13 @@ void MusicPlayer::playSong(const VideoItem& song) {
     currentQueue.append(song);
     currentIndex = 0;
     emit currentSongChanged(song);
-    innerTube->getStreamUrl(song.id);
+
+    // Check if we have it downloaded locally first
+    if (ytDlp->isSongDownloaded(song.id)) {
+        playUrl(QUrl::fromLocalFile(ytDlp->getDownloadedSongPath(song.id)).toString());
+    } else {
+        ytDlp->fetchStreamUrl(song.id);
+    }
 }
 
 void MusicPlayer::setQueue(const QList<VideoItem>& queue, int startIndex) {
@@ -39,7 +45,13 @@ void MusicPlayer::setQueue(const QList<VideoItem>& queue, int startIndex) {
     if (startIndex >= 0 && startIndex < currentQueue.size()) {
         currentIndex = startIndex;
         emit currentSongChanged(currentQueue[currentIndex]);
-        innerTube->getStreamUrl(currentQueue[currentIndex].id);
+
+        VideoItem song = currentQueue[currentIndex];
+        if (ytDlp->isSongDownloaded(song.id)) {
+            playUrl(QUrl::fromLocalFile(ytDlp->getDownloadedSongPath(song.id)).toString());
+        } else {
+            ytDlp->fetchStreamUrl(song.id);
+        }
     }
 }
 
@@ -63,7 +75,13 @@ void MusicPlayer::next() {
         currentIndex = 0; // Loop queue
     }
     emit currentSongChanged(currentQueue[currentIndex]);
-    innerTube->getStreamUrl(currentQueue[currentIndex].id);
+
+    VideoItem song = currentQueue[currentIndex];
+    if (ytDlp->isSongDownloaded(song.id)) {
+        playUrl(QUrl::fromLocalFile(ytDlp->getDownloadedSongPath(song.id)).toString());
+    } else {
+        ytDlp->fetchStreamUrl(song.id);
+    }
 }
 
 void MusicPlayer::previous() {
@@ -80,7 +98,13 @@ void MusicPlayer::previous() {
         currentIndex = currentQueue.size() - 1; // Loop to end
     }
     emit currentSongChanged(currentQueue[currentIndex]);
-    innerTube->getStreamUrl(currentQueue[currentIndex].id);
+
+    VideoItem song = currentQueue[currentIndex];
+    if (ytDlp->isSongDownloaded(song.id)) {
+        playUrl(QUrl::fromLocalFile(ytDlp->getDownloadedSongPath(song.id)).toString());
+    } else {
+        ytDlp->fetchStreamUrl(song.id);
+    }
 }
 
 void MusicPlayer::seek(qint64 position) {
@@ -125,12 +149,14 @@ void MusicPlayer::handleStateChanged(QMediaPlayer::PlaybackState state) {
     }
 }
 
-void MusicPlayer::handleStreamUrlFetched(const StreamInfo& info) {
-    playUrl(info.url);
+void MusicPlayer::handleStreamUrlFetched(const QString& videoId, const QString& url) {
+    if (!currentQueue.isEmpty() && currentQueue[currentIndex].id == videoId) {
+        playUrl(url);
+    }
 }
 
-void MusicPlayer::handleStreamUrlFailed(const QString& error) {
-    qCritical() << "Failed to fetch stream URL:" << error;
-    // Skip to next if failed
-    next();
+void MusicPlayer::handleStreamUrlFailed(const QString& videoId, const QString& error) {
+    qCritical() << "Failed to fetch stream URL for" << videoId << ":" << error;
+    // If the currently playing song failed, maybe skip to next?
+    // Skipping might cause infinite loops if everything fails, so just stop for now
 }
