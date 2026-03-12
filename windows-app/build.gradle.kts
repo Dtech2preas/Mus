@@ -39,6 +39,7 @@ compose.desktop {
     application {
         mainClass = "com.dtech.music.windows.MainKt"
         nativeDistributions {
+            includeAllModules = true
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi)
             packageName = "DTECH_MUSIC"
             packageVersion = "1.0.0"
