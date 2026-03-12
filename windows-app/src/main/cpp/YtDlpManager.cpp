@@ -51,13 +51,13 @@ bool YtDlpManager::isSongDownloaded(const QString& videoId) const {
 QString YtDlpManager::getDownloadedSongPath(const QString& videoId) const {
     // Look for matching file in downloads directory
     QDir dir(downloadsDir);
-    QStringList filters;
-    filters << QString("*[%1].*").arg(videoId); // File format: "Title [videoId].ext"
-    dir.setNameFilters(filters);
-
+    QString targetString = QString("[%1]").arg(videoId);
     QStringList files = dir.entryList(QDir::Files);
-    if (!files.isEmpty()) {
-        return dir.filePath(files.first());
+
+    for (const QString& file : files) {
+        if (file.contains(targetString)) {
+            return dir.filePath(file);
+        }
     }
 
     return QString();
