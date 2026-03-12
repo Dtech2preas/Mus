@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "DebugWindow.h"
 #include <QVBoxLayout>
 #include <QGridLayout>
 #include <QScrollArea>
@@ -11,7 +12,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
       player(new MusicPlayer(this)),
       db(new DatabaseManager("music.db")),
-      innerTube(new InnerTubeClient(this))
+      innerTube(new InnerTubeClient(this)),
+      ytDlp(new YtDlpManager(this))
 {
     setupUI();
 
@@ -23,28 +25,89 @@ MainWindow::MainWindow(QWidget *parent)
     connect(innerTube, &InnerTubeClient::searchFinished, this, [this](const QList<VideoItem>& results) {
         searchResultsList->clear();
         for (const auto& item : results) {
-            QListWidgetItem* listItem = new QListWidgetItem(item.title + " - " + item.uploader);
-            listItem->setData(Qt::UserRole, item.id);
+            QListWidgetItem* listItem = new QListWidgetItem(searchResultsList);
+            listItem->setSizeHint(QSize(0, 60)); // Make room for custom widget
+
+            QWidget* widget = createSongItemWidget(item);
             searchResultsList->addItem(listItem);
+            searchResultsList->setItemWidget(listItem, widget);
         }
     });
 
-    // Play selected search result
-    connect(searchResultsList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
-        QString videoId = item->data(Qt::UserRole).toString();
+    // Handle updates when a download finishes (handled in specific widgets for accurate metadata)
+}
 
-        // Find the full VideoItem from list (we just mocked the full object search here)
-        VideoItem song;
-        song.id = videoId;
-        song.title = item->text().split(" - ").first();
-        song.uploader = item->text().split(" - ").last();
+QWidget* MainWindow::createSongItemWidget(const VideoItem& song) {
+    QWidget* widget = new QWidget(this);
+    QHBoxLayout* layout = new QHBoxLayout(widget);
+    layout->setContentsMargins(10, 5, 10, 5);
 
+    // Playable area
+    QPushButton* playBtn = new QPushButton(song.title + "\n" + song.uploader, widget);
+    playBtn->setStyleSheet("QPushButton { text-align: left; background: transparent; border: none; color: white; } "
+                           "QPushButton:hover { color: #00a6ff; }");
+
+    connect(playBtn, &QPushButton::clicked, this, [this, song]() {
         player->playSong(song);
         db->addToHistory({song.id, song.title, song.uploader, song.duration, song.thumbnailUrl});
-
-        // Automatically add played songs to Library for demo/testing since we don't have a context menu
-        db->insertLibrarySong({song.id, song.title, song.uploader, song.duration, song.thumbnailUrl});
     });
+
+    layout->addWidget(playBtn, 1); // Takes up most space
+
+    // Download Area
+    QWidget* dlWidget = new QWidget(widget);
+    QHBoxLayout* dlLayout = new QHBoxLayout(dlWidget);
+    dlLayout->setContentsMargins(0, 0, 0, 0);
+
+    QPushButton* btnDownload = new QPushButton("⭳", dlWidget);
+    btnDownload->setFixedSize(30, 30);
+    btnDownload->setStyleSheet("QPushButton { background-color: #222; border-radius: 15px; color: #00a6ff; font-weight: bold; font-size: 16px; }"
+                               "QPushButton:hover { background-color: #333; }");
+
+    QLabel* lblProgress = new QLabel("", dlWidget);
+    lblProgress->setStyleSheet("color: #aaa; font-size: 10px;");
+    lblProgress->hide();
+
+    dlLayout->addWidget(btnDownload);
+    dlLayout->addWidget(lblProgress);
+
+    // Initial state check
+    if (ytDlp->isSongDownloaded(song.id)) {
+        btnDownload->hide();
+        lblProgress->setText("Downloaded");
+        lblProgress->show();
+    }
+
+    connect(btnDownload, &QPushButton::clicked, this, [this, song, btnDownload, lblProgress]() {
+        btnDownload->setEnabled(false);
+        lblProgress->setText("Starting...");
+        lblProgress->show();
+        ytDlp->downloadSong(song.id, song.title);
+    });
+
+    connect(ytDlp, &YtDlpManager::downloadProgress, dlWidget, [dlWidget, song, lblProgress](const QString& videoId, int percentage) {
+        if (song.id == videoId) {
+            lblProgress->setText(QString::number(percentage) + "%");
+        }
+    });
+
+    connect(ytDlp, &YtDlpManager::downloadFinished, dlWidget, [this, dlWidget, song, btnDownload, lblProgress](const QString& videoId, const QString& filePath) {
+        if (song.id == videoId) {
+            btnDownload->hide();
+            lblProgress->setText("Downloaded");
+            db->insertLibrarySong({song.id, song.title, song.uploader, song.duration, song.thumbnailUrl});
+        }
+    });
+
+    connect(ytDlp, &YtDlpManager::downloadFailed, dlWidget, [dlWidget, song, btnDownload, lblProgress](const QString& videoId, const QString& error) {
+        if (song.id == videoId) {
+            btnDownload->setEnabled(true);
+            lblProgress->setText("Failed");
+        }
+    });
+
+    layout->addWidget(dlWidget);
+    return widget;
 }
 
 MainWindow::~MainWindow() {
@@ -81,6 +144,230 @@ void MainWindow::setupUI() {
     // Bottom Player Bar
     createPlayerBar();
     rootLayout->addWidget(playerBar);
+
+    // Full Screen Player
+    fullScreenPlayer = createFullScreenPlayer();
+    fullScreenPlayer->hide();
+
+    // Add fullScreenPlayer to the very top so it overlays everything
+    fullScreenPlayer->setParent(this);
+    fullScreenPlayer->resize(this->size());
+
+    // Check if we need to show onboarding
+    QTimer::singleShot(500, this, &MainWindow::checkOnboarding);
+}
+
+void MainWindow::checkOnboarding() {
+    QSettings settings("DTECH", "Music");
+    if (!settings.contains("favoriteGenres") || !settings.contains("favoriteArtists")) {
+        QDialog dialog(this);
+        dialog.setWindowTitle("Welcome to DTECH MUSIC");
+        dialog.setFixedSize(500, 400);
+        dialog.setStyleSheet("QDialog { background-color: #121212; color: white; }");
+
+        QVBoxLayout *layout = new QVBoxLayout(&dialog);
+
+        QLabel *title = new QLabel("Welcome to DTECH MUSIC", &dialog);
+        title->setStyleSheet("font-size: 24px; font-weight: bold; color: #00a6ff;");
+        title->setAlignment(Qt::AlignCenter);
+        layout->addWidget(title);
+
+        QLabel *desc = new QLabel("Tell us what you like so we can recommend the best tracks for you.", &dialog);
+        desc->setWordWrap(true);
+        layout->addWidget(desc);
+
+        layout->addSpacing(20);
+
+        QLabel *lblGenres = new QLabel("Favorite Genres (comma separated):", &dialog);
+        QLineEdit *inputGenres = new QLineEdit(&dialog);
+        inputGenres->setStyleSheet("padding: 10px; background-color: #222; border: 1px solid #444; border-radius: 5px; color: white;");
+        inputGenres->setPlaceholderText("e.g. Synthwave, Cyberpunk, Phonk");
+
+        layout->addWidget(lblGenres);
+        layout->addWidget(inputGenres);
+
+        layout->addSpacing(10);
+
+        QLabel *lblArtists = new QLabel("Favorite Artists (comma separated):", &dialog);
+        QLineEdit *inputArtists = new QLineEdit(&dialog);
+        inputArtists->setStyleSheet("padding: 10px; background-color: #222; border: 1px solid #444; border-radius: 5px; color: white;");
+        inputArtists->setPlaceholderText("e.g. Perturbator, Carpenter Brut");
+
+        layout->addWidget(lblArtists);
+        layout->addWidget(inputArtists);
+
+        layout->addStretch();
+
+        QPushButton *btnSave = new QPushButton("Save & Continue", &dialog);
+        btnSave->setStyleSheet("background-color: #00a6ff; color: black; font-weight: bold; padding: 12px; border-radius: 5px;");
+        connect(btnSave, &QPushButton::clicked, &dialog, &QDialog::accept);
+        layout->addWidget(btnSave);
+
+        dialog.exec();
+
+        // Save to settings
+        settings.setValue("favoriteGenres", inputGenres->text());
+        settings.setValue("favoriteArtists", inputArtists->text());
+    }
+
+    // Now load recommendations based on preferences
+    loadHomeRecommendations();
+}
+
+void MainWindow::loadHomeRecommendations() {
+    QSettings settings("DTECH", "Music");
+    QString genres = settings.value("favoriteGenres", "Phonk").toString();
+    QString artists = settings.value("favoriteArtists", "Various Artists").toString();
+
+    QStringList genreList = genres.split(",", Qt::SkipEmptyParts);
+    QString query = "Trending " + (genreList.isEmpty() ? "Music" : genreList.first().trimmed());
+
+    // Use an isolated InnerTubeClient for fetching recommendations so we don't interfere with search results list
+    InnerTubeClient *recClient = new InnerTubeClient(this);
+
+    connect(recClient, &InnerTubeClient::searchFinished, this, [this, recClient](const QList<VideoItem>& results) {
+        // Clear trending layout
+        QLayoutItem* item;
+        while ((item = trendingHomeLayout->takeAt(0)) != nullptr) {
+            delete item->widget();
+            delete item;
+        }
+
+        // Populate Trending
+        for (int i = 0; i < qMin(5, static_cast<int>(results.size())); ++i) {
+            VideoItem vItem = results[i];
+
+            QWidget *cardWidget = new QWidget(this);
+            cardWidget->setFixedSize(150, 180);
+            QVBoxLayout *cardLayout = new QVBoxLayout(cardWidget);
+            cardLayout->setContentsMargins(5, 5, 5, 5);
+            cardWidget->setStyleSheet("QWidget { background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333; } "
+                                      "QWidget:hover { border-color: #00a6ff; }");
+
+            QPushButton *btnPlay = new QPushButton(vItem.title + "\n" + vItem.uploader, cardWidget);
+            btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: bottom;");
+            btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+            connect(btnPlay, &QPushButton::clicked, this, [this, vItem]() {
+                player->playSong(vItem);
+                db->addToHistory({vItem.id, vItem.title, vItem.uploader, vItem.duration, vItem.thumbnailUrl});
+            });
+
+            cardLayout->addWidget(btnPlay);
+
+            // Re-use download widget logic from recently played
+            QHBoxLayout *bottomLayout = new QHBoxLayout();
+            bottomLayout->setContentsMargins(0, 0, 0, 0);
+            bottomLayout->addStretch();
+            QPushButton *btnDownload = new QPushButton("⭳", cardWidget);
+            btnDownload->setFixedSize(25, 25);
+            btnDownload->setStyleSheet("QPushButton { background-color: #333; border-radius: 12px; color: #00a6ff; font-weight: bold; border: none; }"
+                                       "QPushButton:hover { background-color: #555; }");
+            QLabel *lblProgress = new QLabel("", cardWidget);
+            lblProgress->setStyleSheet("color: #aaa; font-size: 10px; border: none;");
+            lblProgress->hide();
+            bottomLayout->addWidget(lblProgress);
+            bottomLayout->addWidget(btnDownload);
+
+            if (ytDlp->isSongDownloaded(vItem.id)) { btnDownload->hide(); lblProgress->setText("Downloaded"); lblProgress->show(); }
+            connect(btnDownload, &QPushButton::clicked, this, [this, vItem, btnDownload, lblProgress]() {
+                btnDownload->setEnabled(false); lblProgress->setText("Starting..."); lblProgress->show();
+                ytDlp->downloadSong(vItem.id, vItem.title);
+            });
+            connect(ytDlp, &YtDlpManager::downloadProgress, cardWidget, [cardWidget, vItem, lblProgress](const QString& id, int percent) {
+                if (id == vItem.id) lblProgress->setText(QString::number(percent) + "%");
+            });
+            connect(ytDlp, &YtDlpManager::downloadFinished, cardWidget, [this, cardWidget, vItem, btnDownload, lblProgress](const QString& id, const QString&) {
+                if (id == vItem.id) {
+                    btnDownload->hide();
+                    lblProgress->setText("Downloaded");
+                    db->insertLibrarySong({vItem.id, vItem.title, vItem.uploader, vItem.duration, vItem.thumbnailUrl});
+                }
+            });
+
+            cardLayout->addLayout(bottomLayout);
+            trendingHomeLayout->addWidget(cardWidget);
+        }
+
+        // Populate Made For You (using the rest of the results as a mock)
+        QLayoutItem* mItem;
+        while ((mItem = madeForYouHomeLayout->takeAt(0)) != nullptr) {
+            delete mItem->widget();
+            delete mItem;
+        }
+
+        int row = 0, col = 0;
+        for (int i = 5; i < results.size() && row < 10; ++i) {
+            VideoItem vItem = results[i];
+
+            QWidget *cardWidget = new QWidget(this);
+            cardWidget->setFixedSize(160, 200);
+            QVBoxLayout *cardLayout = new QVBoxLayout(cardWidget);
+            cardLayout->setContentsMargins(5, 5, 5, 5);
+            cardWidget->setStyleSheet("QWidget { background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333; } "
+                                      "QWidget:hover { border-color: #00a6ff; background-color: #222; }");
+
+            QPushButton *btnPlay = new QPushButton(vItem.title + "\n" + vItem.uploader, cardWidget);
+            btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: bottom;");
+            btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+            connect(btnPlay, &QPushButton::clicked, this, [this, vItem]() {
+                player->playSong(vItem);
+                db->addToHistory({vItem.id, vItem.title, vItem.uploader, vItem.duration, vItem.thumbnailUrl});
+            });
+            cardLayout->addWidget(btnPlay);
+
+            QHBoxLayout *bottomLayout = new QHBoxLayout();
+            bottomLayout->setContentsMargins(0, 0, 0, 0);
+            bottomLayout->addStretch();
+            QPushButton *btnDownload = new QPushButton("⭳", cardWidget);
+            btnDownload->setFixedSize(25, 25);
+            btnDownload->setStyleSheet("QPushButton { background-color: #333; border-radius: 12px; color: #00a6ff; font-weight: bold; border: none; }"
+                                       "QPushButton:hover { background-color: #555; }");
+            QLabel *lblProgress = new QLabel("", cardWidget);
+            lblProgress->setStyleSheet("color: #aaa; font-size: 10px; border: none;");
+            lblProgress->hide();
+            bottomLayout->addWidget(lblProgress);
+            bottomLayout->addWidget(btnDownload);
+
+            if (ytDlp->isSongDownloaded(vItem.id)) { btnDownload->hide(); lblProgress->setText("Downloaded"); lblProgress->show(); }
+            connect(btnDownload, &QPushButton::clicked, this, [this, vItem, btnDownload, lblProgress]() {
+                btnDownload->setEnabled(false); lblProgress->setText("Starting..."); lblProgress->show();
+                ytDlp->downloadSong(vItem.id, vItem.title);
+            });
+            connect(ytDlp, &YtDlpManager::downloadProgress, cardWidget, [cardWidget, vItem, lblProgress](const QString& id, int percent) {
+                if (id == vItem.id) lblProgress->setText(QString::number(percent) + "%");
+            });
+            connect(ytDlp, &YtDlpManager::downloadFinished, cardWidget, [this, cardWidget, vItem, btnDownload, lblProgress](const QString& id, const QString&) {
+                if (id == vItem.id) {
+                    btnDownload->hide();
+                    lblProgress->setText("Downloaded");
+                    db->insertLibrarySong({vItem.id, vItem.title, vItem.uploader, vItem.duration, vItem.thumbnailUrl});
+                }
+            });
+
+            cardLayout->addLayout(bottomLayout);
+
+            madeForYouHomeLayout->addWidget(cardWidget, row, col);
+
+            col++;
+            if (col >= 5) {
+                col = 0;
+                row++;
+            }
+        }
+
+        recClient->deleteLater();
+    });
+
+    recClient->search(query);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+    QMainWindow::resizeEvent(event);
+    if (fullScreenPlayer) {
+        fullScreenPlayer->resize(this->size());
+    }
 }
 
 void MainWindow::createSidebar() {
@@ -158,6 +445,19 @@ void MainWindow::createPlayerBar() {
     connect(progressSlider, &QSlider::sliderMoved, this, [this](int position) {
         player->seek(position * player->duration() / 100);
     });
+
+    // Make playerBar clickable to open full screen player
+    playerBar->setCursor(Qt::PointingHandCursor);
+    playerBar->installEventFilter(this);
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == playerBar && event->type() == QEvent::MouseButtonRelease) {
+        fullScreenPlayer->show();
+        fullScreenPlayer->raise();
+        return true;
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 QWidget* MainWindow::createHomeScreen() {
@@ -184,12 +484,19 @@ QWidget* MainWindow::createHomeScreen() {
 
     QList<DbSong> history = db->getPlayHistory();
     for (int i = 0; i < qMin(10, static_cast<int>(history.size())); ++i) {
-        QPushButton *card = new QPushButton(history[i].title + "\n" + history[i].uploader, this);
-        card->setFixedSize(150, 180);
-        card->setStyleSheet("QPushButton { background-color: #1e1e1e; color: white; border-radius: 8px; border: 1px solid #333; text-align: bottom; padding-bottom: 10px; }"
-                            "QPushButton:hover { border-color: #00a6ff; }");
+        QWidget *cardWidget = new QWidget(this);
+        cardWidget->setFixedSize(150, 180);
+        QVBoxLayout *cardLayout = new QVBoxLayout(cardWidget);
+        cardLayout->setContentsMargins(5, 5, 5, 5);
+        cardLayout->setSpacing(5);
+        cardWidget->setStyleSheet("QWidget { background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333; } "
+                                  "QWidget:hover { border-color: #00a6ff; }");
 
-        connect(card, &QPushButton::clicked, this, [this, history, i]() {
+        QPushButton *btnPlay = new QPushButton(history[i].title + "\n" + history[i].uploader, cardWidget);
+        btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: bottom;");
+        btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+        connect(btnPlay, &QPushButton::clicked, this, [this, history, i]() {
             VideoItem item;
             item.id = history[i].id;
             item.title = history[i].title;
@@ -199,7 +506,55 @@ QWidget* MainWindow::createHomeScreen() {
             player->playSong(item);
             db->addToHistory(history[i]);
         });
-        recentLayout->addWidget(card);
+
+        QHBoxLayout *bottomLayout = new QHBoxLayout();
+        bottomLayout->setContentsMargins(0, 0, 0, 0);
+        bottomLayout->addStretch();
+
+        QPushButton *btnDownload = new QPushButton("⭳", cardWidget);
+        btnDownload->setFixedSize(25, 25);
+        btnDownload->setStyleSheet("QPushButton { background-color: #333; border-radius: 12px; color: #00a6ff; font-weight: bold; border: none; }"
+                                   "QPushButton:hover { background-color: #555; }");
+
+        QLabel *lblProgress = new QLabel("", cardWidget);
+        lblProgress->setStyleSheet("color: #aaa; font-size: 10px; border: none;");
+        lblProgress->hide();
+
+        bottomLayout->addWidget(lblProgress);
+        bottomLayout->addWidget(btnDownload);
+
+        QString vId = history[i].id;
+        QString vTitle = history[i].title;
+
+        if (ytDlp->isSongDownloaded(vId)) {
+            btnDownload->hide();
+            lblProgress->setText("Downloaded");
+            lblProgress->show();
+        }
+
+        connect(btnDownload, &QPushButton::clicked, this, [this, vId, vTitle, btnDownload, lblProgress]() {
+            btnDownload->setEnabled(false);
+            lblProgress->setText("Starting...");
+            lblProgress->show();
+            ytDlp->downloadSong(vId, vTitle);
+        });
+
+        connect(ytDlp, &YtDlpManager::downloadProgress, cardWidget, [cardWidget, vId, lblProgress](const QString& id, int percent) {
+            if (id == vId) lblProgress->setText(QString::number(percent) + "%");
+        });
+        connect(ytDlp, &YtDlpManager::downloadFinished, cardWidget, [this, cardWidget, vId, history, i, btnDownload, lblProgress](const QString& id, const QString&) {
+            if (id == vId) {
+                btnDownload->hide();
+                lblProgress->setText("Downloaded");
+                DbSong dbSong = history[i];
+                db->insertLibrarySong({dbSong.id, dbSong.title, dbSong.uploader, dbSong.duration, dbSong.thumbnailUrl});
+            }
+        });
+
+        cardLayout->addWidget(btnPlay);
+        cardLayout->addLayout(bottomLayout);
+
+        recentLayout->addWidget(cardWidget);
     }
     recentArea->setWidget(recentContent);
     scrollLayout->addWidget(recentArea);
@@ -213,15 +568,13 @@ QWidget* MainWindow::createHomeScreen() {
     trendingArea->setFixedHeight(220);
     trendingArea->setWidgetResizable(true);
     QWidget *trendingContent = new QWidget(trendingArea);
-    QHBoxLayout *trendingLayout = new QHBoxLayout(trendingContent);
-    trendingLayout->setAlignment(Qt::AlignLeft);
+    trendingHomeLayout = new QHBoxLayout(trendingContent);
+    trendingHomeLayout->setAlignment(Qt::AlignLeft);
 
-    for (int i = 0; i < 5; ++i) {
-        QPushButton *card = new QPushButton(QString("Trending %1").arg(i+1), this);
-        card->setFixedSize(150, 180);
-        card->setStyleSheet("background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333;");
-        trendingLayout->addWidget(card);
-    }
+    QLabel *lblTrendingLoad = new QLabel("Loading recommendations...", trendingContent);
+    lblTrendingLoad->setStyleSheet("color: #aaa;");
+    trendingHomeLayout->addWidget(lblTrendingLoad);
+
     trendingArea->setWidget(trendingContent);
     scrollLayout->addWidget(trendingArea);
 
@@ -231,23 +584,144 @@ QWidget* MainWindow::createHomeScreen() {
     scrollLayout->addWidget(lblMadeForYou);
 
     QWidget *gridWidget = new QWidget(this);
-    QGridLayout *gridLayout = new QGridLayout(gridWidget);
-    gridLayout->setSpacing(15);
+    madeForYouHomeLayout = new QGridLayout(gridWidget);
+    madeForYouHomeLayout->setSpacing(15);
 
-    // Simulate 50 items
-    for (int r = 0; r < 10; ++r) {
-        for (int c = 0; c < 5; ++c) {
-            QPushButton *card = new QPushButton(QString("Track %1").arg(r*5 + c + 1), this);
-            card->setFixedSize(160, 200);
-            card->setStyleSheet("QPushButton { background-color: #1e1e1e; color: white; border-radius: 8px; border: 1px solid #333; }"
-                                "QPushButton:hover { border-color: #00a6ff; background-color: #222; }");
-            gridLayout->addWidget(card, r, c);
-        }
-    }
+    QLabel *lblMadeForYouLoad = new QLabel("Loading recommendations...", gridWidget);
+    lblMadeForYouLoad->setStyleSheet("color: #aaa;");
+    madeForYouHomeLayout->addWidget(lblMadeForYouLoad, 0, 0);
+
     scrollLayout->addWidget(gridWidget);
 
     mainScroll->setWidget(scrollContent);
     layout->addWidget(mainScroll);
+
+    return widget;
+}
+
+QWidget* MainWindow::createFullScreenPlayer() {
+    QWidget *widget = new QWidget(this);
+    widget->setStyleSheet("background-color: #0d0d0d;");
+
+    QVBoxLayout *layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(50, 20, 50, 50);
+
+    // Top Bar with Close button
+    QHBoxLayout *topLayout = new QHBoxLayout();
+    topLayout->addStretch();
+    fsBtnClose = new QPushButton("v", widget);
+    fsBtnClose->setFixedSize(40, 40);
+    fsBtnClose->setStyleSheet("QPushButton { background-color: transparent; border: none; font-size: 24px; color: #fff; font-weight: bold; }"
+                              "QPushButton:hover { color: #00a6ff; }");
+    topLayout->addWidget(fsBtnClose);
+    layout->addLayout(topLayout);
+
+    // Album Art
+    fsLblAlbumArt = new QLabel(widget);
+    fsLblAlbumArt->setFixedSize(300, 300);
+    fsLblAlbumArt->setStyleSheet("background-color: #222; border: 2px solid #333; border-radius: 10px;");
+    fsLblAlbumArt->setAlignment(Qt::AlignCenter);
+    fsLblAlbumArt->setText("ALBUM\nART");
+
+    QHBoxLayout *artLayout = new QHBoxLayout();
+    artLayout->addStretch();
+    artLayout->addWidget(fsLblAlbumArt);
+    artLayout->addStretch();
+    layout->addLayout(artLayout);
+    layout->addSpacing(30);
+
+    // Info and Actions
+    QHBoxLayout *infoLayout = new QHBoxLayout();
+
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    fsLblTitle = new QLabel("Song Title", widget);
+    fsLblTitle->setStyleSheet("font-size: 28px; font-weight: bold; color: white;");
+    fsLblArtist = new QLabel("Artist Name", widget);
+    fsLblArtist->setStyleSheet("font-size: 18px; color: #00a6ff;");
+    textLayout->addWidget(fsLblTitle);
+    textLayout->addWidget(fsLblArtist);
+
+    infoLayout->addLayout(textLayout);
+    infoLayout->addStretch();
+
+    fsBtnLike = new QPushButton("♡", widget);
+    fsBtnLike->setFixedSize(40, 40);
+    fsBtnLike->setStyleSheet("QPushButton { font-size: 24px; color: white; background: transparent; border: none; }"
+                             "QPushButton:hover { color: #00a6ff; }");
+
+    fsBtnAddLibrary = new QPushButton("+", widget);
+    fsBtnAddLibrary->setFixedSize(40, 40);
+    fsBtnAddLibrary->setStyleSheet("QPushButton { font-size: 30px; color: white; background: transparent; border: none; }"
+                                   "QPushButton:hover { color: #00a6ff; }");
+
+    infoLayout->addWidget(fsBtnLike);
+    infoLayout->addWidget(fsBtnAddLibrary);
+
+    layout->addLayout(infoLayout);
+    layout->addSpacing(20);
+
+    // Progress
+    QHBoxLayout *progLayout = new QHBoxLayout();
+    fsLblTime = new QLabel("0:00 / 0:00", widget);
+    fsLblTime->setStyleSheet("color: #aaa;");
+    fsProgressSlider = new QSlider(Qt::Horizontal, widget);
+    fsProgressSlider->setRange(0, 100);
+
+    progLayout->addWidget(fsProgressSlider);
+    progLayout->addWidget(fsLblTime);
+    layout->addLayout(progLayout);
+    layout->addSpacing(20);
+
+    // Controls
+    QHBoxLayout *controlsLayout = new QHBoxLayout();
+    fsBtnPrev = new QPushButton("|<", widget);
+    fsBtnPlayPause = new QPushButton("Play", widget);
+    fsBtnNext = new QPushButton(">|", widget);
+
+    fsBtnPrev->setFixedSize(60, 60);
+    fsBtnPlayPause->setFixedSize(80, 80);
+    fsBtnNext->setFixedSize(60, 60);
+
+    QString ctlStyle = "QPushButton { border-radius: 30px; background-color: #222; color: white; font-size: 18px; }"
+                       "QPushButton:hover { background-color: #333; }";
+    fsBtnPrev->setStyleSheet(ctlStyle);
+    fsBtnPlayPause->setStyleSheet("QPushButton { border-radius: 40px; background-color: #00a6ff; color: black; font-size: 20px; font-weight: bold; }"
+                                  "QPushButton:hover { background-color: #0088cc; }");
+    fsBtnNext->setStyleSheet(ctlStyle);
+
+    controlsLayout->addStretch();
+    controlsLayout->addWidget(fsBtnPrev);
+    controlsLayout->addSpacing(20);
+    controlsLayout->addWidget(fsBtnPlayPause);
+    controlsLayout->addSpacing(20);
+    controlsLayout->addWidget(fsBtnNext);
+    controlsLayout->addStretch();
+
+    layout->addLayout(controlsLayout);
+    layout->addStretch();
+
+    // Connections
+    connect(fsBtnClose, &QPushButton::clicked, widget, &QWidget::hide);
+    connect(fsBtnPlayPause, &QPushButton::clicked, this, &MainWindow::onPlayPauseClicked);
+    connect(fsBtnNext, &QPushButton::clicked, this, &MainWindow::onNextClicked);
+    connect(fsBtnPrev, &QPushButton::clicked, this, &MainWindow::onPrevClicked);
+
+    connect(fsProgressSlider, &QSlider::sliderMoved, this, [this](int position) {
+        player->seek(position * player->duration() / 100);
+    });
+
+    connect(fsBtnAddLibrary, &QPushButton::clicked, this, [this]() {
+        VideoItem song = player->currentSong();
+        if (!song.id.isEmpty()) {
+            db->insertLibrarySong({song.id, song.title, song.uploader, song.duration, song.thumbnailUrl});
+            QMessageBox::information(this, "Library", "Added to library!");
+        }
+    });
+
+    connect(fsBtnLike, &QPushButton::clicked, this, [this]() {
+        // Mock liked songs adding (if we had a table for it)
+        QMessageBox::information(this, "Liked Songs", "Added to Liked Songs!");
+    });
 
     return widget;
 }
@@ -316,12 +790,21 @@ QWidget* MainWindow::createLibraryScreen() {
         libraryList->clear();
         QList<DbSong> songs = db->getLibrarySongs();
         if (songs.isEmpty()) {
-            libraryList->addItem("Your library is empty. Search for songs to add them.");
+            libraryList->addItem("Your library is empty. Search for songs to add them or download them.");
         } else {
             for (const auto& s : songs) {
-                QListWidgetItem* item = new QListWidgetItem(s.title + "\n" + s.uploader);
-                item->setData(Qt::UserRole, s.id);
-                libraryList->addItem(item);
+                VideoItem vi;
+                vi.id = s.id;
+                vi.title = s.title;
+                vi.uploader = s.uploader;
+                vi.duration = s.duration;
+                vi.thumbnailUrl = s.thumbnailUrl;
+
+                QListWidgetItem* listItem = new QListWidgetItem(libraryList);
+                listItem->setSizeHint(QSize(0, 60));
+                QWidget* widget = createSongItemWidget(vi);
+                libraryList->addItem(listItem);
+                libraryList->setItemWidget(listItem, widget);
             }
         }
     };
@@ -334,18 +817,6 @@ QWidget* MainWindow::createLibraryScreen() {
     connect(btnArtists, &QPushButton::clicked, this, [this]() {
         libraryList->clear();
         libraryList->addItem("Artists (Not Implemented)");
-    });
-
-    connect(libraryList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
-        QString id = item->data(Qt::UserRole).toString();
-        if (!id.isEmpty()) {
-            VideoItem vi;
-            vi.id = id;
-            vi.title = item->text().split("\n").first();
-            vi.uploader = item->text().split("\n").last();
-            player->playSong(vi);
-            db->addToHistory({vi.id, vi.title, vi.uploader, "", ""});
-        }
     });
 
     // We'll hook into search results context menu or double click to save to library.
@@ -382,6 +853,29 @@ QWidget* MainWindow::createSettingsScreen() {
         s.setValue("HighEndMode", checked);
     });
 
+    // Yt-dlp Updates
+    QLabel *lblYtdlp = new QLabel("System Components", this);
+    lblYtdlp->setStyleSheet("font-size: 16px; color: #aaa; margin-top: 20px;");
+    layout->addWidget(lblYtdlp);
+
+    QPushButton *btnUpdateYtdlp = new QPushButton("Update yt-dlp", this);
+    btnUpdateYtdlp->setStyleSheet("QPushButton { background-color: #222; padding: 10px; border-radius: 5px; text-align: left; } "
+                                  "QPushButton:hover { background-color: #333; }");
+    layout->addWidget(btnUpdateYtdlp);
+
+    connect(btnUpdateYtdlp, &QPushButton::clicked, this, [this, btnUpdateYtdlp]() {
+        btnUpdateYtdlp->setEnabled(false);
+        btnUpdateYtdlp->setText("Updating...");
+        ytDlp->updateYtDlp();
+    });
+
+    connect(ytDlp, &YtDlpManager::updateFinished, this, [this, btnUpdateYtdlp](bool success, const QString& msg) {
+        btnUpdateYtdlp->setEnabled(true);
+        btnUpdateYtdlp->setText("Update yt-dlp");
+        if (success) QMessageBox::information(this, "Update", msg);
+        else QMessageBox::warning(this, "Update Failed", msg);
+    });
+
     // Clear History
     QLabel *lblData = new QLabel("Data & Storage", this);
     lblData->setStyleSheet("font-size: 16px; color: #aaa; margin-top: 20px;");
@@ -400,6 +894,22 @@ QWidget* MainWindow::createSettingsScreen() {
             q.exec();
             QMessageBox::information(this, "Success", "Play history cleared.");
         }
+    });
+
+    // Developer Settings
+    QLabel *lblDev = new QLabel("Developer Settings", this);
+    lblDev->setStyleSheet("font-size: 16px; color: #aaa; margin-top: 20px;");
+    layout->addWidget(lblDev);
+
+    QPushButton *btnShowDebug = new QPushButton("Show Debug Console", this);
+    btnShowDebug->setStyleSheet("QPushButton { background-color: #222; padding: 10px; border-radius: 5px; text-align: left; } "
+                                "QPushButton:hover { background-color: #333; }");
+    layout->addWidget(btnShowDebug);
+
+    connect(btnShowDebug, &QPushButton::clicked, this, [this]() {
+        DebugWindow::instance()->show();
+        DebugWindow::instance()->raise();
+        DebugWindow::instance()->activateWindow();
     });
 
     layout->addStretch();
@@ -439,25 +949,43 @@ void MainWindow::performSearch() {
 }
 
 void MainWindow::updatePlayerUI() {
-    if (player->isPlaying()) {
-        btnPlayPause->setText("Pause");
-    } else {
-        btnPlayPause->setText("Play");
+    bool isPlaying = player->isPlaying();
+    btnPlayPause->setText(isPlaying ? "Pause" : "Play");
+
+    if (fullScreenPlayer && fullScreenPlayer->isVisible()) {
+        fsBtnPlayPause->setText(isPlaying ? "Pause" : "Play");
     }
 
     VideoItem current = player->currentSong();
     if (!current.title.isEmpty()) {
         lblCurrentSong->setText(current.title + "\n" + current.uploader);
+
+        if (fullScreenPlayer && fullScreenPlayer->isVisible()) {
+            fsLblTitle->setText(current.title);
+            fsLblArtist->setText(current.uploader);
+        }
     }
 
     qint64 pos = player->position();
     qint64 dur = player->duration();
 
-    if (dur > 0 && !progressSlider->isSliderDown()) {
-        progressSlider->setValue(pos * 100 / dur);
+    if (dur > 0) {
+        int sliderVal = pos * 100 / dur;
+        if (!progressSlider->isSliderDown()) {
+            progressSlider->setValue(sliderVal);
+        }
+        if (fullScreenPlayer && fullScreenPlayer->isVisible() && !fsProgressSlider->isSliderDown()) {
+            fsProgressSlider->setValue(sliderVal);
+        }
     }
 
     QString posStr = QString("%1:%2").arg(pos / 60000).arg((pos / 1000) % 60, 2, 10, QChar('0'));
     QString durStr = QString("%1:%2").arg(dur / 60000).arg((dur / 1000) % 60, 2, 10, QChar('0'));
-    lblTime->setText(posStr + " / " + durStr);
+    QString timeStr = posStr + " / " + durStr;
+
+    lblTime->setText(timeStr);
+
+    if (fullScreenPlayer && fullScreenPlayer->isVisible()) {
+        fsLblTime->setText(timeStr);
+    }
 }

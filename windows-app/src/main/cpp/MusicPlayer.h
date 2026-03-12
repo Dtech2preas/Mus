@@ -6,6 +6,7 @@
 #include <QAudioOutput>
 #include <QList>
 #include "InnerTubeClient.h"
+#include "YtDlpManager.h"
 
 class MusicPlayer : public QObject {
     Q_OBJECT
@@ -38,13 +39,13 @@ signals:
 
 private slots:
     void handleStateChanged(QMediaPlayer::PlaybackState state);
-    void handleStreamUrlFetched(const StreamInfo& info);
-    void handleStreamUrlFailed(const QString& error);
+    void handleStreamUrlFetched(const QString& videoId, const QString& url);
+    void handleStreamUrlFailed(const QString& videoId, const QString& error);
 
 private:
     QMediaPlayer *player;
     QAudioOutput *audioOutput;
-    InnerTubeClient *innerTube;
+    YtDlpManager *ytDlp;
 
     QList<VideoItem> currentQueue;
     int currentIndex;

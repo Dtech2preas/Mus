@@ -14,6 +14,7 @@
 #include "MusicPlayer.h"
 #include "DatabaseManager.h"
 #include "InnerTubeClient.h"
+#include "YtDlpManager.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -48,6 +49,7 @@ private:
     QWidget* createSearchScreen();
     QWidget* createLibraryScreen();
     QWidget* createSettingsScreen();
+    QWidget* createFullScreenPlayer();
 
     // Core Components
     QWidget *centralWidget;
@@ -70,19 +72,42 @@ private:
     QSlider *progressSlider;
     QLabel *lblTime;
 
+    // Full Screen Player UI
+    QWidget *fullScreenPlayer;
+    QLabel *fsLblAlbumArt;
+    QLabel *fsLblTitle;
+    QLabel *fsLblArtist;
+    QSlider *fsProgressSlider;
+    QLabel *fsLblTime;
+    QPushButton *fsBtnPrev;
+    QPushButton *fsBtnPlayPause;
+    QPushButton *fsBtnNext;
+    QPushButton *fsBtnLike;
+    QPushButton *fsBtnAddLibrary;
+    QPushButton *fsBtnClose;
+
     // Screen specific widgets
     QLineEdit *searchInput;
     QListWidget *searchResultsList;
+
+    // Home Screen Layouts for dynamic population
+    QHBoxLayout *trendingHomeLayout;
+    QGridLayout *madeForYouHomeLayout;
 
     QListWidget *libraryList;
     QPushButton *btnAllSongs;
     QPushButton *btnPlaylists;
     QPushButton *btnArtists;
 
+    QWidget* createSongItemWidget(const VideoItem& song);
+    void checkOnboarding();
+    void loadHomeRecommendations();
+
     // Services
     MusicPlayer *player;
     DatabaseManager *db;
     InnerTubeClient *innerTube;
+    YtDlpManager *ytDlp;
 };
 
 #endif // MAINWINDOW_H
