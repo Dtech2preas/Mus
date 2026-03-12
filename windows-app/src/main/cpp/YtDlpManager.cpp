@@ -22,6 +22,8 @@ YtDlpManager::YtDlpManager(QObject *parent) : QObject(parent) {
 
     executablePath = dir.filePath("yt-dlp.exe");
     ffmpegPath = dir.filePath("ffmpeg.exe");
+    denoPath = dir.filePath("deno.exe");
+    denoZipPath = dir.filePath("deno.zip");
 
     // Setup downloads directory
     QString musicPath = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
@@ -31,6 +33,7 @@ YtDlpManager::YtDlpManager(QObject *parent) : QObject(parent) {
 
     ensureExecutableExists();
     ensureFfmpegExists();
+    ensureDenoExists();
 }
 
 YtDlpManager::~YtDlpManager() {
@@ -51,13 +54,13 @@ bool YtDlpManager::isSongDownloaded(const QString& videoId) const {
 QString YtDlpManager::getDownloadedSongPath(const QString& videoId) const {
     // Look for matching file in downloads directory
     QDir dir(downloadsDir);
-    QStringList filters;
-    filters << QString("*[%1].*").arg(videoId); // File format: "Title [videoId].ext"
-    dir.setNameFilters(filters);
+    QString matchString = QString("[%1]").arg(videoId); // File format: "Title [videoId].ext"
 
     QStringList files = dir.entryList(QDir::Files);
-    if (!files.isEmpty()) {
-        return dir.filePath(files.first());
+    for (const QString& file : files) {
+        if (file.contains(matchString)) {
+            return dir.filePath(file);
+        }
     }
 
     return QString();
@@ -128,6 +131,70 @@ void YtDlpManager::downloadFfmpeg() {
     // and doesn't require ffmpeg to remux to mp3. This avoids the entire ffmpeg dependency issue completely!
 }
 
+void YtDlpManager::ensureDenoExists() {
+    if (!QFile::exists(denoPath)) {
+        qDebug() << "deno.exe not found at" << denoPath << ". Starting download...";
+        downloadDeno();
+    } else {
+        qDebug() << "deno.exe found at" << denoPath;
+    }
+}
+
+void YtDlpManager::downloadDeno() {
+    QUrl url("https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip");
+    QNetworkRequest request(url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+
+    QNetworkReply *reply = networkManager->get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QFile file(denoZipPath);
+            if (file.open(QIODevice::WriteOnly)) {
+                file.write(reply->readAll());
+                file.close();
+                qDebug() << "Successfully downloaded deno.zip to" << denoZipPath;
+
+                // Extract using PowerShell
+                QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+                QDir dir(appDataPath);
+                if (!dir.exists("DTECH_MUSIC")) {
+                    dir.mkpath("DTECH_MUSIC");
+                }
+                dir.cd("DTECH_MUSIC");
+
+                QProcess *process = new QProcess(this);
+
+                connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                        [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
+                    if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+                        qDebug() << "Successfully extracted deno.zip";
+                        // Cleanup zip
+                        QFile::remove(denoZipPath);
+                    } else {
+                        QString error = process->readAllStandardError().trimmed();
+                        qCritical() << "Failed to extract deno.zip:" << error;
+                    }
+                    process->deleteLater();
+                });
+
+                QStringList args;
+                args << "-NoProfile" << "-Command"
+                     << QString("Expand-Archive -Force -Path '%1' -DestinationPath '%2'").arg(denoZipPath, dir.absolutePath());
+
+                qDebug() << "Extracting deno.zip using PowerShell...";
+                process->start("powershell", args);
+
+            } else {
+                qCritical() << "Failed to write deno.zip to" << denoZipPath;
+            }
+        } else {
+            qCritical() << "Failed to download deno.zip:" << reply->errorString();
+        }
+        reply->deleteLater();
+    });
+}
+
 void YtDlpManager::updateYtDlp() {
     if (!QFile::exists(executablePath)) {
         downloadExecutable();
@@ -187,6 +254,11 @@ void YtDlpManager::fetchStreamUrl(const QString& videoId) {
     });
 
     QStringList args;
+
+    if (QFile::exists(denoPath)) {
+        args << "--js-runtimes" << QString("deno:%1").arg(denoPath);
+    }
+
     args << "-g"                        // Get URL
          << "-f" << "bestaudio"         // Best audio format
          << "--no-playlist"             // Ensure it's not a playlist
@@ -247,6 +319,11 @@ void YtDlpManager::downloadSong(const QString& videoId, const QString& title) {
     });
 
     QStringList args;
+
+    if (QFile::exists(denoPath)) {
+        args << "--js-runtimes" << QString("deno:%1").arg(denoPath);
+    }
+
     args << "-f" << "bestaudio[ext=m4a]"         // Download m4a directly (no ffmpeg needed)
          << "-o" << outputTemplate               // Output template
          << "--no-playlist"                      // Single video only

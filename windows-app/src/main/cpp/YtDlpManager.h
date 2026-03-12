@@ -37,9 +37,13 @@ private:
     void downloadExecutable();
     void downloadFfmpeg();
     void ensureFfmpegExists();
+    void ensureDenoExists();
+    void downloadDeno();
 
     QString executablePath;
     QString ffmpegPath;
+    QString denoPath;
+    QString denoZipPath;
     QString downloadsDir;
     QNetworkAccessManager *networkManager;
 };
