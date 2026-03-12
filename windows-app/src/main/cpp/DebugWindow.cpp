@@ -1,6 +1,7 @@
 #include "DebugWindow.h"
 #include <QScrollBar>
 #include <QDateTime>
+#include <QCloseEvent>
 
 DebugWindow* DebugWindow::instance() {
     static DebugWindow* _instance = nullptr;
