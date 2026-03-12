@@ -40,12 +40,23 @@ compose.desktop {
         mainClass = "com.dtech.music.windows.MainKt"
         nativeDistributions {
             includeAllModules = true
-            modules("java.sql", "java.naming", "jdk.unsupported")
+            modules(
+                "java.sql",
+                "java.naming",
+                "jdk.unsupported",
+                "java.desktop",
+                "jdk.crypto.ec",
+                "java.management",
+                "jdk.accessibility",
+                "java.logging",
+                "java.prefs"
+            )
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi)
             packageName = "DTECH_MUSIC"
             packageVersion = "1.0.0"
             description = "DTECH Music Application for Windows"
             vendor = "PREASX24"
+            jvmArgs("-Xmx1G", "-XX:+UseG1GC")
             windows {
                 includeAllModules = true
                 menuGroup = "DTECH MUSIC"
