@@ -18,7 +18,7 @@ jobs:
       with:
         version: '6.5.0'
         arch: 'win64_msvc2019_64'
-        modules: 'qtmultimedia qtnetwork qtbase qtdeclarative'
+        modules: 'qtmultimedia'
 
     - name: Setup MSVC Environment
       uses: ilammy/msvc-dev-cmd@v1
