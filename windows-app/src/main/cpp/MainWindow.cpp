@@ -43,9 +43,17 @@ QWidget* MainWindow::createSongItemWidget(const VideoItem& song) {
     QHBoxLayout* layout = new QHBoxLayout(widget);
     layout->setContentsMargins(10, 5, 10, 5);
 
+    QLabel* artLabel = new QLabel(widget);
+    artLabel->setFixedSize(50, 50);
+    artLabel->setStyleSheet("background-color: #222; border-radius: 4px;");
+    if (!song.thumbnailUrl.isEmpty()) {
+        ImageLoader::instance()->loadImage(song.thumbnailUrl, artLabel, QSize(50, 50));
+    }
+    layout->addWidget(artLabel);
+
     // Playable area
     QPushButton* playBtn = new QPushButton(song.title + "\n" + song.uploader, widget);
-    playBtn->setStyleSheet("QPushButton { text-align: left; background: transparent; border: none; color: white; } "
+    playBtn->setStyleSheet("QPushButton { text-align: left; background: transparent; border: none; color: white; font-size: 13px; padding-left: 5px; } "
                            "QPushButton:hover { color: #00a6ff; }");
 
     connect(playBtn, &QPushButton::clicked, this, [this, song]() {
@@ -116,6 +124,26 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupUI() {
+    this->setStyleSheet(
+        "QMainWindow { background-color: #121212; color: #ffffff; }"
+        "QWidget { color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }"
+        "QScrollArea { background-color: transparent; border: none; }"
+        "QScrollBar:vertical { background: #121212; width: 10px; margin: 0px 0px 0px 0px; }"
+        "QScrollBar::handle:vertical { background: #333333; min-height: 20px; border-radius: 5px; }"
+        "QScrollBar::handle:vertical:hover { background: #00a6ff; }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
+        "QScrollBar:horizontal { background: #121212; height: 10px; margin: 0px 0px 0px 0px; }"
+        "QScrollBar::handle:horizontal { background: #333333; min-width: 20px; border-radius: 5px; }"
+        "QScrollBar::handle:horizontal:hover { background: #00a6ff; }"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }"
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: none; }"
+        "QSlider::groove:horizontal { border: 1px solid #333; height: 4px; background: #222; border-radius: 2px; }"
+        "QSlider::sub-page:horizontal { background: #00a6ff; border-radius: 2px; }"
+        "QSlider::handle:horizontal { background: white; width: 12px; margin: -4px 0; border-radius: 6px; }"
+        "QSlider::handle:horizontal:hover { background: #00a6ff; }"
+    );
+
     centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
 
@@ -239,14 +267,23 @@ void MainWindow::loadHomeRecommendations() {
             VideoItem vItem = results[i];
 
             QWidget *cardWidget = new QWidget(this);
-            cardWidget->setFixedSize(150, 180);
+            cardWidget->setFixedSize(150, 200);
             QVBoxLayout *cardLayout = new QVBoxLayout(cardWidget);
             cardLayout->setContentsMargins(5, 5, 5, 5);
-            cardWidget->setStyleSheet("QWidget { background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333; } "
-                                      "QWidget:hover { border-color: #00a6ff; }");
+            cardWidget->setStyleSheet("QWidget { background-color: #1a1a1a; border-radius: 12px; border: 1px solid #2a2a2a; } "
+                                      "QWidget:hover { border-color: #00a6ff; background-color: #222; }");
+
+            QLabel *artLabel = new QLabel(cardWidget);
+            artLabel->setFixedSize(138, 138);
+            artLabel->setAlignment(Qt::AlignCenter);
+            artLabel->setStyleSheet("background-color: #222; border-radius: 4px;");
+            if (!vItem.thumbnailUrl.isEmpty()) {
+                ImageLoader::instance()->loadImage(vItem.thumbnailUrl, artLabel, QSize(138, 138));
+            }
+            cardLayout->addWidget(artLabel);
 
             QPushButton *btnPlay = new QPushButton(vItem.title + "\n" + vItem.uploader, cardWidget);
-            btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: bottom;");
+            btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: left; font-size: 11px;");
             btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
             connect(btnPlay, &QPushButton::clicked, this, [this, vItem]() {
@@ -302,14 +339,23 @@ void MainWindow::loadHomeRecommendations() {
             VideoItem vItem = results[i];
 
             QWidget *cardWidget = new QWidget(this);
-            cardWidget->setFixedSize(160, 200);
+            cardWidget->setFixedSize(150, 200);
             QVBoxLayout *cardLayout = new QVBoxLayout(cardWidget);
             cardLayout->setContentsMargins(5, 5, 5, 5);
-            cardWidget->setStyleSheet("QWidget { background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333; } "
+            cardWidget->setStyleSheet("QWidget { background-color: #1a1a1a; border-radius: 12px; border: 1px solid #2a2a2a; } "
                                       "QWidget:hover { border-color: #00a6ff; background-color: #222; }");
 
+            QLabel *artLabel = new QLabel(cardWidget);
+            artLabel->setFixedSize(138, 138);
+            artLabel->setAlignment(Qt::AlignCenter);
+            artLabel->setStyleSheet("background-color: #222; border-radius: 4px;");
+            if (!vItem.thumbnailUrl.isEmpty()) {
+                ImageLoader::instance()->loadImage(vItem.thumbnailUrl, artLabel, QSize(138, 138));
+            }
+            cardLayout->addWidget(artLabel);
+
             QPushButton *btnPlay = new QPushButton(vItem.title + "\n" + vItem.uploader, cardWidget);
-            btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: bottom;");
+            btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: left; font-size: 11px;");
             btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
             connect(btnPlay, &QPushButton::clicked, this, [this, vItem]() {
@@ -378,8 +424,8 @@ void MainWindow::createSidebar() {
 
     QVBoxLayout *sidebarLayout = new QVBoxLayout(sidebar);
 
-    QLabel *logoLabel = new QLabel("DTECH MUSIC", this);
-    logoLabel->setStyleSheet("color: #00a6ff; font-weight: bold; font-size: 18px; padding: 20px 0; border: none;");
+    QLabel *logoLabel = new QLabel("DTECH MUSIC\n// PREASX24", this);
+    logoLabel->setStyleSheet("color: #00a6ff; font-weight: 900; font-size: 18px; padding: 30px 0 20px 0; border: none; letter-spacing: 2px;");
     logoLabel->setAlignment(Qt::AlignCenter);
 
     btnHome = new QPushButton("Home", this);
@@ -387,8 +433,8 @@ void MainWindow::createSidebar() {
     btnLibrary = new QPushButton("Library", this);
     btnSettings = new QPushButton("Settings", this);
 
-    QString btnStyle = "QPushButton { text-align: left; padding: 10px 20px; font-size: 14px; border: none; background: transparent; } "
-                       "QPushButton:hover { color: #00a6ff; background-color: #1e1e1e; }";
+    QString btnStyle = "QPushButton { text-align: left; padding: 12px 20px; font-size: 15px; font-weight: 500; border: none; background: transparent; border-radius: 8px; margin: 2px 10px; } "
+                       "QPushButton:hover { color: #00a6ff; background-color: #1a1a1a; }";
 
     btnHome->setStyleSheet(btnStyle);
     btnSearch->setStyleSheet(btnStyle);
@@ -415,6 +461,11 @@ void MainWindow::createPlayerBar() {
 
     QHBoxLayout *layout = new QHBoxLayout(playerBar);
 
+    lblPlayerArt = new QLabel(this);
+    lblPlayerArt->setFixedSize(60, 60);
+    lblPlayerArt->setStyleSheet("background-color: #222; border-radius: 4px; border: 1px solid #333;");
+    lblPlayerArt->setAlignment(Qt::AlignCenter);
+
     lblCurrentSong = new QLabel("No Song Playing", this);
     lblCurrentSong->setFixedWidth(250);
 
@@ -426,10 +477,19 @@ void MainWindow::createPlayerBar() {
     btnPlayPause->setFixedSize(50, 50);
     btnNext->setFixedSize(40, 40);
 
+    QString playerBtnStyle = "QPushButton { background: transparent; border: none; font-size: 16px; font-weight: bold; border-radius: 20px; }"
+                             "QPushButton:hover { background-color: #333; color: #00a6ff; }";
+    btnPrev->setStyleSheet(playerBtnStyle);
+    btnNext->setStyleSheet(playerBtnStyle);
+    btnPlayPause->setStyleSheet("QPushButton { background-color: #00a6ff; color: #000; border-radius: 25px; font-weight: bold; font-size: 16px; }"
+                                "QPushButton:hover { background-color: #33b5e5; }");
+
     progressSlider = new QSlider(Qt::Horizontal, this);
     progressSlider->setRange(0, 100);
     lblTime = new QLabel("0:00 / 0:00", this);
 
+    layout->addWidget(lblPlayerArt);
+    layout->addSpacing(10);
     layout->addWidget(lblCurrentSong);
     layout->addStretch(1);
     layout->addWidget(btnPrev);
@@ -486,15 +546,24 @@ QWidget* MainWindow::createHomeScreen() {
     QList<DbSong> history = db->getPlayHistory();
     for (int i = 0; i < qMin(10, static_cast<int>(history.size())); ++i) {
         QWidget *cardWidget = new QWidget(this);
-        cardWidget->setFixedSize(150, 180);
+        cardWidget->setFixedSize(150, 200);
         QVBoxLayout *cardLayout = new QVBoxLayout(cardWidget);
         cardLayout->setContentsMargins(5, 5, 5, 5);
         cardLayout->setSpacing(5);
-        cardWidget->setStyleSheet("QWidget { background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333; } "
-                                  "QWidget:hover { border-color: #00a6ff; }");
+        cardWidget->setStyleSheet("QWidget { background-color: #1a1a1a; border-radius: 12px; border: 1px solid #2a2a2a; } "
+                                  "QWidget:hover { border-color: #00a6ff; background-color: #222; }");
+
+        QLabel *artLabel = new QLabel(cardWidget);
+        artLabel->setFixedSize(138, 138);
+        artLabel->setAlignment(Qt::AlignCenter);
+        artLabel->setStyleSheet("background-color: #222; border-radius: 4px;");
+        if (!history[i].thumbnailUrl.isEmpty()) {
+            ImageLoader::instance()->loadImage(history[i].thumbnailUrl, artLabel, QSize(138, 138));
+        }
+        cardLayout->addWidget(artLabel);
 
         QPushButton *btnPlay = new QPushButton(history[i].title + "\n" + history[i].uploader, cardWidget);
-        btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: bottom;");
+        btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: left; font-size: 11px;");
         btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
         connect(btnPlay, &QPushButton::clicked, this, [this, history, i]() {
@@ -619,7 +688,7 @@ QWidget* MainWindow::createFullScreenPlayer() {
 
     // Album Art
     fsLblAlbumArt = new QLabel(widget);
-    fsLblAlbumArt->setFixedSize(300, 300);
+    fsLblAlbumArt->setFixedSize(400, 400);
     fsLblAlbumArt->setStyleSheet("background-color: #222; border: 2px solid #333; border-radius: 10px;");
     fsLblAlbumArt->setAlignment(Qt::AlignCenter);
     fsLblAlbumArt->setText("ALBUM\nART");
@@ -743,7 +812,10 @@ QWidget* MainWindow::createSearchScreen() {
     searchLayout->addWidget(btnSubmit);
 
     searchResultsList = new QListWidget(this);
-    searchResultsList->setStyleSheet("QListWidget { background-color: transparent; border: none; } QListWidget::item { padding: 15px; border-bottom: 1px solid #333; } QListWidget::item:hover { background-color: #222; }");
+    searchResultsList->setStyleSheet("QListWidget { background-color: transparent; border: none; outline: none; } "
+                                     "QListWidget::item { padding: 5px; border-bottom: 1px solid #2a2a2a; border-radius: 8px; margin: 4px; } "
+                                     "QListWidget::item:hover { background-color: #1a1a1a; border: 1px solid #00a6ff; } "
+                                     "QListWidget::item:selected { background-color: #222; }");
 
     layout->addLayout(searchLayout);
     layout->addWidget(searchResultsList);
@@ -781,9 +853,10 @@ QWidget* MainWindow::createLibraryScreen() {
     layout->addLayout(tabsLayout);
 
     libraryList = new QListWidget(this);
-    libraryList->setStyleSheet("QListWidget { background-color: transparent; border: none; } "
-                               "QListWidget::item { padding: 15px; border-bottom: 1px solid #333; } "
-                               "QListWidget::item:hover { background-color: #222; }");
+    libraryList->setStyleSheet("QListWidget { background-color: transparent; border: none; outline: none; } "
+                               "QListWidget::item { padding: 5px; border-bottom: 1px solid #2a2a2a; border-radius: 8px; margin: 4px; } "
+                               "QListWidget::item:hover { background-color: #1a1a1a; border: 1px solid #00a6ff; } "
+                               "QListWidget::item:selected { background-color: #222; }");
     layout->addWidget(libraryList);
 
     // Initial load
@@ -961,9 +1034,20 @@ void MainWindow::updatePlayerUI() {
     if (!current.title.isEmpty()) {
         lblCurrentSong->setText(current.title + "\n" + current.uploader);
 
+        if (!current.thumbnailUrl.isEmpty()) {
+            ImageLoader::instance()->loadImage(current.thumbnailUrl, lblPlayerArt, QSize(60, 60));
+        } else {
+            lblPlayerArt->clear();
+        }
+
         if (fullScreenPlayer && fullScreenPlayer->isVisible()) {
             fsLblTitle->setText(current.title);
             fsLblArtist->setText(current.uploader);
+            if (!current.thumbnailUrl.isEmpty()) {
+                ImageLoader::instance()->loadImage(current.thumbnailUrl, fsLblAlbumArt, QSize(400, 400));
+            } else {
+                fsLblAlbumArt->setText("ALBUM\nART");
+            }
         }
     }
 

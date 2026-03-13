@@ -15,6 +15,7 @@
 #include "DatabaseManager.h"
 #include "InnerTubeClient.h"
 #include "YtDlpManager.h"
+#include "ImageLoader.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -69,6 +70,7 @@ private:
 
     // Bottom Player Bar
     QWidget *playerBar;
+    QLabel *lblPlayerArt;
     QLabel *lblCurrentSong;
     QPushButton *btnPrev;
     QPushButton *btnPlayPause;
