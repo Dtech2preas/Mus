@@ -30,6 +30,7 @@ void ImageLoader::loadImage(const QString& url, QLabel* label, const QSize& targ
     }
 
     QNetworkRequest request((QUrl(url)));
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     QNetworkReply* reply = manager->get(request);
 
     RequestInfo info;

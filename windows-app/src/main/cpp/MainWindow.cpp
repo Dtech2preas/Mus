@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 #include "DebugWindow.h"
+#include <QStandardPaths>
+#include <QDir>
 #include <QVBoxLayout>
 #include <QEvent>
 #include <QGridLayout>
@@ -12,10 +14,16 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
       player(new MusicPlayer(this)),
-      db(new DatabaseManager("music.db")),
       innerTube(new InnerTubeClient(this)),
       ytDlp(new YtDlpManager(this))
 {
+    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir dir(appDataPath);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    db = new DatabaseManager(dir.filePath("music.db"));
+
     setupUI();
 
     // Timer for updating player progress UI
