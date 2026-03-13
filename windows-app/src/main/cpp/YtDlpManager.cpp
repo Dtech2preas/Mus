@@ -158,10 +158,10 @@ void YtDlpManager::downloadDeno() {
                 // Extract using PowerShell
                 QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
                 QDir dir(appDataPath);
-                if (!dir.exists("DTECH_MUSIC")) {
-                    dir.mkpath("DTECH_MUSIC");
+                // Ensure the base directory exists
+                if (!dir.exists()) {
+                    dir.mkpath(".");
                 }
-                dir.cd("DTECH_MUSIC");
 
                 QProcess *process = new QProcess(this);
 
