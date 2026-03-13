@@ -20,6 +20,8 @@ set(PROJECT_SOURCES
     src/main/cpp/main.cpp
     src/main/cpp/MainWindow.cpp
     src/main/cpp/MainWindow.h
+    src/main/cpp/ImageLoader.cpp
+    src/main/cpp/ImageLoader.h
     src/main/cpp/DatabaseManager.cpp
     src/main/cpp/DatabaseManager.h
     src/main/cpp/NetworkClient.cpp
