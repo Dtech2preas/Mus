@@ -108,6 +108,13 @@ fun FullScreenPlayer(
     val title = currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown Title"
     val artist = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown Artist"
 
+    LaunchedEffect(currentSongId, showLyrics) {
+        if (currentSongId != null && showLyrics) {
+            currentLyrics = null // Reset before fetching
+            currentLyrics = lyricsHelper?.getLyrics(currentSongId, title, artist, duration)
+        }
+    }
+
     // Extract Palette
     LaunchedEffect(artworkUri) {
         if (artworkUri != null) {
@@ -222,15 +229,24 @@ fun FullScreenPlayer(
                     )
                 }
 
-                Box {
-                    IconButton(onClick = { showMoreOptions = true }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { showLyrics = !showLyrics }) {
                         Icon(
-                            imageVector = Icons.Rounded.MoreVert,
-                            contentDescription = "More",
-                            tint = TextSecondary
+                            imageVector = if (showLyrics) Icons.Rounded.Lyrics else Icons.Outlined.Lyrics,
+                            contentDescription = "Toggle Lyrics",
+                            tint = if (showLyrics) AccentBlue else TextSecondary,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                    DropdownMenu(
+                    Box {
+                        IconButton(onClick = { showMoreOptions = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = "More",
+                                tint = TextSecondary
+                            )
+                        }
+                        DropdownMenu(
                         expanded = showMoreOptions,
                         onDismissRequest = { showMoreOptions = false },
                         modifier = Modifier.background(DeepBlack.copy(alpha = 0.95f))
@@ -254,49 +270,59 @@ fun FullScreenPlayer(
                             leadingIcon = { Icon(Icons.Rounded.SlowMotionVideo, contentDescription = null, tint = TextSecondary) }
                         )
                     }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Album Art ---
+            // --- Album Art or Lyrics ---
             Box(
                 modifier = Modifier
                     .weight(1f) // Take up available space but leave room
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // Glow Effect behind Art
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .aspectRatio(1f)
-                        .offset(y = 20.dp)
-                        .blur(40.dp)
-                        .alpha(breatheAlpha)
-                        .background(animatedColor.copy(alpha = 0.4f), CircleShape)
-                )
-
-                // Actual Art Card
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .aspectRatio(1f)
-                        .shadow(
-                            elevation = 20.dp,
-                            spotColor = animatedColor,
-                            ambientColor = DeepBlack,
-                            shape = RoundedCornerShape(24.dp)
-                        ),
-                    shape = RoundedCornerShape(24.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
-                ) {
-                    Image(
-                        painter = rememberAsyncImagePainter(artworkUri),
-                        contentDescription = "Album Art",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                if (showLyrics) {
+                    Lyrics(
+                        lyrics = currentLyrics,
+                        currentPositionProvider = { currentPosition },
+                        onSeek = { viewModel.seekTo(it) },
+                        modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    // Glow Effect behind Art
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .aspectRatio(1f)
+                            .offset(y = 20.dp)
+                            .blur(40.dp)
+                            .alpha(breatheAlpha)
+                            .background(animatedColor.copy(alpha = 0.4f), CircleShape)
+                    )
+
+                    // Actual Art Card
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .aspectRatio(1f)
+                            .shadow(
+                                elevation = 20.dp,
+                                spotColor = animatedColor,
+                                ambientColor = DeepBlack,
+                                shape = RoundedCornerShape(24.dp)
+                            ),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+                    ) {
+                        Image(
+                            painter = rememberAsyncImagePainter(artworkUri),
+                            contentDescription = "Album Art",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
             }
 
