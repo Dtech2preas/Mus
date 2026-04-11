@@ -40,6 +40,7 @@ class MusicDownloaderApp : Application(), ImageLoaderFactory {
 
         scheduleStreamRefresher()
         CoroutineScope(Dispatchers.IO).launch { RemoteConfigClient.initConfig(this@MusicDownloaderApp) }
+        InstanceRegistry.lyricsHelper = com.example.musicdownloader.lyrics.LyricsHelper(this)
     }
 
     private fun scheduleStreamRefresher() {

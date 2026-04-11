@@ -15,9 +15,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Playlist::class,
         PlaylistEntry::class,
         StreamCache::class,
-        StreamSong::class
+        StreamSong::class,
+        LyricsEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
     abstract fun streamCacheDao(): StreamCacheDao
     abstract fun streamSongDao(): StreamSongDao
+    abstract fun lyricsDao(): LyricsDao
 
     companion object {
         @Volatile
@@ -39,7 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "music_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration() // Simple migration strategy for this overhaul
                 .build()
                 INSTANCE = instance
@@ -107,6 +109,18 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE `playlist_entries_new` RENAME TO `playlist_entries`")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_playlist_entries_playlistId` ON `playlist_entries` (`playlistId`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_playlist_entries_songId` ON `playlist_entries` (`songId`)")
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `lyrics` (
+                        `id` TEXT NOT NULL,
+                        `lyrics` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
             }
         }
     }
