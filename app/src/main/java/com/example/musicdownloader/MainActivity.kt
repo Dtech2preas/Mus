@@ -34,8 +34,6 @@ import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.ui.*
 import com.example.musicdownloader.ui.DTechBlue
 import com.example.musicdownloader.ui.PremiumGold
-import com.example.musicdownloader.ui.FullScreenPlayer
-import com.example.musicdownloader.utils.AdManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -154,83 +152,12 @@ fun MainScreen(viewModel: MusicViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // --- Ad System Integration ---
-    var showAdDialog by remember { mutableStateOf(false) }
-    var adDialogMessage by remember { mutableStateOf("Please watch a short ad to keep this app free.") }
-    var hasShownExitAd by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        AdManager.checkSmartTrigger(context)
-        AdManager.showAdDialogEvent.collect {
-            adDialogMessage = "Please watch a short ad to keep this app free."
-            showAdDialog = true
-        }
-    }
-
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    var activeTimerJob by remember { mutableStateOf<Job?>(null) }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                activeTimerJob?.cancel()
-                activeTimerJob = scope.launch {
-                    delay(30 * 60 * 1000L)
-                    AdManager.showRandomAd(context, thresholdMs = 5000L)
-                }
-                if (AdManager.lastAdClickTime > 0 && AdManager.shouldCheckDuration) {
-                    val diff = System.currentTimeMillis() - AdManager.lastAdClickTime
-                    if (diff < AdManager.currentAdThresholdMs) {
-                        val seconds = AdManager.currentAdThresholdMs / 1000
-                        adDialogMessage = "Please view the ad for at least $seconds seconds before closing."
-                        showAdDialog = true
-                    }
-                    AdManager.lastAdClickTime = 0
-                }
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                activeTimerJob?.cancel()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            activeTimerJob?.cancel()
-        }
-    }
-
     // Intercept Back Button
     BackHandler(enabled = true) {
         if (popBackStack()) {
             return@BackHandler
         }
-        if (!hasShownExitAd) {
-            hasShownExitAd = true
-            AdManager.showRandomAd(context, thresholdMs = 0L, checkDuration = false)
-        } else {
-            activity?.finish()
-        }
-    }
-
-    if (showAdDialog) {
-        AlertDialog(
-            onDismissRequest = { },
-            properties = androidx.compose.ui.window.DialogProperties(
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false
-            ),
-            title = { Text("Support D-TECH") },
-            text = { Text(adDialogMessage) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showAdDialog = false
-                        AdManager.showRandomAd(context, thresholdMs = AdManager.currentAdThresholdMs, checkDuration = true)
-                    }
-                ) {
-                    Text("Support")
-                }
-            }
-        )
+        activity?.finish()
     }
 
     LaunchedEffect(uiState.errorMessage) {

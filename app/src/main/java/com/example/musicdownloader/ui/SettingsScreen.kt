@@ -30,7 +30,6 @@ import androidx.work.WorkManager
 import com.example.musicdownloader.CookieManager
 import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.UserPreferences
-import com.example.musicdownloader.utils.AdManager
 import com.example.musicdownloader.workers.StreamRefresherWorker
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -375,13 +374,6 @@ fun SettingsScreen(
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/DTECHX24"))
                         context.startActivity(intent)
                     }
-                )
-                Divider(color = MaterialTheme.colorScheme.background)
-                SettingsActionRow(
-                    label = "Support D-TECH (Watch Ad)",
-                    icon = Icons.Default.Favorite,
-                    onClick = { AdManager.showRandomAd(context) },
-                    iconTint = Color(0xFFE91E63) // Pink heart
                 )
             }
         }

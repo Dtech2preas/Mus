@@ -8,7 +8,6 @@ import com.example.musicdownloader.AppLogger
 import com.example.musicdownloader.YoutubeClient
 import com.example.musicdownloader.data.AppDatabase
 import com.example.musicdownloader.data.Song
-import com.example.musicdownloader.utils.AdManager
 import java.io.File
 
 class MusicDownloadWorker(
@@ -50,9 +49,6 @@ class MusicDownloadWorker(
             database.songDao().insert(song)
 
             AppLogger.log("[Worker] Download success & DB inserted: $title")
-
-            // Ad System: Increment count and check trigger
-            AdManager.incrementDownloadCount(context)
 
             // Return output data so we can maybe notify UI if needed
             val outputData = workDataOf("filePath" to file.absolutePath)
