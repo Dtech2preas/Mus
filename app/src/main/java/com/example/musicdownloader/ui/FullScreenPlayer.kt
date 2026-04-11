@@ -40,6 +40,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import com.example.musicdownloader.InstanceRegistry
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.palette.graphics.Palette
@@ -95,6 +97,10 @@ fun FullScreenPlayer(
     var showMoreOptions by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showPlaybackSpeedDialog by remember { mutableStateOf(false) }
+
+    var showLyrics by remember { mutableStateOf(false) }
+    var currentLyrics by remember { mutableStateOf<String?>(null) }
+    val lyricsHelper = InstanceRegistry.lyricsHelper
 
     if (currentMediaItem == null) return
 

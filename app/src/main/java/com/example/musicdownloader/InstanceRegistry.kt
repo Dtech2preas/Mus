@@ -15,7 +15,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
+import com.example.musicdownloader.lyrics.LyricsHelper
+
 object InstanceRegistry {
+
+    var lyricsHelper: LyricsHelper? = null
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS) // Short timeout for checking
