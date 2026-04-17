@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -153,6 +154,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CurrentSongStatus())
 
+    private val _isAppReady = MutableStateFlow(false)
+    val isAppReady: StateFlow<Boolean> = _isAppReady.asStateFlow()
+
     // D-TECH DNA Stats Flow
     val dnaStats: StateFlow<DnaStats> = combine(
         MusicRepository.getTopArtist(application),
@@ -177,19 +181,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize the controller connection
         MusicControllerManager.initialize(application)
 
-        // Sync files on startup
-        viewModelScope.launch {
-            MusicRepository.syncFilesWithDatabase(application)
-        }
-
-        // Initialize Recommendations
-        viewModelScope.launch {
-            MusicRepository.refreshRecommendations(application)
-        }
-
-        // Load Genre Feeds
-        loadGenreFeeds()
-
         // Polling loop for position updates
         viewModelScope.launch {
             while (true) { // Use true with delay
@@ -197,6 +188,45 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     MusicControllerManager.updatePosition()
                 }
                 delay(1000)
+            }
+        }
+
+        // App Initialization Sequence
+        viewModelScope.launch {
+            try {
+                coroutineScope {
+                    // Sync files on startup
+                    val syncJob = async { MusicRepository.syncFilesWithDatabase(application) }
+
+                    // Initialize Recommendations
+                    val recJob = async { MusicRepository.refreshRecommendations(application) }
+
+                    // Load Genre Feeds - modified to await completion inside this coroutine
+                    val genres = UserPreferences.getGenres(getApplication())
+                    if (genres.isNotEmpty()) {
+                        val feedsDeferred = async { MusicRepository.fetchGenreFeeds(getApplication(), genres) }
+                        val madeForYouDeferred = async { MusicRepository.fetchMadeForYou(getApplication()) }
+
+                        val feeds = feedsDeferred.await()
+                        val madeForYou = madeForYouDeferred.await()
+
+                        _uiState.value = _uiState.value.copy(
+                            genreFeeds = feeds,
+                            madeForYou = madeForYou,
+                            isLoading = false
+                        )
+                    }
+
+                    syncJob.await()
+                    recJob.await()
+                }
+
+                // Small delay to ensure minimum splash screen display if desired, or just let it be instant.
+                // We'll let it be instant but you can add delay(2000) here if needed.
+                _isAppReady.value = true
+            } catch (e: Exception) {
+                AppLogger.log("Error during initialization: ${e.message}")
+                _isAppReady.value = true // Ensure we don't block the app indefinitely on error
             }
         }
 
@@ -227,18 +257,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(isLoading = true)
 
         viewModelScope.launch {
-            // Launch both fetches concurrently
-            val feedsDeferred = async { MusicRepository.fetchGenreFeeds(getApplication(), genres) }
-            val madeForYouDeferred = async { MusicRepository.fetchMadeForYou(getApplication()) }
+            try {
+                // Launch both fetches concurrently
+                val feedsDeferred = async { MusicRepository.fetchGenreFeeds(getApplication(), genres) }
+                val madeForYouDeferred = async { MusicRepository.fetchMadeForYou(getApplication()) }
 
-            val feeds = feedsDeferred.await()
-            val madeForYou = madeForYouDeferred.await()
+                val feeds = feedsDeferred.await()
+                val madeForYou = madeForYouDeferred.await()
 
-            _uiState.value = _uiState.value.copy(
-                genreFeeds = feeds,
-                madeForYou = madeForYou,
-                isLoading = false
-            )
+                _uiState.value = _uiState.value.copy(
+                    genreFeeds = feeds,
+                    madeForYou = madeForYou,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                AppLogger.log("Error loading genre feeds: ${e.message}")
+            }
         }
     }
 
