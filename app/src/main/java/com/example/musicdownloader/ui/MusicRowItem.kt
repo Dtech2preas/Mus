@@ -39,7 +39,8 @@ fun MusicRowItem(
     isCached: Boolean = false,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
-    onOptionClick: () -> Unit = {}
+    onOptionClick: () -> Unit = {},
+    showDownloadButton: Boolean = true
 ) {
     val context = LocalContext.current
 
@@ -177,7 +178,7 @@ fun MusicRowItem(
                         tint = Color.Gray
                     )
                 }
-            } else {
+            } else if (showDownloadButton) {
                 if (isDownloaded) {
                      Icon(
                         imageVector = Icons.Default.PlayArrow,

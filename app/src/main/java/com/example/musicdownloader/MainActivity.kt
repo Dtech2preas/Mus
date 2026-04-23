@@ -135,6 +135,7 @@ fun MainScreen(viewModel: MusicViewModel) {
         // ActiveDownloads doesn't belong to a tab, usually sits on top of Search or Home?
         // Let's keep Search tab active if we are in ActiveDownloads for now
         is AppScreen.ActiveDownloads -> 1
+        is AppScreen.YouTubePlaylistDetail -> 1
     }
 
     // -------------------------------------------------------------
@@ -282,7 +283,8 @@ fun MainScreen(viewModel: MusicViewModel) {
                         viewModel = viewModel,
                         contentPadding = PaddingValues(0.dp),
                         initialQuery = targetScreen.query,
-                        onViewDownloads = { navigateTo(AppScreen.ActiveDownloads) }
+                        onViewDownloads = { navigateTo(AppScreen.ActiveDownloads) },
+                        onPlaylistClick = { id, name -> navigateTo(AppScreen.YouTubePlaylistDetail(id, name)) }
                     )
                     is AppScreen.ActiveDownloads -> ActiveDownloadsScreen(
                         activeDownloads = activeDownloads,
@@ -334,6 +336,16 @@ fun MainScreen(viewModel: MusicViewModel) {
                         onNavigateToArtist = { name -> navigateTo(AppScreen.ArtistDetail(name)) },
                         onBack = { popBackStack() }
                     )
+
+
+                    is AppScreen.YouTubePlaylistDetail -> com.example.musicdownloader.ui.YouTubePlaylistScreen(
+                        playlistId = targetScreen.playlistId,
+                        playlistName = targetScreen.playlistName,
+                        viewModel = viewModel,
+                        contentPadding = PaddingValues(bottom = 80.dp),
+                        onBack = { popBackStack() }
+                    )
+
                     is AppScreen.ArtistDetail -> ArtistDetailScreen(
                         artistName = targetScreen.name,
                         viewModel = viewModel,
