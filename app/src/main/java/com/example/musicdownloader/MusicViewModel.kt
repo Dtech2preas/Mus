@@ -18,6 +18,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -51,7 +53,9 @@ data class MusicUiState(
     val errorMessage: String? = null,
     val downloadMessage: String? = null,
     val genreFeeds: List<GenreFeed> = emptyList(),
-    val madeForYou: List<VideoItem> = emptyList()
+    val madeForYou: List<VideoItem> = emptyList(),
+    val playlistResults: List<com.example.musicdownloader.PlaylistItem> = emptyList(),
+    val playlistVideos: List<com.example.musicdownloader.VideoItem> = emptyList()
 )
 
 data class CurrentSongStatus(
@@ -245,6 +249,89 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshRecommendations() {
         viewModelScope.launch {
             MusicRepository.refreshRecommendations(getApplication())
+        }
+    }
+
+
+    fun searchPlaylists(query: String) {
+        if (query.isBlank()) return
+        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+        viewModelScope.launch {
+            val result = MusicRepository.searchPlaylists(getApplication(), query)
+            result.onSuccess { playlists ->
+                _uiState.value = _uiState.value.copy(
+                    playlistResults = playlists,
+                    isLoading = false
+                )
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = e.message ?: "Unknown search error"
+                )
+            }
+        }
+    }
+
+    fun loadPlaylistVideos(playlistId: String) {
+        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null, playlistVideos = emptyList())
+        viewModelScope.launch {
+            val result = MusicRepository.getPlaylistVideos(getApplication(), playlistId)
+            result.onSuccess { videos ->
+                _uiState.value = _uiState.value.copy(
+                    playlistVideos = videos,
+                    isLoading = false
+                )
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = e.message ?: "Failed to load playlist videos"
+                )
+            }
+        }
+    }
+
+    fun addAllToLibrary(videos: List<VideoItem>, localPlaylistName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val db = com.example.musicdownloader.data.AppDatabase.getDatabase(getApplication())
+            val playlistDao = db.playlistDao()
+            val songDao = db.songDao()
+
+            val allPlaylists = playlistDao.getAllPlaylists().first()
+            var playlistId = allPlaylists.find { it.name == localPlaylistName }?.id
+
+            if (playlistId == null) {
+                playlistId = playlistDao.insertPlaylist(com.example.musicdownloader.data.Playlist(name = localPlaylistName)).toInt()
+            }
+
+            for (video in videos) {
+                // Add to library if not exist
+                val existingSong = songDao.getSongById(video.id)
+                if (existingSong == null) {
+                    val newSong = com.example.musicdownloader.data.Song(
+                        id = video.id,
+                        title = video.title,
+                        artist = video.uploader,
+                        duration = video.duration,
+                        thumbnailUrl = video.thumbnailUrl,
+                        filePath = ""
+                    )
+                    songDao.insert(newSong)
+                }
+
+                // Add to playlist
+                try {
+                    playlistDao.addSongToPlaylist(com.example.musicdownloader.data.PlaylistEntry(playlistId, video.id))
+                } catch (e: Exception) {
+                    // Ignore unique constraint exception
+                }
+            }
+        }
+    }
+
+    fun downloadAll(videos: List<VideoItem>, localPlaylistName: String) {
+        addAllToLibrary(videos, localPlaylistName)
+        for (video in videos) {
+            downloadSong(video)
         }
     }
 

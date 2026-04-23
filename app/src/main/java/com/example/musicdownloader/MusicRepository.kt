@@ -596,6 +596,29 @@ object MusicRepository {
 
     // --- Stream Caching & Prefetching ---
 
+
+    suspend fun searchPlaylists(context: Context, query: String): Result<List<PlaylistItem>> {
+        AppLogger.log("[Repo] searchPlaylists called for: '$query'")
+        try {
+            val items = InnerTubeClient.searchPlaylists(query)
+            return Result.success(items)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return Result.failure(e)
+        }
+    }
+
+    suspend fun getPlaylistVideos(context: Context, playlistId: String): Result<List<VideoItem>> {
+        AppLogger.log("[Repo] getPlaylistVideos called for: '$playlistId'")
+        try {
+            val items = InnerTubeClient.getPlaylistVideos(playlistId)
+            return Result.success(items)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return Result.failure(e)
+        }
+    }
+
     suspend fun getStreamUrlWithCache(context: Context, videoId: String, webUrl: String): StreamInfo {
         val dao = AppDatabase.getDatabase(context).streamCacheDao()
         val currentTime = System.currentTimeMillis() / 1000

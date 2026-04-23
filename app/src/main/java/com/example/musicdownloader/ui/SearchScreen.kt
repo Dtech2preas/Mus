@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,14 +29,16 @@ fun SearchScreen(
     viewModel: MusicViewModel,
     contentPadding: PaddingValues,
     initialQuery: String? = null,
-    onViewDownloads: () -> Unit
+    onViewDownloads: () -> Unit,
+    onPlaylistClick: (String, String) -> Unit = { _, _ -> }
 ) {
     var query by remember { mutableStateOf(initialQuery ?: "") }
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Songs, 1 = Playlists
 
     LaunchedEffect(initialQuery) {
         if (!initialQuery.isNullOrBlank()) {
             query = initialQuery
-            viewModel.search(initialQuery)
+            if (selectedTab == 0) viewModel.search(initialQuery) else viewModel.searchPlaylists(initialQuery)
         }
     }
 
@@ -46,6 +50,7 @@ fun SearchScreen(
     val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+
 
     val downloadedIds = remember(librarySongs) { librarySongs.map { it.id }.toSet() }
 
@@ -73,12 +78,12 @@ fun SearchScreen(
                     cursorColor = ElectricPurple
                 ),
                 trailingIcon = {
-                    IconButton(onClick = { viewModel.search(query) }) {
+                    IconButton(onClick = { if (selectedTab == 0) viewModel.search(query) else viewModel.searchPlaylists(query) }) {
                         Icon(Icons.Default.Search, contentDescription = "Search", tint = ElectricPurple)
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { viewModel.search(query) })
+                keyboardActions = KeyboardActions(onSearch = { if (selectedTab == 0) viewModel.search(query) else viewModel.searchPlaylists(query) })
             )
 
             // Download Summary Bar
@@ -96,39 +101,89 @@ fun SearchScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
 
+            Spacer(modifier = Modifier.height(16.dp))
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Transparent,
+                contentColor = ElectricPurple,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        color = ElectricPurple
+                    )
+                }
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0; if (query.isNotBlank()) viewModel.search(query) },
+                    text = { Text("Songs", color = if (selectedTab == 0) ElectricPurple else Color.Gray) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1; if (query.isNotBlank()) viewModel.searchPlaylists(query) },
+                    text = { Text("Playlists/Albums", color = if (selectedTab == 1) ElectricPurple else Color.Gray) }
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = ElectricPurple)
                 }
+            } else if (uiState.errorMessage != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Error: ${uiState.errorMessage}", color = Color.Red)
+                }
             } else {
-                LazyColumn(
-                    contentPadding = contentPadding,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(uiState.results) { video ->
-                        val subtitle = if (video.album != null && video.album != "Unknown Album") "${video.uploader} • ${video.album}" else video.uploader
-                        MusicRowItem(
-                            title = video.title,
-                            subtitle = subtitle,
-                            thumbnailUrl = video.thumbnailUrl,
-                            isLibrary = false,
-                            isDownloaded = downloadedIds.contains(video.id),
-                            downloadProgress = downloadProgress[video.id]?.progress,
-                            isWaiting = initializingDownloads.contains(video.id),
-                            isCached = cachedStreamIds.contains(video.id),
-                            onClick = {
-                                if (downloadedIds.contains(video.id)) {
-                                    viewModel.playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
-                                } else {
-                                    viewModel.playStream(video)
-                                }
-                            },
-                            onDownloadClick = {
-                                 viewModel.downloadSong(video)
-                            }
-                        )
+                if (selectedTab == 0) {
+                    LazyColumn(
+                        contentPadding = contentPadding,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(uiState.results) { video ->
+                            val subtitle = if (video.album != null && video.album != "Unknown Album") "${video.uploader} • ${video.album}" else video.uploader
+                            MusicRowItem(
+                                title = video.title,
+                                subtitle = subtitle,
+                                thumbnailUrl = video.thumbnailUrl,
+                                isLibrary = false,
+                                isDownloaded = downloadedIds.contains(video.id),
+                                downloadProgress = downloadProgress[video.id]?.progress,
+                                isWaiting = initializingDownloads.contains(video.id),
+                                isCached = cachedStreamIds.contains(video.id),
+                                onClick = {
+                                    if (downloadedIds.contains(video.id)) {
+                                        viewModel.playSong(video.id, video.title, video.uploader, video.thumbnailUrl)
+                                    } else {
+                                        viewModel.playStream(video)
+                                    }
+                                },
+                                onDownloadClick = { viewModel.downloadSong(video) },
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = contentPadding,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(uiState.playlistResults) { playlist ->
+                            MusicRowItem(
+                                title = playlist.title,
+                                subtitle = playlist.songCountText,
+                                thumbnailUrl = playlist.thumbnailUrl,
+                                isLibrary = false,
+                                isDownloaded = false,
+                                downloadProgress = null,
+                                isWaiting = false,
+                                isCached = false,
+                                onClick = {
+                                    onPlaylistClick(playlist.id, playlist.title)
+                                },
+                                onDownloadClick = { },
+                                showDownloadButton = false
+                            )
+                        }
                     }
                 }
             }
