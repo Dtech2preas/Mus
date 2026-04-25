@@ -38,7 +38,8 @@ fun SettingsScreen(
     onShowLogs: () -> Unit,
     onNavigateToInfo: () -> Unit,
     onNavigateToCompression: () -> Unit,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    onNavigateToCutAndPaste: () -> Unit = {}
 ) {
     val viewModel: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val context = LocalContext.current
@@ -358,6 +359,23 @@ fun SettingsScreen(
         }
 
         // --- 6. SUPPORT ---
+        SettingsSectionTitle(title = "Library Management", icon = Icons.Default.Build)
+        SettingsCard {
+            Column(modifier = Modifier.padding(16.dp)) {
+                SettingsActionRow(
+                    label = "Create Custom Mix (Cut & Paste)",
+                    icon = Icons.Default.Edit,
+                    onClick = onNavigateToCutAndPaste
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.background)
+                SettingsActionRow(
+                    label = "Manage Compression",
+                    icon = Icons.Default.Done,
+                    onClick = onNavigateToCompression
+                )
+            }
+        }
+
         SettingsSectionTitle(title = "Support", icon = Icons.Default.Favorite)
         SettingsCard {
             Column(modifier = Modifier.padding(16.dp)) {

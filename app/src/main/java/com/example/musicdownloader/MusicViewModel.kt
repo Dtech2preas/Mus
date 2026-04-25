@@ -537,6 +537,166 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+
+
+    private val _rouletteState = MutableStateFlow<List<VideoItem>>(emptyList())
+    val rouletteState: StateFlow<List<VideoItem>> = _rouletteState.asStateFlow()
+
+    fun loadRouletteRecommendations() {
+        viewModelScope.launch {
+            val db = AppDatabase.getDatabase(getApplication())
+            val streamDao = db.streamSongDao()
+            val historyDao = db.playHistoryDao()
+
+            val recommended = streamDao.getRecommendedSongsSync() ?: emptyList()
+            val libraryIds = streamDao.getLibrarySongsSync()?.map { it.id }?.toSet() ?: emptySet()
+            val historyIds = historyDao.getAllHistoryIdsSync()?.toSet() ?: emptySet()
+
+            // Filter out songs already in library or history
+            val filtered = recommended.filter { it.id !in libraryIds && it.id !in historyIds }.take(20)
+
+            // Map StreamSong to VideoItem
+            val items = filtered.map {
+                VideoItem(
+                    id = it.id,
+                    title = it.title,
+                    uploader = it.artist,
+                    thumbnailUrl = it.thumbnailUrl,
+                    duration = it.duration,
+                    webUrl = "https://youtube.com/watch?v=${it.id}"
+                )
+            }
+
+            _rouletteState.value = items
+        }
+    }
+
+    fun playRoulettePreview(video: VideoItem) {
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            val streamInfo = MusicRepository.getStreamUrlWithCache(context, video.id, video.webUrl)
+            if (streamInfo.url.isNotBlank()) {
+                val metadata = MediaMetadata.Builder()
+                    .setTitle(video.title)
+                    .setArtist(video.uploader)
+                    .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
+                    .build()
+
+                // Parse duration and calculate 30% start point
+                var durationSecs = 180L
+                try {
+                    val parts = video.duration.split(":")
+                    if (parts.size == 2) {
+                        durationSecs = parts[0].toLong() * 60 + parts[1].toLong()
+                    }
+                } catch (e: Exception) {}
+
+                val startMs = (durationSecs * 1000 * 0.3).toLong()
+
+                val mediaItem = MediaItem.Builder()
+                    .setUri(streamInfo.url)
+                    .setMediaId(video.id)
+                    .setMediaMetadata(metadata)
+                    .setClippingConfiguration(
+                        MediaItem.ClippingConfiguration.Builder()
+                            .setStartPositionMs(startMs)
+                            // Play for 15 seconds
+                            .setEndPositionMs(startMs + 15000)
+                            .build()
+                    )
+                    .build()
+
+                MusicControllerManager.playMedia(mediaItem)
+            }
+        }
+    }
+
+    fun saveCustomMix(name: String, segments: List<com.example.musicdownloader.ui.CutSegment>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val db = AppDatabase.getDatabase(getApplication())
+            val customMixDao = db.customMixDao()
+
+            // Insert mix
+            val mixId = customMixDao.insertMix(
+                com.example.musicdownloader.data.CustomMix(
+                    title = name,
+                    timestamp = System.currentTimeMillis()
+                )
+            ).toInt()
+
+            // Insert segments
+            val mixSegments = segments.mapIndexed { index, cutSegment ->
+                com.example.musicdownloader.data.MixSegment(
+                    mixId = mixId,
+                    orderIndex = index,
+                    songId = cutSegment.song.id,
+                    startMs = cutSegment.startMs,
+                    endMs = cutSegment.endMs
+                )
+            }
+            customMixDao.insertSegments(mixSegments)
+
+            _toastEvent.emit("Custom Mix '$name' created with ${segments.size} segments!")
+
+            // Refresh library mixes if needed
+            loadCustomMixes()
+        }
+    }
+
+    private val _customMixes = MutableStateFlow<List<com.example.musicdownloader.data.CustomMixWithSegments>>(emptyList())
+    val customMixes: StateFlow<List<com.example.musicdownloader.data.CustomMixWithSegments>> = _customMixes.asStateFlow()
+
+    fun loadCustomMixes() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val db = AppDatabase.getDatabase(getApplication())
+            db.customMixDao().getAllMixesWithSegments().collect { mixes ->
+                _customMixes.value = mixes
+            }
+        }
+    }
+
+
+    fun playCustomMix(mix: com.example.musicdownloader.data.CustomMixWithSegments) {
+        viewModelScope.launch {
+            val db = AppDatabase.getDatabase(getApplication())
+            val songDao = db.songDao()
+
+            val mediaItems = mutableListOf<MediaItem>()
+
+            for (segment in mix.segments.sortedBy { it.orderIndex }) {
+                val song = songDao.getSongById(segment.songId)
+                if (song != null) {
+                    val metadata = MediaMetadata.Builder()
+                        .setTitle("${mix.mix.title} - ${song.title}")
+                        .setArtist(song.artist)
+                        .setArtworkUri(android.net.Uri.parse(song.thumbnailUrl))
+                        .build()
+
+                    val uri = android.net.Uri.fromFile(java.io.File(song.filePath))
+
+                    val mediaItem = MediaItem.Builder()
+                        .setUri(uri)
+                        .setMediaId(song.id)
+                        .setMediaMetadata(metadata)
+                        .setClippingConfiguration(
+                            MediaItem.ClippingConfiguration.Builder()
+                                .setStartPositionMs(segment.startMs)
+                                .setEndPositionMs(segment.endMs)
+                                .build()
+                        )
+                        .build()
+
+                    mediaItems.add(mediaItem)
+                }
+            }
+
+            if (mediaItems.isNotEmpty()) {
+                MusicControllerManager.playMediaItems(mediaItems)
+            } else {
+                _toastEvent.emit("Mix is empty or songs are missing from library")
+            }
+        }
+    }
     fun playSong(id: String, title: String, artist: String, thumbnailUrl: String, contextQueue: List<Song>? = null) {
         if (id.isBlank()) {
             AppLogger.log("[ViewModel] playSong called with empty ID! Aborting.")

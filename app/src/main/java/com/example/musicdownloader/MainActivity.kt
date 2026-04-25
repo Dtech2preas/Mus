@@ -122,7 +122,7 @@ fun MainScreen(viewModel: MusicViewModel) {
     val currentTab = when (currentScreen) {
         is AppScreen.Home -> 0
         is AppScreen.Search -> 1
-        is AppScreen.Identify -> 2
+        is AppScreen.Identify, is AppScreen.Roulette -> 2
         is AppScreen.Library,
         is AppScreen.Playlists,
         is AppScreen.LikedSongs,
@@ -132,6 +132,7 @@ fun MainScreen(viewModel: MusicViewModel) {
         is AppScreen.Settings,
         is AppScreen.Compression,
         is AppScreen.Info -> 4
+        is AppScreen.CutAndPaste -> 4
         // ActiveDownloads doesn't belong to a tab, usually sits on top of Search or Home?
         // Let's keep Search tab active if we are in ActiveDownloads for now
         is AppScreen.ActiveDownloads -> 1
@@ -140,7 +141,9 @@ fun MainScreen(viewModel: MusicViewModel) {
 
     // -------------------------------------------------------------
 
-    var isPlayerExpanded by remember { mutableStateOf(false) }
+
+    var showIdentifySheet by remember { mutableStateOf(false) }
+var isPlayerExpanded by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
@@ -228,8 +231,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                     NavigationBarItem(
                         selected = currentTab == 2,
                         onClick = {
-                            navigationStack.clear()
-                            navigationStack.add(AppScreen.Identify)
+                            showIdentifySheet = true
                         },
                         icon = { Icon(Icons.Default.Info, contentDescription = "Identify") },
                         label = { Text("Identify") },
@@ -293,6 +295,11 @@ fun MainScreen(viewModel: MusicViewModel) {
                         onResume = { viewModel.resumeDownload(it) },
                         onDelete = { viewModel.deleteDownload(it) }
                     )
+                                                            is AppScreen.CutAndPaste -> com.example.musicdownloader.ui.CutAndPasteScreen(
+                        viewModel = viewModel,
+                        onBack = { popBackStack() }
+                    )
+                    is AppScreen.Roulette -> com.example.musicdownloader.ui.MusicDiscoveryRouletteScreen(viewModel)
                     is AppScreen.Identify -> IdentifyScreen(
                         onSongFound = { songName ->
                             // Navigate to search with the found name
@@ -304,6 +311,7 @@ fun MainScreen(viewModel: MusicViewModel) {
                         onShowLogs = { showLogs = true },
                         onNavigateToInfo = { navigateTo(AppScreen.Info) },
                         onNavigateToCompression = { navigateTo(AppScreen.Compression) },
+                        onNavigateToCutAndPaste = { navigationStack.add(AppScreen.CutAndPaste) },
                         contentPadding = PaddingValues(0.dp)
                     )
                     is AppScreen.Info -> InfoScreen(
@@ -362,6 +370,22 @@ fun MainScreen(viewModel: MusicViewModel) {
         }
     }
 
+
+    if (showIdentifySheet) {
+        com.example.musicdownloader.ui.IdentifyBottomSheet(
+            onDismiss = { showIdentifySheet = false },
+            onSelectShazam = {
+                showIdentifySheet = false
+                navigationStack.clear()
+                navigationStack.add(AppScreen.Identify)
+            },
+            onSelectRoulette = {
+                showIdentifySheet = false
+                navigationStack.clear()
+                navigationStack.add(AppScreen.Roulette)
+            }
+        )
+    }
     if (isPlayerExpanded) {
         ModalBottomSheet(
             onDismissRequest = { isPlayerExpanded = false },
