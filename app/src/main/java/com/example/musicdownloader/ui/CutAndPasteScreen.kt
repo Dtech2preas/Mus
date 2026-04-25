@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -135,7 +136,8 @@ fun CutAndPasteScreen(
             onSongSelected = { song, start, end ->
                 selectedSongs = selectedSongs + CutSegment(song, start, end)
                 showSongPicker = false
-            }
+            },
+            viewModel = viewModel
         )
     }
 }
@@ -151,7 +153,8 @@ data class CutSegment(
 fun SongPickerSheet(
     songs: List<Song>,
     onDismiss: () -> Unit,
-    onSongSelected: (Song, Long, Long) -> Unit
+    onSongSelected: (Song, Long, Long) -> Unit,
+    viewModel: MusicViewModel
 ) {
     var selectedSong by remember { mutableStateOf<Song?>(null) }
     var startRange by remember { mutableStateOf(0f) }
@@ -224,16 +227,30 @@ fun SongPickerSheet(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { selectedSong = null }) {
-                        Text("Back", color = Color.Gray)
-                    }
                     Button(
-                        onClick = { onSongSelected(selectedSong!!, startRange.toLong(), endRange.toLong()) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6FF))
+                        onClick = {
+                            viewModel.playSegmentPreview(selectedSong!!, startRange.toLong(), endRange.toLong())
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A35))
                     ) {
-                        Text("Add Segment")
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Play Segment", tint = Color.White)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Preview", color = Color.White)
+                    }
+
+                    Row {
+                        TextButton(onClick = { selectedSong = null }) {
+                            Text("Back", color = Color.Gray)
+                        }
+                        Button(
+                            onClick = { onSongSelected(selectedSong!!, startRange.toLong(), endRange.toLong()) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6FF))
+                        ) {
+                            Text("Add Segment")
+                        }
                     }
                 }
             }

@@ -28,7 +28,8 @@ import java.io.File
 // Singleton to manage MediaController
 object MusicControllerManager {
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
-    private var mediaController: MediaController? = null
+    var mediaController: MediaController? = null
+        private set
     private var applicationContext: Context? = null
 
     // Scope for background operations (prefetching, smart shuffle)
