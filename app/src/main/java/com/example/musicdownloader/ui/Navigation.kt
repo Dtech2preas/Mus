@@ -5,6 +5,8 @@ sealed class AppScreen {
     object Home : AppScreen()
     data class Search(val query: String? = null) : AppScreen()
     object Identify : AppScreen()
+    object Roulette : AppScreen()
+    object CutAndPaste : AppScreen() // Added Cut and Paste
     object Library : AppScreen()
     object Settings : AppScreen()
     object Info : AppScreen()

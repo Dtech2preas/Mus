@@ -16,9 +16,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntry::class,
         StreamCache::class,
         StreamSong::class,
-        LyricsEntity::class
+        LyricsEntity::class,
+        CustomMix::class,
+        MixSegment::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -29,6 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun streamCacheDao(): StreamCacheDao
     abstract fun streamSongDao(): StreamSongDao
     abstract fun lyricsDao(): LyricsDao
+    abstract fun customMixDao(): CustomMixDao
 
     companion object {
         @Volatile
@@ -41,7 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "music_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration() // Simple migration strategy for this overhaul
                 .build()
                 INSTANCE = instance
@@ -121,6 +124,32 @@ abstract class AppDatabase : RoomDatabase() {
                         PRIMARY KEY(`id`)
                     )
                 """.trimIndent())
+            }
+        }
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `custom_mixes` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `timestamp` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `mix_segments` (
+                        `mixId` INTEGER NOT NULL,
+                        `orderIndex` INTEGER NOT NULL,
+                        `songId` TEXT NOT NULL,
+                        `startMs` INTEGER NOT NULL,
+                        `endMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`mixId`, `orderIndex`),
+                        FOREIGN KEY(`mixId`) REFERENCES `custom_mixes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_mix_segments_mixId` ON `mix_segments` (`mixId`)")
             }
         }
     }

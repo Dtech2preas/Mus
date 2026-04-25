@@ -253,6 +253,15 @@ object MusicControllerManager {
         }
     }
 
+
+    fun playMediaItems(mediaItems: List<MediaItem>, startIndex: Int = 0) {
+        AppLogger.log("[Controller] playMediaItems: list of size ${mediaItems.size}")
+        mediaController?.let { controller ->
+            controller.setMediaItems(mediaItems, startIndex, 0)
+            controller.prepare()
+            controller.play()
+        }
+    }
     fun playMedia(mediaItem: MediaItem) {
         AppLogger.log("[Controller] playMedia: ${mediaItem.mediaId} via Custom Command")
         if (mediaController == null) {
