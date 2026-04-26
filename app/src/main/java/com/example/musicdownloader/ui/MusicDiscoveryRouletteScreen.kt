@@ -109,7 +109,7 @@ fun SwipeableCard(
                 scaleX = if (isCurrent) 1f else 0.95f,
                 scaleY = if (isCurrent) 1f else 0.95f
             )
-            .pointerInput(Unit) {
+            .pointerInput(isCurrent) {
                 if (isCurrent) {
                     detectDragGestures(
                         onDragEnd = {

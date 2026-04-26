@@ -610,41 +610,24 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (e: Exception) {}
 
                 val startMs = (durationSecs * 1000 * 0.5).toLong()
+                val endMs = startMs + 50000
 
                 val mediaItem = MediaItem.Builder()
                     .setUri(streamInfo.url)
                     .setMediaId(video.id)
                     .setMediaMetadata(metadata)
-                    // We remove clipping config so the user can seek across the whole song
+                    .setClippingConfiguration(
+                        MediaItem.ClippingConfiguration.Builder()
+                            .setStartPositionMs(startMs)
+                            .setEndPositionMs(endMs)
+                            .build()
+                    )
                     .build()
 
                 MusicControllerManager.playMedia(mediaItem)
 
-                // Seek manually to the startMs position
-                // Because MediaController is an async process, we might need a small delay,
-                // but setting seekTo directly after playMedia might get overwritten.
-                // We will launch a coroutine loop to monitor playback for the 50 second loop logic,
-                // and initially seek.
-                viewModelScope.launch(Dispatchers.Main) {
-                    delay(500) // Wait for player to init
-                    MusicControllerManager.seekTo(startMs)
-                }
-
-                // Handle looping the 50s segment manually without REPEAT_MODE_ONE
-                // to avoid side-effects on normal playback and clipping limitations
-                previewLoopJob?.cancel()
-                previewLoopJob = viewModelScope.launch(Dispatchers.Main) {
-                    while(isActive) {
-                        delay(1000)
-                        val currentPos = MusicControllerManager.mediaController?.currentPosition ?: 0L
-                        if (currentPos >= startMs + 50000) {
-                            MusicControllerManager.seekTo(startMs)
-                        }
-                    }
-                }
-
-                // Ensure normal repeat mode is off so we don't break library playback
-                MusicControllerManager.mediaController?.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+                // Ensure looping is ON for the clipped segment
+                MusicControllerManager.mediaController?.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
             }
         }
     }

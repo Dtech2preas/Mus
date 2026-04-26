@@ -258,6 +258,8 @@ object MusicControllerManager {
     fun playMediaItems(mediaItems: List<MediaItem>, startIndex: Int = 0) {
         AppLogger.log("[Controller] playMediaItems: list of size ${mediaItems.size}")
         mediaController?.let { controller ->
+            // Ensure normal repeat mode is off so we don't accidentally loop single items from preview modes
+            controller.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
             controller.setMediaItems(mediaItems, startIndex, 0)
             controller.prepare()
             controller.play()
@@ -278,6 +280,8 @@ object MusicControllerManager {
                 putString("ARTIST", mediaItem.mediaMetadata.artist?.toString())
                 putString("ARTWORK_URI", mediaItem.mediaMetadata.artworkUri?.toString())
                 putString("MIME_TYPE", mediaItem.localConfiguration?.mimeType)
+                putLong("START_POSITION_MS", mediaItem.clippingConfiguration.startPositionMs)
+                putLong("END_POSITION_MS", mediaItem.clippingConfiguration.endPositionMs)
             }
 
             AppLogger.log("[Controller] Sending PLAY_STREAM command with args:")
@@ -324,6 +328,8 @@ object MusicControllerManager {
         }
 
         mediaController?.let { controller ->
+            // Ensure normal repeat mode is off so we don't accidentally loop single items from preview modes
+            controller.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
             controller.setMediaItems(mediaItems, startIndex, 0)
             controller.prepare()
             controller.play()
