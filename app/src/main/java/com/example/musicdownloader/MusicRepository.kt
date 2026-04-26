@@ -666,6 +666,13 @@ object MusicRepository {
         return url.isNotBlank() && url.startsWith("http") && !url.contains(" ")
     }
 
+    suspend fun isStreamCached(context: Context, videoId: String): Boolean {
+        val dao = AppDatabase.getDatabase(context).streamCacheDao()
+        val cached = dao.getStreamCache(videoId) ?: return false
+        val currentTime = System.currentTimeMillis() / 1000
+        return isValidStreamUrl(cached.streamUrl) && cached.expireTime > currentTime
+    }
+
     suspend fun prefetchStream(context: Context, videoId: String) {
         // Construct webUrl (standard format)
         val webUrl = "https://www.youtube.com/watch?v=$videoId"

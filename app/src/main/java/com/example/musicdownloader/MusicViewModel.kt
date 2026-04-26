@@ -546,6 +546,52 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _rouletteState = MutableStateFlow<List<VideoItem>>(emptyList())
     val rouletteState: StateFlow<List<VideoItem>> = _rouletteState.asStateFlow()
 
+    private val _rouletteIndex = MutableStateFlow(0)
+    val rouletteIndex: StateFlow<Int> = _rouletteIndex.asStateFlow()
+
+    private val _prefetchedRouletteCount = MutableStateFlow(0)
+    val prefetchedRouletteCount: StateFlow<Int> = _prefetchedRouletteCount.asStateFlow()
+
+    fun setRouletteIndex(index: Int) {
+        _rouletteIndex.value = index
+        triggerRoulettePrefetch()
+    }
+
+    private var prefetchJob: Job? = null
+
+    fun triggerRoulettePrefetch() {
+        prefetchJob?.cancel()
+        prefetchJob = viewModelScope.launch(Dispatchers.IO) {
+            val items = _rouletteState.value
+            val startIndex = _rouletteIndex.value
+            if (items.isEmpty() || startIndex >= items.size) return@launch
+
+            val targetPrefetchCount = 10
+            var currentPrefetched = 0
+
+            // Just count the cached streams without doing work if already cached.
+            // If not cached, we prefetch.
+            for (i in startIndex until minOf(startIndex + 15, items.size)) {
+                if (currentPrefetched >= targetPrefetchCount) break
+                val videoId = items[i].id
+
+                // Fast check if cached
+                val isCached = MusicRepository.isStreamCached(getApplication(), videoId)
+                if (isCached) {
+                    currentPrefetched++
+                    _prefetchedRouletteCount.value = currentPrefetched
+                } else {
+                    // Try to prefetch
+                    MusicRepository.prefetchStream(getApplication(), videoId)
+                    if (MusicRepository.isStreamCached(getApplication(), videoId)) {
+                        currentPrefetched++
+                        _prefetchedRouletteCount.value = currentPrefetched
+                    }
+                }
+            }
+        }
+    }
+
     fun loadRouletteRecommendations() {
         viewModelScope.launch {
             val db = AppDatabase.getDatabase(getApplication())
@@ -586,6 +632,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
             // Append to the existing list to avoid resetting the entire roulette list when scrolling
             _rouletteState.value = currentItems + newItems
+
+            // Start prefetching right after loading new recommendations
+            triggerRoulettePrefetch()
         }
     }
 
