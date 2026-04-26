@@ -28,17 +28,19 @@ import com.example.musicdownloader.MusicViewModel
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+import androidx.compose.ui.zIndex
+
 @Composable
 fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
     val rouletteState by viewModel.rouletteState.collectAsState()
+    val currentIndex by viewModel.rouletteIndex.collectAsState()
+    val prefetchedCount by viewModel.prefetchedRouletteCount.collectAsState()
 
     LaunchedEffect(Unit) {
         if (rouletteState.isEmpty()) {
             viewModel.loadRouletteRecommendations()
         }
     }
-
-    var currentIndex by remember { mutableStateOf(0) }
 
     // Play the current preview when index changes
     LaunchedEffect(currentIndex, rouletteState) {
@@ -57,29 +59,50 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212)),
-        contentAlignment = Alignment.Center
+            .background(Color(0xFF121212))
     ) {
-        if (rouletteState.isEmpty()) {
-            CircularProgressIndicator(color = Color(0xFF00A6FF))
-        } else if (currentIndex >= rouletteState.size) {
-            CircularProgressIndicator(color = Color(0xFF00A6FF)) // Just show loading when fetching new ones automatically
-        } else {
-            // Render from back to front
-            for (i in (rouletteState.size - 1) downTo currentIndex) {
-                if (i <= currentIndex + 2) {
-                    val isCurrent = i == currentIndex
-                    SwipeableCard(
-                        video = rouletteState[i],
-                        isCurrent = isCurrent,
-                        onSwipedRight = {
-                            viewModel.toggleLike(rouletteState[i])
-                            currentIndex++
-                        },
-                        onSwipedLeft = {
-                            currentIndex++
-                        }
-                    )
+        // Status text overlay at the top
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 40.dp, start = 16.dp, end = 16.dp)
+                .zIndex(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "NEXT $prefetchedCount SONGS AVAILABLE LOADING MORE..",
+                color = Color.Gray,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (rouletteState.isEmpty()) {
+                CircularProgressIndicator(color = Color(0xFF00A6FF))
+            } else if (currentIndex >= rouletteState.size) {
+                CircularProgressIndicator(color = Color(0xFF00A6FF)) // Just show loading when fetching new ones automatically
+            } else {
+                // Render from back to front
+                for (i in (rouletteState.size - 1) downTo currentIndex) {
+                    if (i <= currentIndex + 2) {
+                        val isCurrent = i == currentIndex
+                        SwipeableCard(
+                            video = rouletteState[i],
+                            isCurrent = isCurrent,
+                            onSwipedRight = {
+                                viewModel.toggleLike(rouletteState[i])
+                                viewModel.setRouletteIndex(currentIndex + 1)
+                            },
+                            onSwipedLeft = {
+                                viewModel.setRouletteIndex(currentIndex + 1)
+                            }
+                        )
+                    }
                 }
             }
         }
