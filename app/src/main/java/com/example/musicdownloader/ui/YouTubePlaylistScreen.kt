@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -91,16 +92,31 @@ fun YouTubePlaylistScreen(
                     )
 
                     if (uiState.playlistVideos.isNotEmpty()) {
-                        Button(
-                            onClick = {
-                                viewModel.downloadAll(uiState.playlistVideos, playlistName)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ElectricPurple),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(Icons.Default.Download, contentDescription = "Download All", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Download All")
+                        Row {
+                            Button(
+                                onClick = {
+                                    viewModel.addAllToLibrary(uiState.playlistVideos, playlistName)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1E2A)),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add All", modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add All")
+                            }
+
+                            Button(
+                                onClick = {
+                                    viewModel.downloadAll(uiState.playlistVideos, playlistName)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ElectricPurple),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = "Download All", modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Download")
+                            }
                         }
                     }
                 }
@@ -130,7 +146,8 @@ fun YouTubePlaylistScreen(
                                 }
                             },
                             onDownloadClick = { viewModel.downloadSong(video) },
-
+                            showAddButton = true,
+                            onAddClick = { viewModel.addToLibraryOnly(video) },
                             showDownloadButton = true
                         )
                     }

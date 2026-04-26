@@ -16,6 +16,7 @@ object UserPreferences {
     private const val KEY_THEME_COLOR = "theme_color"
     private const val KEY_SMART_SHUFFLE_BUFFER = "smart_shuffle_buffer_size"
     private const val KEY_HIGH_END_MODE = "high_end_mode_enabled"
+    private const val KEY_HAS_SEEN_ROULETTE_HELP = "has_seen_roulette_help"
 
     // Ad System Keys
     private const val KEY_FIRST_OPEN_TIME = "first_open_time"
@@ -120,6 +121,16 @@ object UserPreferences {
     fun setHighEndModeEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit {
             putBoolean(KEY_HIGH_END_MODE, enabled)
+        }
+    }
+
+    fun hasSeenRouletteHelp(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_HAS_SEEN_ROULETTE_HELP, false)
+    }
+
+    fun setHasSeenRouletteHelp(context: Context) {
+        getPrefs(context).edit {
+            putBoolean(KEY_HAS_SEEN_ROULETTE_HELP, true)
         }
     }
 

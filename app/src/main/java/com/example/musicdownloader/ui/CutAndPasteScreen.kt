@@ -27,9 +27,15 @@ fun CutAndPasteScreen(
     onBack: () -> Unit
 ) {
     val librarySongs by viewModel.librarySongs.collectAsState(initial = emptyList())
+    val customMixes by viewModel.customMixes.collectAsState(initial = emptyList())
+
     var mixName by remember { mutableStateOf("") }
     var selectedSongs by remember { mutableStateOf(listOf<CutSegment>()) }
     var showSongPicker by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadCustomMixes()
+    }
 
     Column(
         modifier = Modifier
@@ -83,16 +89,18 @@ fun CutAndPasteScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Mix Segments",
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
-
         LazyColumn(
             modifier = Modifier.weight(1f)
         ) {
+            item {
+                Text(
+                    text = "Mix Segments",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
             items(selectedSongs) { segment ->
                 Card(
                     modifier = Modifier
@@ -124,6 +132,49 @@ fun CutAndPasteScreen(
                     Icon(Icons.Default.Add, contentDescription = "Add Song Segment")
                     Spacer(Modifier.width(8.dp))
                     Text("Add Song Segment")
+                }
+            }
+
+            if (customMixes.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Text(
+                        text = "Saved Mixes",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
+                items(customMixes) { mix ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                            .clickable { viewModel.playCustomMix(mix) },
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A24))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(mix.mix.title, color = Color.White, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("${mix.segments.size} segments", color = Color.Gray, fontSize = 14.sp)
+                            }
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Play Mix",
+                                tint = Color(0xFF00A6FF),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

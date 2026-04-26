@@ -294,6 +294,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addToLibraryOnly(video: VideoItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val db = com.example.musicdownloader.data.AppDatabase.getDatabase(getApplication())
+            val songDao = db.songDao()
+            val existingSong = songDao.getSongById(video.id)
+            if (existingSong == null) {
+                val newSong = com.example.musicdownloader.data.Song(
+                    id = video.id,
+                    title = video.title,
+                    artist = video.uploader,
+                    duration = video.duration,
+                    thumbnailUrl = video.thumbnailUrl,
+                    filePath = ""
+                )
+                songDao.insert(newSong)
+                _toastEvent.emit("Added to Library")
+            } else {
+                _toastEvent.emit("Already in Library")
+            }
+        }
+    }
+
     fun addAllToLibrary(videos: List<VideoItem>, localPlaylistName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val db = com.example.musicdownloader.data.AppDatabase.getDatabase(getApplication())
@@ -542,6 +564,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
+
+    private val _hasSeenRouletteHelp = MutableStateFlow(UserPreferences.hasSeenRouletteHelp(application))
+    val hasSeenRouletteHelp: StateFlow<Boolean> = _hasSeenRouletteHelp.asStateFlow()
+
+    fun markRouletteHelpSeen() {
+        UserPreferences.setHasSeenRouletteHelp(getApplication())
+        _hasSeenRouletteHelp.value = true
+    }
 
     private val _rouletteState = MutableStateFlow<List<VideoItem>>(emptyList())
     val rouletteState: StateFlow<List<VideoItem>> = _rouletteState.asStateFlow()
