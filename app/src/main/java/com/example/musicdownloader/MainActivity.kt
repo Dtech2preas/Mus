@@ -190,7 +190,8 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Column {
-                if (currentMediaItem != null) {
+                val shouldShowMiniPlayer = currentScreen !is AppScreen.Roulette && currentScreen !is AppScreen.CutAndPaste
+                if (currentMediaItem != null && shouldShowMiniPlayer) {
                     MiniPlayer(
                         viewModel = viewModel,
                         onClick = { isPlayerExpanded = true }

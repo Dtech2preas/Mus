@@ -199,6 +199,8 @@ class MusicService : MediaSessionService() {
                 val artist = args.getString("ARTIST")
                 val artworkUri = args.getString("ARTWORK_URI")
                 val mediaId = args.getString("MEDIA_ID") ?: ""
+                val startPosMs = args.getLong("START_POSITION_MS", 0L)
+                val endPosMs = args.getLong("END_POSITION_MS", Long.MIN_VALUE)
 
                 if (url != null) {
                     serviceScope.launch(Dispatchers.Main) {
@@ -226,11 +228,22 @@ class MusicService : MediaSessionService() {
                             val metadata = metadataBuilder.build()
 
                             // 4. Build Media Item with Metadata
-                            val mediaItem = MediaItem.Builder()
+                            val mediaItemBuilder = MediaItem.Builder()
                                 .setUri(url)
                                 .setMediaId(mediaId)
                                 .setMediaMetadata(metadata)
-                                .build()
+
+                            // Re-apply clipping configuration if present
+                            if (startPosMs > 0L || endPosMs > Long.MIN_VALUE) {
+                                mediaItemBuilder.setClippingConfiguration(
+                                    MediaItem.ClippingConfiguration.Builder()
+                                        .setStartPositionMs(startPosMs)
+                                        .setEndPositionMs(endPosMs)
+                                        .build()
+                                )
+                            }
+
+                            val mediaItem = mediaItemBuilder.build()
 
                             val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
 
