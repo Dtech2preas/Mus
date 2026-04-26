@@ -45,6 +45,7 @@ class MusicService : MediaSessionService() {
     // Define the custom command constant
     companion object {
         val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle())
+        val PLAY_CUSTOM_MIX_COMMAND = SessionCommand("PLAY_CUSTOM_MIX", Bundle())
         val GET_SESSION_ID_COMMAND = SessionCommand("GET_SESSION_ID", Bundle())
     }
 
@@ -182,6 +183,7 @@ class MusicService : MediaSessionService() {
             // Add our custom PLAY_STREAM command to the allowed list
             val sessionCommands = SessionCommands.Builder()
                 .add(PLAY_STREAM_COMMAND)
+                .add(PLAY_CUSTOM_MIX_COMMAND)
                 .add(GET_SESSION_ID_COMMAND)
                 .build()
 
@@ -193,7 +195,10 @@ class MusicService : MediaSessionService() {
 
         @OptIn(UnstableApi::class)
         override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
-            if (customCommand.customAction == PLAY_STREAM_COMMAND.customAction) {
+            if (customCommand.customAction == PLAY_CUSTOM_MIX_COMMAND.customAction) {
+                // Handled implicitly by controller.setMediaItems, keeping this open for potential specific handling later.
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            } else if (customCommand.customAction == PLAY_STREAM_COMMAND.customAction) {
                 val url = args.getString("url")
 
                 // --- CRITICAL FIX: Extract Metadata from Bundle ---

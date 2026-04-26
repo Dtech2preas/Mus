@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,7 +41,9 @@ fun MusicRowItem(
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
     onOptionClick: () -> Unit = {},
-    showDownloadButton: Boolean = true
+    showDownloadButton: Boolean = true,
+    showAddButton: Boolean = false,
+    onAddClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -187,6 +190,18 @@ fun MusicRowItem(
                         modifier = Modifier.size(24.dp)
                     )
                 } else if (!isWaiting && (downloadProgress == null || downloadProgress == 0f)) {
+                    if (showAddButton) {
+                        IconButton(onClick = {
+                            HapticUtils.performHapticFeedback(context)
+                            onAddClick()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add to Library",
+                                tint = ElectricPurple
+                            )
+                        }
+                    }
                     IconButton(onClick = {
                         HapticUtils.performHapticFeedback(context)
                         onDownloadClick()

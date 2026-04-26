@@ -35,6 +35,7 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
     val rouletteState by viewModel.rouletteState.collectAsState()
     val currentIndex by viewModel.rouletteIndex.collectAsState()
     val prefetchedCount by viewModel.prefetchedRouletteCount.collectAsState()
+    val hasSeenHelp by viewModel.hasSeenRouletteHelp.collectAsState()
 
     LaunchedEffect(Unit) {
         if (rouletteState.isEmpty()) {
@@ -101,6 +102,58 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
                             onSwipedLeft = {
                                 viewModel.setRouletteIndex(currentIndex + 1)
                             }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Help Overlay
+        if (!hasSeenHelp) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xD9000000)) // Semi-transparent black
+                    .zIndex(10f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(32.dp)
+                ) {
+                    Text(
+                        text = "HOW TO DISCOVER",
+                        color = Color(0xFF00A6FF),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+
+                    Text(
+                        text = "👉 Swipe Right to Like & Save to Library",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    Text(
+                        text = "👈 Swipe Left to Skip",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(bottom = 32.dp)
+                    )
+
+                    IconButton(
+                        onClick = { viewModel.markRouletteHelpSeen() },
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(Color(0xFF1E1E2A), shape = RoundedCornerShape(32.dp))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
                         )
                     }
                 }
