@@ -26,8 +26,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -102,6 +104,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Initializing Downloads (Waiting for start)
     private val _initializingDownloads = MutableStateFlow<Set<String>>(emptySet())
     val initializingDownloads: StateFlow<Set<String>> = _initializingDownloads.asStateFlow()
+
+    private var previewLoopJob: Job? = null
 
     private val _sortOption = MutableStateFlow(SortOption.NEWEST_FIRST)
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
@@ -548,26 +552,40 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val streamDao = db.streamSongDao()
             val historyDao = db.playHistoryDao()
 
-            val recommended = streamDao.getRecommendedSongsSync() ?: emptyList()
-            val libraryIds = streamDao.getLibrarySongsSync()?.map { it.id }?.toSet() ?: emptySet()
-            val historyIds = historyDao.getAllHistoryIdsSync()?.toSet() ?: emptySet()
+            var recommended = streamDao.getRecommendedSongsSync() ?: emptyList()
+            var libraryIds = streamDao.getLibrarySongsSync()?.map { it.id }?.toSet() ?: emptySet()
+            var historyIds = historyDao.getAllHistoryIdsSync()?.toSet() ?: emptySet()
 
             // Filter out songs already in library or history
-            val filtered = recommended.filter { it.id !in libraryIds && it.id !in historyIds }.take(20)
+            val currentItems = _rouletteState.value
+            val existingIds = currentItems.map { it.id }.toSet()
+
+            var filtered = recommended.filter { it.id !in libraryIds && it.id !in historyIds && it.id !in existingIds }
+
+            // Fetch dynamically if pre-filtered list is too small to allow endless swiping
+            if (filtered.size < 5) {
+                AppLogger.log("[Roulette] Running low on recommendations, fetching more...")
+                MusicRepository.refreshRecommendations(getApplication())
+                recommended = streamDao.getRecommendedSongsSync() ?: emptyList()
+                filtered = recommended.filter { it.id !in libraryIds && it.id !in historyIds && it.id !in existingIds }
+            }
+
+            val taken = filtered.take(20)
 
             // Map StreamSong to VideoItem
-            val items = filtered.map {
+            val newItems = taken.map {
                 VideoItem(
                     id = it.id,
                     title = it.title,
                     uploader = it.artist,
                     thumbnailUrl = it.thumbnailUrl,
                     duration = it.duration,
-                    webUrl = "https://youtube.com/watch?v=${it.id}"
+                    webUrl = "https://www.youtube.com/watch?v=${it.id}"
                 )
-            }
+            }.shuffled()
 
-            _rouletteState.value = items
+            // Append to the existing list to avoid resetting the entire roulette list when scrolling
+            _rouletteState.value = currentItems + newItems
         }
     }
 
@@ -582,7 +600,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     .setArtworkUri(android.net.Uri.parse(video.thumbnailUrl))
                     .build()
 
-                // Parse duration and calculate 30% start point
+                // Parse duration and calculate 50% start point
                 var durationSecs = 180L
                 try {
                     val parts = video.duration.split(":")
@@ -591,23 +609,69 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } catch (e: Exception) {}
 
-                val startMs = (durationSecs * 1000 * 0.3).toLong()
+                val startMs = (durationSecs * 1000 * 0.5).toLong()
 
                 val mediaItem = MediaItem.Builder()
                     .setUri(streamInfo.url)
                     .setMediaId(video.id)
                     .setMediaMetadata(metadata)
-                    .setClippingConfiguration(
-                        MediaItem.ClippingConfiguration.Builder()
-                            .setStartPositionMs(startMs)
-                            // Play for 15 seconds
-                            .setEndPositionMs(startMs + 15000)
-                            .build()
-                    )
+                    // We remove clipping config so the user can seek across the whole song
                     .build()
 
                 MusicControllerManager.playMedia(mediaItem)
+
+                // Seek manually to the startMs position
+                // Because MediaController is an async process, we might need a small delay,
+                // but setting seekTo directly after playMedia might get overwritten.
+                // We will launch a coroutine loop to monitor playback for the 50 second loop logic,
+                // and initially seek.
+                viewModelScope.launch(Dispatchers.Main) {
+                    delay(500) // Wait for player to init
+                    MusicControllerManager.seekTo(startMs)
+                }
+
+                // Handle looping the 50s segment manually without REPEAT_MODE_ONE
+                // to avoid side-effects on normal playback and clipping limitations
+                previewLoopJob?.cancel()
+                previewLoopJob = viewModelScope.launch(Dispatchers.Main) {
+                    while(isActive) {
+                        delay(1000)
+                        val currentPos = MusicControllerManager.mediaController?.currentPosition ?: 0L
+                        if (currentPos >= startMs + 50000) {
+                            MusicControllerManager.seekTo(startMs)
+                        }
+                    }
+                }
+
+                // Ensure normal repeat mode is off so we don't break library playback
+                MusicControllerManager.mediaController?.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
             }
+        }
+    }
+
+    fun playSegmentPreview(song: com.example.musicdownloader.data.Song, startMs: Long, endMs: Long) {
+        viewModelScope.launch {
+            val metadata = MediaMetadata.Builder()
+                .setTitle("Preview: ${song.title}")
+                .setArtist(song.artist)
+                .setArtworkUri(android.net.Uri.parse(song.thumbnailUrl))
+                .build()
+
+            val uri = android.net.Uri.fromFile(java.io.File(song.filePath))
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(uri)
+                .setMediaId(song.id)
+                .setMediaMetadata(metadata)
+                .setClippingConfiguration(
+                    MediaItem.ClippingConfiguration.Builder()
+                        .setStartPositionMs(startMs)
+                        .setEndPositionMs(endMs)
+                        .build()
+                )
+                .build()
+
+            MusicControllerManager.playMedia(mediaItem)
         }
     }
 

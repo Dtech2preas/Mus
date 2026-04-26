@@ -47,6 +47,13 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
         }
     }
 
+    // Auto fetch when approaching the end of the list
+    LaunchedEffect(currentIndex, rouletteState) {
+        if (rouletteState.isNotEmpty() && currentIndex >= rouletteState.size - 2) {
+            viewModel.loadRouletteRecommendations()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -56,24 +63,7 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
         if (rouletteState.isEmpty()) {
             CircularProgressIndicator(color = Color(0xFF00A6FF))
         } else if (currentIndex >= rouletteState.size) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "You've seen them all!",
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        currentIndex = 0
-                        viewModel.loadRouletteRecommendations()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6FF))
-                ) {
-                    Text("Refresh")
-                }
-            }
+            CircularProgressIndicator(color = Color(0xFF00A6FF)) // Just show loading when fetching new ones automatically
         } else {
             // Render from back to front
             for (i in (rouletteState.size - 1) downTo currentIndex) {
