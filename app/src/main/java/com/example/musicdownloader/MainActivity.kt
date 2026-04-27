@@ -87,7 +87,7 @@ fun AppNavigation(viewModel: MusicViewModel) {
                 UserPreferences.saveArtists(context, artists)
                 UserPreferences.setFirstRunCompleted(context)
                 isFirstRun = false
-                viewModel.loadGenreFeeds()
+                viewModel.initializeAfterFirstRun()
             }
         )
     } else {

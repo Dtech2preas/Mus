@@ -209,16 +209,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             MusicRepository.syncFilesWithDatabase(application)
         }
 
-        // Initialize Recommendations
-        viewModelScope.launch {
-            MusicRepository.refreshRecommendations(application)
+        // Only fetch recommendations and feeds on startup if the user has completed first-time setup.
+        // Otherwise, this will be called explicitly after GenreSelectionScreen.
+        if (!UserPreferences.isFirstRun(application)) {
+            // Initialize Recommendations
+            viewModelScope.launch {
+                MusicRepository.refreshRecommendations(application)
+            }
+
+            // Start prefetching Roulette URLs right away
+            loadRouletteRecommendations()
+
+            // Load Genre Feeds
+            loadGenreFeeds()
         }
-
-        // Start prefetching Roulette URLs right away
-        loadRouletteRecommendations()
-
-        // Load Genre Feeds
-        loadGenreFeeds()
 
         // Polling loop for position updates
         viewModelScope.launch {
@@ -246,6 +250,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             }
+        }
+    }
+
+    fun initializeAfterFirstRun() {
+        viewModelScope.launch {
+            // Give repository time to register the new preferences
+            MusicRepository.refreshRecommendations(getApplication())
+            loadRouletteRecommendations()
+            loadGenreFeeds()
         }
     }
 
