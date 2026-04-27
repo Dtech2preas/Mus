@@ -3,6 +3,11 @@ package com.example.musicdownloader.ui
 import android.annotation.SuppressLint
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.content.Intent
+import android.net.Uri
+import android.webkit.WebResourceRequest
+import android.util.Log
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,7 +50,65 @@ fun AdPopup(url: String, onDismiss: () -> Unit, autoCloseSeconds: Int? = null) {
                 factory = { context ->
                     WebView(context).apply {
                         settings.javaScriptEnabled = true
-                        webViewClient = WebViewClient()
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val requestUrl = request?.url?.toString() ?: return false
+                                return handleUrl(view, requestUrl)
+                            }
+
+                            @Deprecated("Deprecated in Java")
+                            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                val requestUrl = url ?: return false
+                                return handleUrl(view, requestUrl)
+                            }
+
+                            private fun handleUrl(view: WebView?, url: String): Boolean {
+                                if (url.startsWith("http://") || url.startsWith("https://")) {
+                                    return false // Let WebView handle it
+                                }
+
+                                val context = view?.context ?: return true
+
+                                try {
+                                    val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+
+                                    try {
+                                        context.startActivity(intent)
+                                        return true
+                                    } catch (e: Exception) {
+                                        // Fallback to browser fallback URL if provided
+                                        val fallbackUrl = intent.getStringExtra("browser_fallback_url")
+                                        if (!fallbackUrl.isNullOrEmpty()) {
+                                            view.loadUrl(fallbackUrl)
+                                            return true
+                                        }
+
+                                        // Fallback to Play Store if package is provided
+                                        val packageName = intent.`package`
+                                        if (!packageName.isNullOrEmpty()) {
+                                            try {
+                                                val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+                                                context.startActivity(playStoreIntent)
+                                            } catch (e2: Exception) {
+                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
+                                                context.startActivity(webIntent)
+                                            }
+                                            return true
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("WebViewFallback", "Error parsing custom URL scheme: $url", e)
+                                    try {
+                                        val genericIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        context.startActivity(genericIntent)
+                                    } catch (e2: Exception) {
+                                        Log.e("WebViewFallback", "Generic intent failed for url: $url", e2)
+                                    }
+                                }
+
+                                return true // We handled it, so WebView shouldn't try and fail
+                            }
+                        }
                         loadUrl(url)
                     }
                 },
