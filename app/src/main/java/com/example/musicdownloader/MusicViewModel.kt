@@ -13,6 +13,8 @@ import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
 import com.example.musicdownloader.data.StreamSong
 import com.example.musicdownloader.utils.DnaAnalyzer
+import com.example.musicdownloader.utils.UpdateManager
+import com.example.musicdownloader.utils.AdManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
@@ -79,6 +81,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _isCompressing = MutableStateFlow(false)
     val isCompressing: StateFlow<Boolean> = _isCompressing.asStateFlow()
 
+    private val _updateBannerText = MutableStateFlow<String?>(null)
+    val updateBannerText: StateFlow<String?> = _updateBannerText.asStateFlow()
+
     private val _compressionProgress = MutableStateFlow("")
     val compressionProgress: StateFlow<String> = _compressionProgress.asStateFlow()
 
@@ -91,6 +96,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val repeatMode = MusicControllerManager.repeatMode
     val audioSessionId = MusicControllerManager.audioSessionId
     val isSmartShuffleEnabled = MusicControllerManager.isSmartShuffleEnabled
+    val showAdPopupEvent = MusicControllerManager.showAdPopupEvent
 
     // Download Progress Flow (Global)
     val downloadProgress = YoutubeClient.downloadProgress
@@ -185,6 +191,19 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize the controller connection
         MusicControllerManager.initialize(application)
 
+        // Fetch Update Banner
+        viewModelScope.launch {
+            val bannerText = UpdateManager.fetchUpdateBanner()
+            if (!bannerText.isNullOrBlank()) {
+                _updateBannerText.value = bannerText
+            }
+        }
+
+        // Sync Ad Config
+        viewModelScope.launch {
+            AdManager.syncAdConfig(application)
+        }
+
         // Sync files on startup
         viewModelScope.launch {
             MusicRepository.syncFilesWithDatabase(application)
@@ -194,6 +213,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             MusicRepository.refreshRecommendations(application)
         }
+
+        // Start prefetching Roulette URLs right away
+        loadRouletteRecommendations()
 
         // Load Genre Feeds
         loadGenreFeeds()
@@ -1067,6 +1089,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleSmartShuffle() {
         MusicControllerManager.toggleSmartShuffle()
+    }
+
+    fun dismissAdPopup() {
+        MusicControllerManager.dismissAdPopup()
     }
 
     fun toggleRepeatMode() {

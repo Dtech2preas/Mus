@@ -57,6 +57,11 @@ object MusicControllerManager {
     private val _isSmartShuffleEnabled = MutableStateFlow(false)
     val isSmartShuffleEnabled: StateFlow<Boolean> = _isSmartShuffleEnabled.asStateFlow()
 
+    private val _showAdPopupEvent = MutableStateFlow<String?>(null)
+    val showAdPopupEvent: StateFlow<String?> = _showAdPopupEvent.asStateFlow()
+
+    private var autoPlayedSongCount = 0
+
     private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
@@ -111,6 +116,24 @@ object MusicControllerManager {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 AppLogger.log("[Player] Media Item Transition. ID: ${mediaItem?.mediaId}, Title: ${mediaItem?.mediaMetadata?.title} (Reason: $reason)")
                 _currentMediaItem.value = mediaItem
+
+                applicationContext?.let { context ->
+                    if (com.example.musicdownloader.utils.AdManager.isAdsEnabled(context)) {
+                        if (reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                            autoPlayedSongCount++
+                            val threshold = com.example.musicdownloader.utils.AdManager.getSongThreshold(context)
+                            if (autoPlayedSongCount >= threshold) {
+                                autoPlayedSongCount = 0 // Reset after triggering
+                                com.example.musicdownloader.utils.AdManager.getRandomAdLink(context)?.let { link ->
+                                    _showAdPopupEvent.value = link
+                                }
+                            }
+                        } else if (reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
+                                   reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                            autoPlayedSongCount = 0 // Reset if user manually skipped
+                        }
+                    }
+                }
 
                 // Trigger Smart Logic
                 checkQueueAndPrefetch()
@@ -429,6 +452,10 @@ object MusicControllerManager {
                 }
             }, MoreExecutors.directExecutor())
         }
+    }
+
+    fun dismissAdPopup() {
+        _showAdPopupEvent.value = null
     }
 
     fun launchEqualizer(context: Context) {
