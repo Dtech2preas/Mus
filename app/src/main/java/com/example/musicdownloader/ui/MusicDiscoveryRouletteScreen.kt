@@ -29,6 +29,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
@@ -70,8 +71,10 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
                 .zIndex(1f),
             contentAlignment = Alignment.Center
         ) {
+            // Subtract 1 from prefetchedCount as requested, ensure it doesn't go below 0
+            val displayCount = (prefetchedCount - 1).coerceAtLeast(0)
             Text(
-                text = "NEXT $prefetchedCount SONGS AVAILABLE LOADING MORE..",
+                text = "NEXT $displayCount SONGS AVAILABLE LOADING MORE..",
                 color = Color.Gray,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
@@ -92,9 +95,23 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
                 for (i in (rouletteState.size - 1) downTo currentIndex) {
                     if (i <= currentIndex + 2) {
                         val isCurrent = i == currentIndex
+                        var isCached by remember(rouletteState[i].id) { mutableStateOf(false) }
+                        val context = LocalContext.current
+                        LaunchedEffect(rouletteState[i].id) {
+                            isCached = com.example.musicdownloader.MusicRepository.isStreamCached(context, rouletteState[i].id)
+                            if (!isCached) {
+                                // Keep polling every second if it's the current one until it's cached
+                                while(!isCached) {
+                                    kotlinx.coroutines.delay(1000)
+                                    isCached = com.example.musicdownloader.MusicRepository.isStreamCached(context, rouletteState[i].id)
+                                }
+                            }
+                        }
+
                         SwipeableCard(
                             video = rouletteState[i],
                             isCurrent = isCurrent,
+                            isLoadingStream = isCurrent && !isCached,
                             onSwipedRight = {
                                 viewModel.toggleLike(rouletteState[i])
                                 viewModel.setRouletteIndex(currentIndex + 1)
@@ -166,6 +183,7 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
 fun SwipeableCard(
     video: com.example.musicdownloader.VideoItem,
     isCurrent: Boolean,
+    isLoadingStream: Boolean = false,
     onSwipedRight: () -> Unit,
     onSwipedLeft: () -> Unit
 ) {
@@ -250,6 +268,18 @@ fun SwipeableCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+
+            // Loading Overlay
+            if (isLoadingStream) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color(0xFF00A6FF), modifier = Modifier.size(64.dp))
+                }
             }
 
             // Overlay Icons on Drag

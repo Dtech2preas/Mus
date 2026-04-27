@@ -60,6 +60,12 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
         // Dynamic Header
         GreetingHeader()
 
+        val updateBannerText by viewModel.updateBannerText.collectAsState()
+        if (!updateBannerText.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            UpdateBanner(text = updateBannerText!!)
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // Randomize the "Made for You" list only when feeds actually change,

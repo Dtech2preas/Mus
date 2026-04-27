@@ -148,12 +148,34 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val showAdPopupEvent by viewModel.showAdPopupEvent.collectAsState()
     val activity = LocalContext.current as? Activity
 
     // Bottom Sheet Player State
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Time-based Ad Logic
+    var appUsageMinutes by remember { mutableStateOf(0) }
+    var showTimeBasedAd by remember { mutableStateOf<String?>(null) }
+    var timeBasedAdLinkToOpen by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        while(true) {
+            kotlinx.coroutines.delay(60_000)
+            appUsageMinutes++
+            if (com.example.musicdownloader.utils.AdManager.isAdsEnabled(context)) {
+                val threshold = com.example.musicdownloader.utils.AdManager.getTimeThresholdMins(context)
+                if (appUsageMinutes >= threshold) {
+                    appUsageMinutes = 0
+                    com.example.musicdownloader.utils.AdManager.getRandomAdLink(context)?.let { link ->
+                        showTimeBasedAd = link
+                    }
+                }
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
 
     // Intercept Back Button
@@ -387,6 +409,46 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
             }
         )
     }
+    // --- Ad Overlays ---
+    if (showAdPopupEvent != null) {
+        AdPopup(
+            url = showAdPopupEvent!!,
+            onDismiss = { viewModel.dismissAdPopup() },
+            autoCloseSeconds = 20
+        )
+    }
+
+    if (timeBasedAdLinkToOpen != null) {
+        AdPopup(
+            url = timeBasedAdLinkToOpen!!,
+            onDismiss = { timeBasedAdLinkToOpen = null },
+            autoCloseSeconds = null
+        )
+    }
+
+    if (showTimeBasedAd != null) {
+        // Show "Support Us" Popup instead of jumping straight to webview
+        AlertDialog(
+            onDismissRequest = { showTimeBasedAd = null },
+            title = { Text("Support Us", color = Color(0xFF00A6FF)) },
+            text = { Text("Click here to support us and keep the app here!", color = Color.White) },
+            confirmButton = {
+                TextButton(onClick = {
+                    timeBasedAdLinkToOpen = showTimeBasedAd
+                    showTimeBasedAd = null
+                }) {
+                    Text("Support Us", color = Color.Green)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimeBasedAd = null }) {
+                    Text("No Thanks", color = Color.Gray)
+                }
+            },
+            containerColor = Color(0xFF1E1E2A)
+        )
+    }
+
     if (isPlayerExpanded) {
         ModalBottomSheet(
             onDismissRequest = { isPlayerExpanded = false },
