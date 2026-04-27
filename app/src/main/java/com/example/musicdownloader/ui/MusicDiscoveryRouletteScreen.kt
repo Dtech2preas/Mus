@@ -10,6 +10,15 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.offset
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -127,51 +136,124 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
 
         // Help Overlay
         if (!hasSeenHelp) {
+            val infiniteTransition = rememberInfiniteTransition(label = "SwipeAnimation")
+
+            val rightOffsetX by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 20f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000, easing = LinearOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "RightSwipe"
+            )
+
+            val leftOffsetX by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = -20f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000, easing = LinearOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "LeftSwipe"
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xD9000000)) // Semi-transparent black
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(Color(0xD9000000), Color(0xF2000000))
+                        )
+                    )
                     .zIndex(10f),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(32.dp)
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .background(Color(0xFF1E1E2A), shape = RoundedCornerShape(24.dp))
+                        .border(2.dp, Color(0xFF00A6FF).copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+                        .padding(32.dp)
                 ) {
                     Text(
-                        text = "HOW TO DISCOVER",
+                        text = "MUSIC DISCOVERY",
                         color = Color(0xFF00A6FF),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 24.dp)
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
 
                     Text(
-                        text = "👉 Swipe Right to Like & Save to Library",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-
-                    Text(
-                        text = "👈 Swipe Left to Skip",
-                        color = Color.White,
-                        fontSize = 18.sp,
+                        text = "Find your new vibe.",
+                        color = Color.Gray,
+                        fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 32.dp)
                     )
 
-                    IconButton(
-                        onClick = { viewModel.markRouletteHelpSeen() },
-                        modifier = Modifier
-                            .size(64.dp)
-                            .background(Color(0xFF1E1E2A), shape = RoundedCornerShape(32.dp))
+                    // Swipe Right Section
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Dismiss",
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .offset(x = rightOffsetX.dp)
+                                .background(Color.Green.copy(alpha = 0.2f), shape = RoundedCornerShape(24.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = Color.Green,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.padding(start = 16.dp)) {
+                            Text(text = "SWIPE RIGHT", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(text = "Like & Save to Library", color = Color.Gray, fontSize = 12.sp)
+                        }
+                    }
+
+                    // Swipe Left Section
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .offset(x = leftOffsetX.dp)
+                                .background(Color.Red.copy(alpha = 0.2f), shape = RoundedCornerShape(24.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = null,
+                                tint = Color.Red,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.padding(start = 16.dp)) {
+                            Text(text = "SWIPE LEFT", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(text = "Skip to next song", color = Color.Gray, fontSize = 12.sp)
+                        }
+                    }
+
+                    androidx.compose.material3.Button(
+                        onClick = { viewModel.markRouletteHelpSeen() },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00A6FF)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("GOT IT", color = Color.Black, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
             }
