@@ -80,15 +80,25 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
                 .zIndex(1f),
             contentAlignment = Alignment.Center
         ) {
-            // Subtract 1 from prefetchedCount as requested, ensure it doesn't go below 0
-            val displayCount = (prefetchedCount - 1).coerceAtLeast(0)
-            Text(
-                text = "NEXT $displayCount SONGS AVAILABLE LOADING MORE..",
-                color = Color.Gray,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "D-TECH DISCOVER",
+                    color = Color(0xFF00A6FF), // Neon Blue
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 3.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                // Subtract 1 from prefetchedCount as requested, ensure it doesn't go below 0
+                val displayCount = (prefetchedCount - 1).coerceAtLeast(0)
+                Text(
+                    text = "NEXT $displayCount SONGS AVAILABLE LOADING MORE..",
+                    color = Color.Gray,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
         }
 
         Box(
@@ -285,6 +295,7 @@ fun SwipeableCard(
                 scaleX = if (isCurrent) 1f else 0.95f,
                 scaleY = if (isCurrent) 1f else 0.95f
             )
+            .border(2.dp, androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF00A6FF), Color(0xFFFF007F))), RoundedCornerShape(24.dp))
             .pointerInput(isCurrent) {
                 if (isCurrent) {
                     detectDragGestures(
