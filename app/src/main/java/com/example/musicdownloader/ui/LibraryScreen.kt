@@ -225,13 +225,20 @@ fun LibraryScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Delete", color = Color.Red) },
+                                text = {
+                                    if (song.filePath.startsWith("stream://")) {
+                                        Text("Remove from Library", color = Color.Red)
+                                    } else {
+                                        Text("Delete", color = Color.Red)
+                                    }
+                                },
                                 onClick = {
                                     showMenu = false
                                     viewModel.deleteSong(song)
                                     scope.launch {
+                                        val messageText = if (song.filePath.startsWith("stream://")) "Removed ${song.title}" else "Deleted ${song.title}"
                                         val result = snackbarHostState.showSnackbar(
-                                            message = "Deleted ${song.title}",
+                                            message = messageText,
                                             actionLabel = "Undo",
                                             duration = SnackbarDuration.Short
                                         )

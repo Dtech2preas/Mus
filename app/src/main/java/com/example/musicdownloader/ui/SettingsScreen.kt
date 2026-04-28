@@ -1,5 +1,6 @@
 package com.example.musicdownloader.ui
 
+import androidx.compose.foundation.border
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -173,7 +174,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Auto-fetch URLs for all visible songs. Uses more data.",
+                            text = "Auto-prepares any and all songs on your screen so you don't experience a 30-second delay when streaming. Uses slightly more data; turn it on only if you trust your data plan.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -200,9 +201,16 @@ fun SettingsScreen(
                 var bufferSize by remember { mutableIntStateOf(UserPreferences.getSmartShuffleBuffer(context)) }
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(
-                        text = "Smart Shuffle Pre-load: $bufferSize songs",
+                        text = "Smart Shuffle Prefetch Level: $bufferSize",
                         style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Controls the smart shuffle feature, which automatically finds the next best related songs for you. This level determines how many songs in advance it should always have ready.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                     )
                     Slider(
                         value = bufferSize.toFloat(),
@@ -216,7 +224,7 @@ fun SettingsScreen(
                         )
                     )
                     Text(
-                        text = "Higher value = smoother playback but more data/storage usage.",
+                        text = "Higher level = smoother playback but uses more data and storage.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp
@@ -262,6 +270,7 @@ fun SettingsScreen(
                 // Compression
                 SettingsActionRow(
                     label = "Audio Compression",
+                    subtitle = "Decrease app size by compressing songs. NB: This takes hours. Ideally do this when going to bed. Do not close the app.",
                     icon = Icons.Default.Info, // Generic info icon
                     onClick = onNavigateToCompression
                 )
@@ -270,8 +279,15 @@ fun SettingsScreen(
 
         // --- 5. PREFERENCES (Genres & Artists) ---
         SettingsSectionTitle(title = "Your Vibe", icon = Icons.Default.Favorite)
-        SettingsCard {
+        SettingsCard(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).border(2.dp, androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF00A6FF), Color(0xFFFF007F))), shape = RoundedCornerShape(16.dp))) {
             Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "NB: You must close and reopen the app to see your refreshed vibe list.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF00A6FF), // Tech blue
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
                 // Genres section
                 Text("Your Genres:", style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -370,6 +386,7 @@ fun SettingsScreen(
                 HorizontalDivider(color = MaterialTheme.colorScheme.background)
                 SettingsActionRow(
                     label = "Manage Compression",
+                    subtitle = "Decrease app size by compressing songs. NB: This takes hours. Ideally do this when going to bed. Do not close the app.",
                     icon = Icons.Default.Done,
                     onClick = onNavigateToCompression
                 )
@@ -386,10 +403,10 @@ fun SettingsScreen(
                 )
                 Divider(color = MaterialTheme.colorScheme.background)
                 SettingsActionRow(
-                    label = "Join Telegram Channel",
+                    label = "Join D-TECH SERVICES WHATSAPP CHANNEL",
                     icon = Icons.Default.Send,
                     onClick = {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/DTECHX24"))
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://whatsapp.com/channel/0029VaDvL992Jl8AOHKQOS22"))
                         context.startActivity(intent)
                     }
                 )
@@ -456,9 +473,9 @@ fun SettingsSectionTitle(title: String, icon: androidx.compose.ui.graphics.vecto
 }
 
 @Composable
-fun SettingsCard(content: @Composable () -> Unit) {
+fun SettingsCard(modifier: Modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), content: @Composable () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         content = { content() }
@@ -468,6 +485,7 @@ fun SettingsCard(content: @Composable () -> Unit) {
 @Composable
 fun SettingsActionRow(
     label: String,
+    subtitle: String? = null,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
     iconTint: Color = MaterialTheme.colorScheme.onSurface
@@ -486,11 +504,20 @@ fun SettingsActionRow(
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.example.musicdownloader
 
+import androidx.compose.ui.text.font.FontWeight
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
@@ -160,6 +161,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     var appUsageMinutes by remember { mutableStateOf(0) }
     var showTimeBasedAd by remember { mutableStateOf<String?>(null) }
     var timeBasedAdLinkToOpen by remember { mutableStateOf<String?>(null) }
+    var noThanksCount by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         while(true) {
@@ -429,20 +431,30 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     if (showTimeBasedAd != null) {
         // Show "Support Us" Popup instead of jumping straight to webview
         AlertDialog(
-            onDismissRequest = { showTimeBasedAd = null },
-            title = { Text("Support Us", color = Color(0xFF00A6FF)) },
+            onDismissRequest = {
+                if (noThanksCount < 3) {
+                    showTimeBasedAd = null
+                }
+            },
+            title = { Text("Support Us", color = Color(0xFF00A6FF), fontWeight = FontWeight.Bold) },
             text = { Text("Click here to support us and keep the app here!", color = Color.White) },
             confirmButton = {
                 TextButton(onClick = {
                     timeBasedAdLinkToOpen = showTimeBasedAd
                     showTimeBasedAd = null
+                    noThanksCount = 0 // Reset on successful click
                 }) {
-                    Text("Support Us", color = Color.Green)
+                    Text("Support Us", color = Color.Green, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showTimeBasedAd = null }) {
-                    Text("No Thanks", color = Color.Gray)
+                if (noThanksCount < 3) {
+                    TextButton(onClick = {
+                        showTimeBasedAd = null
+                        noThanksCount++
+                    }) {
+                        Text("No Thanks", color = Color.Gray)
+                    }
                 }
             },
             containerColor = Color(0xFF1E1E2A)

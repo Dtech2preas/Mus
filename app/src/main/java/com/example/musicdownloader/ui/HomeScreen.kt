@@ -346,13 +346,24 @@ fun GreetingHeader() {
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        Text(
-            text = "$greeting from DTECH",
-            style = TextStyle(
-                brush = brush,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
+        Column {
+            Text(
+                text = "DTECH SERVICES",
+                style = TextStyle(
+                    color = Color(0xFF00A6FF), // Neon Blue
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp
+                )
             )
-        )
+            Text(
+                text = "$greeting",
+                style = TextStyle(
+                    brush = brush,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            )
+        }
     }
 }
