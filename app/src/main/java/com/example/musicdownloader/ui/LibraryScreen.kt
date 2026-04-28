@@ -224,14 +224,16 @@ fun LibraryScreen(
                                     showEditMetadataForSong = song
                                 }
                             )
+                            val isDownloaded = song.filePath.isNotEmpty()
+                            val deleteText = if (isDownloaded) "Delete" else "Remove from Library"
                             DropdownMenuItem(
-                                text = { Text("Delete", color = Color.Red) },
+                                text = { Text(deleteText, color = Color.Red) },
                                 onClick = {
                                     showMenu = false
                                     viewModel.deleteSong(song)
                                     scope.launch {
                                         val result = snackbarHostState.showSnackbar(
-                                            message = "Deleted ${song.title}",
+                                            message = if (isDownloaded) "Deleted ${song.title}" else "Removed ${song.title}",
                                             actionLabel = "Undo",
                                             duration = SnackbarDuration.Short
                                         )
