@@ -70,16 +70,28 @@ fun MusicDiscoveryRouletteScreen(viewModel: MusicViewModel) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(Color(0xFF1C1C26), Color.Black)
+                )
+            )
     ) {
         // Status text overlay at the top
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 40.dp, start = 16.dp, end = 16.dp)
                 .zIndex(1f),
-            contentAlignment = Alignment.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text(
+                text = "D-TECH DISCOVER",
+                color = Color(0xFF00A6FF),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 2.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
             // Subtract 1 from prefetchedCount as requested, ensure it doesn't go below 0
             val displayCount = (prefetchedCount - 1).coerceAtLeast(0)
             Text(
