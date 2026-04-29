@@ -17,8 +17,12 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
@@ -26,10 +30,17 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.browser.customtabs.CustomTabsIntent
+import android.net.Uri
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.ui.*
 import com.example.musicdownloader.ui.DTechBlue
@@ -412,19 +423,37 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     }
     // --- Ad Overlays ---
     if (showAdPopupEvent != null) {
-        AdPopup(
-            url = showAdPopupEvent!!,
-            onDismiss = { viewModel.dismissAdPopup() },
-            autoCloseSeconds = 20
-        )
+        LaunchedEffect(showAdPopupEvent) {
+            try {
+                val customTabsIntent = CustomTabsIntent.Builder().build()
+                customTabsIntent.launchUrl(context, Uri.parse(showAdPopupEvent!!))
+            } catch (e: Exception) {
+                val fallbackIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(showAdPopupEvent!!))
+                try {
+                    context.startActivity(fallbackIntent)
+                } catch (e2: Exception) {
+                    // Ignore
+                }
+            }
+            viewModel.dismissAdPopup()
+        }
     }
 
     if (timeBasedAdLinkToOpen != null) {
-        AdPopup(
-            url = timeBasedAdLinkToOpen!!,
-            onDismiss = { timeBasedAdLinkToOpen = null },
-            autoCloseSeconds = null
-        )
+        LaunchedEffect(timeBasedAdLinkToOpen) {
+            try {
+                val customTabsIntent = CustomTabsIntent.Builder().build()
+                customTabsIntent.launchUrl(context, Uri.parse(timeBasedAdLinkToOpen!!))
+            } catch (e: Exception) {
+                val fallbackIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(timeBasedAdLinkToOpen!!))
+                try {
+                    context.startActivity(fallbackIntent)
+                } catch (e2: Exception) {
+                    // Ignore
+                }
+            }
+            timeBasedAdLinkToOpen = null
+        }
     }
 
     if (showTimeBasedAd != null) {
