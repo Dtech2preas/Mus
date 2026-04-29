@@ -171,7 +171,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     var appUsageMinutes by remember { mutableStateOf(0) }
     var showTimeBasedAd by remember { mutableStateOf<String?>(null) }
     var timeBasedAdLinkToOpen by remember { mutableStateOf<String?>(null) }
-    var adDeclineCount by remember { mutableIntStateOf(0) }
+    var noThanksCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         while(true) {
@@ -457,46 +457,42 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     }
 
     if (showTimeBasedAd != null) {
-        Dialog(
-            onDismissRequest = { if (adDeclineCount < 3) showTimeBasedAd = null },
-            properties = DialogProperties(dismissOnBackPress = adDeclineCount < 3, dismissOnClickOutside = adDeclineCount < 3)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1C1C26), RoundedCornerShape(16.dp))
-                    .border(2.dp, Color(0xFF00A6FF), RoundedCornerShape(16.dp))
-                    .padding(24.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(androidx.compose.material.icons.Icons.Default.Favorite, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Support D-TECH SERVICES", color = Color(0xFF00A6FF), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Click here to support us and keep the app free and available for everyone!", color = Color.LightGray, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        if (adDeclineCount < 3) {
-                            TextButton(onClick = {
-                                adDeclineCount++
-                                showTimeBasedAd = null
-                            }) {
-                                Text("No Thanks", color = Color.Gray)
-                            }
-                        }
-                        Button(
-                            onClick = {
-                                timeBasedAdLinkToOpen = showTimeBasedAd
-                                showTimeBasedAd = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6FF))
-                        ) {
-                            Text("Support Us", color = Color.White)
-                        }
+        // Show "Support Us" Popup instead of jumping straight to webview
+        AlertDialog(
+            onDismissRequest = {
+                if (noThanksCount < 3) {
+                    showTimeBasedAd = null
+                    noThanksCount++
+                }
+            },
+            title = { Text("Support Us", color = Color(0xFF00A6FF)) },
+            text = { Text("Click here to support us and keep the app here!", color = Color.White) },
+            confirmButton = {
+                TextButton(onClick = {
+                    timeBasedAdLinkToOpen = showTimeBasedAd
+                    showTimeBasedAd = null
+                    appUsageMinutes = -30 // Give 30 extra minutes of ad-free time
+                    noThanksCount = 0
+                }) {
+                    Text("Support Us", color = Color.Green)
+                }
+            },
+            dismissButton = if (noThanksCount < 3) {
+                {
+                    TextButton(onClick = {
+                        showTimeBasedAd = null
+                        noThanksCount++
+                    }) {
+                        Text("No Thanks", color = Color.Gray)
                     }
                 }
-            }
-        }
+            } else null,
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = noThanksCount < 3,
+                dismissOnClickOutside = noThanksCount < 3
+            ),
+            containerColor = Color(0xFF1E1E2A)
+        )
     }
 
     if (isPlayerExpanded) {
