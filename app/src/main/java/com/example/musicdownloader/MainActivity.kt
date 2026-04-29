@@ -160,6 +160,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     var appUsageMinutes by remember { mutableStateOf(0) }
     var showTimeBasedAd by remember { mutableStateOf<String?>(null) }
     var timeBasedAdLinkToOpen by remember { mutableStateOf<String?>(null) }
+    var noThanksCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         while(true) {
@@ -429,22 +430,38 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     if (showTimeBasedAd != null) {
         // Show "Support Us" Popup instead of jumping straight to webview
         AlertDialog(
-            onDismissRequest = { showTimeBasedAd = null },
+            onDismissRequest = {
+                if (noThanksCount < 3) {
+                    showTimeBasedAd = null
+                    noThanksCount++
+                }
+            },
             title = { Text("Support Us", color = Color(0xFF00A6FF)) },
             text = { Text("Click here to support us and keep the app here!", color = Color.White) },
             confirmButton = {
                 TextButton(onClick = {
                     timeBasedAdLinkToOpen = showTimeBasedAd
                     showTimeBasedAd = null
+                    appUsageMinutes = -30 // Give 30 extra minutes of ad-free time
+                    noThanksCount = 0
                 }) {
                     Text("Support Us", color = Color.Green)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showTimeBasedAd = null }) {
-                    Text("No Thanks", color = Color.Gray)
+            dismissButton = if (noThanksCount < 3) {
+                {
+                    TextButton(onClick = {
+                        showTimeBasedAd = null
+                        noThanksCount++
+                    }) {
+                        Text("No Thanks", color = Color.Gray)
+                    }
                 }
-            },
+            } else null,
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = noThanksCount < 3,
+                dismissOnClickOutside = noThanksCount < 3
+            ),
             containerColor = Color(0xFF1E1E2A)
         )
     }

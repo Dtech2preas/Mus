@@ -33,7 +33,7 @@ object UserPreferences {
     }
 
     fun setFirstRunCompleted(context: Context) {
-        getPrefs(context).edit {
+        getPrefs(context).edit(commit = true) {
             putBoolean(KEY_IS_FIRST_RUN, false)
         }
     }
@@ -43,7 +43,7 @@ object UserPreferences {
     }
 
     fun saveGenres(context: Context, genres: Set<String>) {
-        getPrefs(context).edit {
+        getPrefs(context).edit(commit = true) {
             putStringSet(KEY_GENRES, genres)
         }
     }
@@ -65,7 +65,7 @@ object UserPreferences {
     }
 
     fun saveArtists(context: Context, artists: Set<String>) {
-        getPrefs(context).edit {
+        getPrefs(context).edit(commit = true) {
             putStringSet(KEY_ARTISTS, artists)
         }
     }
