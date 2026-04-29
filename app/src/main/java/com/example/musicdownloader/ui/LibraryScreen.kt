@@ -225,7 +225,7 @@ fun LibraryScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Delete", color = Color.Red) },
+                                text = { Text(if (song.filePath.startsWith("stream://")) "Remove from Library" else "Delete", color = Color.Red) },
                                 onClick = {
                                     showMenu = false
                                     viewModel.deleteSong(song)

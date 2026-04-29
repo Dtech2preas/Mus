@@ -319,7 +319,7 @@ fun GreetingHeader() {
         initialValue = 0f,
         targetValue = 1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
+            animation = tween(4000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "offset"
@@ -351,7 +351,13 @@ fun GreetingHeader() {
             style = TextStyle(
                 brush = brush,
                 fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.ExtraBold,
+                shadow = androidx.compose.ui.graphics.Shadow(
+                    color = Color(0xFF00A6FF).copy(alpha = 0.5f),
+                    offset = Offset(0f, 4f),
+                    blurRadius = 8f
+                ),
+                letterSpacing = 1.sp
             )
         )
     }

@@ -17,8 +17,12 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
@@ -26,10 +30,17 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.browser.customtabs.CustomTabsIntent
+import android.net.Uri
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.ui.*
 import com.example.musicdownloader.ui.DTechBlue
@@ -160,6 +171,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     var appUsageMinutes by remember { mutableStateOf(0) }
     var showTimeBasedAd by remember { mutableStateOf<String?>(null) }
     var timeBasedAdLinkToOpen by remember { mutableStateOf<String?>(null) }
+    var adDeclineCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         while(true) {
@@ -411,42 +423,80 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
     }
     // --- Ad Overlays ---
     if (showAdPopupEvent != null) {
-        AdPopup(
-            url = showAdPopupEvent!!,
-            onDismiss = { viewModel.dismissAdPopup() },
-            autoCloseSeconds = 20
-        )
+        LaunchedEffect(showAdPopupEvent) {
+            try {
+                val customTabsIntent = CustomTabsIntent.Builder().build()
+                customTabsIntent.launchUrl(context, Uri.parse(showAdPopupEvent!!))
+            } catch (e: Exception) {
+                val fallbackIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(showAdPopupEvent!!))
+                try {
+                    context.startActivity(fallbackIntent)
+                } catch (e2: Exception) {
+                    // Ignore
+                }
+            }
+            viewModel.dismissAdPopup()
+        }
     }
 
     if (timeBasedAdLinkToOpen != null) {
-        AdPopup(
-            url = timeBasedAdLinkToOpen!!,
-            onDismiss = { timeBasedAdLinkToOpen = null },
-            autoCloseSeconds = null
-        )
+        LaunchedEffect(timeBasedAdLinkToOpen) {
+            try {
+                val customTabsIntent = CustomTabsIntent.Builder().build()
+                customTabsIntent.launchUrl(context, Uri.parse(timeBasedAdLinkToOpen!!))
+            } catch (e: Exception) {
+                val fallbackIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(timeBasedAdLinkToOpen!!))
+                try {
+                    context.startActivity(fallbackIntent)
+                } catch (e2: Exception) {
+                    // Ignore
+                }
+            }
+            timeBasedAdLinkToOpen = null
+        }
     }
 
     if (showTimeBasedAd != null) {
-        // Show "Support Us" Popup instead of jumping straight to webview
-        AlertDialog(
-            onDismissRequest = { showTimeBasedAd = null },
-            title = { Text("Support Us", color = Color(0xFF00A6FF)) },
-            text = { Text("Click here to support us and keep the app here!", color = Color.White) },
-            confirmButton = {
-                TextButton(onClick = {
-                    timeBasedAdLinkToOpen = showTimeBasedAd
-                    showTimeBasedAd = null
-                }) {
-                    Text("Support Us", color = Color.Green)
+        Dialog(
+            onDismissRequest = { if (adDeclineCount < 3) showTimeBasedAd = null },
+            properties = DialogProperties(dismissOnBackPress = adDeclineCount < 3, dismissOnClickOutside = adDeclineCount < 3)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF1C1C26), RoundedCornerShape(16.dp))
+                    .border(2.dp, Color(0xFF00A6FF), RoundedCornerShape(16.dp))
+                    .padding(24.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(androidx.compose.material.icons.Icons.Default.Favorite, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Support D-TECH SERVICES", color = Color(0xFF00A6FF), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Click here to support us and keep the app free and available for everyone!", color = Color.LightGray, textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        if (adDeclineCount < 3) {
+                            TextButton(onClick = {
+                                adDeclineCount++
+                                showTimeBasedAd = null
+                            }) {
+                                Text("No Thanks", color = Color.Gray)
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                timeBasedAdLinkToOpen = showTimeBasedAd
+                                showTimeBasedAd = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6FF))
+                        ) {
+                            Text("Support Us", color = Color.White)
+                        }
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTimeBasedAd = null }) {
-                    Text("No Thanks", color = Color.Gray)
-                }
-            },
-            containerColor = Color(0xFF1E1E2A)
-        )
+            }
+        }
     }
 
     if (isPlayerExpanded) {
