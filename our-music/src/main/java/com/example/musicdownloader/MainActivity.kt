@@ -437,7 +437,6 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
              }
         }
 
-        ReactionOverlay(reaction = partnerReaction)
     }
 
 
@@ -554,7 +553,8 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
         ) {
             PartnerViewPlayer(
                 status = partnerStatus!!,
-                onCollapse = { isPartnerPlayerExpanded = false }
+                onCollapse = { isPartnerPlayerExpanded = false },
+                partnerReaction = partnerReaction
             )
         }
     }

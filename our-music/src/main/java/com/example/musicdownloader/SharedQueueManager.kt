@@ -17,7 +17,9 @@ data class SharedSession(
     val playbackPosition: Long = 0,
     val playbackTimestamp: Long = 0,
     val streamerOwamiReady: Boolean = false,
-    val streamerJonasReady: Boolean = false
+    val streamerJonasReady: Boolean = false,
+    val owamiConnected: Boolean = false,
+    val jonasConnected: Boolean = false
 )
 
 data class QueueItem(
@@ -73,7 +75,34 @@ object SharedQueueManager {
     }
 
     fun connect(connected: Boolean) {
-        sessionRef.child("isConnected").setValue(connected)
+        if (myName.isEmpty()) return
+        val key = if (myName == "owami") "owamiConnected" else "jonasConnected"
+        sessionRef.child(key).setValue(connected)
+
+        // Logic for the first one to connect getting the first turn
+        sessionRef.get().addOnSuccessListener { snapshot ->
+            val s = snapshot.getValue(SharedSession::class.java) ?: return@addOnSuccessListener
+
+            // Update global isConnected
+            val overallConnected = s.owamiConnected || s.jonasConnected
+            if (overallConnected != s.isConnected) {
+                sessionRef.child("isConnected").setValue(overallConnected)
+            }
+
+            if (connected && s.lastTurn.isEmpty()) {
+                // If I'm the first one connecting, I don't necessarily get the first turn if turn is based on adding
+                // But the request says "the first to click connect gets the first tick of a song"
+                // meaning the first one to connect gets to add a song first.
+                // In our logic, 'lastTurn' is the person who ADDED the last song.
+                // So if lastTurn is empty, and I connect, I should be able to add.
+                // If I want to EXPLICITLY set who's turn it is, I can use a 'currentTurn' field.
+                // Let's use 'lastTurn' to mean "the person who's turn it IS NOT".
+                // So if lastTurn is Jonas, it is Owami's turn.
+                // If lastTurn is empty, we can set it to the partner's name so it becomes my turn.
+                val partner = if (myName == "owami") "jonas" else "owami"
+                sessionRef.child("lastTurn").setValue(partner)
+            }
+        }
     }
 
     fun addToQueue(song: VideoItem, addedBy: String) {
@@ -86,6 +115,7 @@ object SharedQueueManager {
             timestamp = System.currentTimeMillis()
         )
         queueRef.push().setValue(item)
+        updateTurn(addedBy)
     }
 
     fun removeFromQueue(firebaseKey: String) {
