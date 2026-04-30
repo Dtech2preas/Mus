@@ -23,7 +23,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.PlayerStatus
 
 @Composable
-fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit) {
+fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit, partnerReaction: com.example.musicdownloader.Reaction? = null) {
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF050510))) {
         Image(
             painter = rememberAsyncImagePainter(status.thumbnailUrl),
@@ -99,5 +99,7 @@ fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit) {
 
             Text("VIEW ONLY MODE", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
         }
+
+        ReactionOverlay(reaction = partnerReaction)
     }
 }

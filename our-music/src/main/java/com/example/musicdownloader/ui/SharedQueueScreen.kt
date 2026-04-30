@@ -31,13 +31,18 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
     val items by SharedQueueManager.queueItems.collectAsState()
     val session by SharedQueueManager.session.collectAsState()
     val context = LocalContext.current
-    val myName = remember { UserPreferences.getUserName(context) ?: "" }
+    val myName = remember { UserPreferences.getUserName(context) ?: "" }.lowercase()
 
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+
+    var showMyLibrary by remember { mutableStateOf(false) }
+    var showPartnerLibrary by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
 
     // Sync Logic
-    LaunchedEffect(session) {
+    LaunchedEffect(session.isConnected, session.playbackMediaId, session.playbackState, session.streamerOwamiReady, session.streamerJonasReady) {
         if (session.isConnected) {
             val playbackMediaId = session.playbackMediaId
             if (playbackMediaId.isNotEmpty()) {
@@ -88,6 +93,8 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
         }
     }
 
+    val isMyTurn = session.lastTurn.lowercase() != myName
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -101,10 +108,11 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
                     IconButton(onClick = { SharedQueueManager.clearQueue() }) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = "Clear Queue", tint = Color.Gray)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (session.isConnected) "Connected" else "Connect", color = if (session.isConnected) Color.Green else Color.Gray, fontSize = 12.sp)
+                    val myConnected = if (myName == "owami") session.owamiConnected else session.jonasConnected
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                        Text(if (myConnected) "Connected" else "Connect", color = if (myConnected) Color.Green else Color.Gray, fontSize = 12.sp)
                         Checkbox(
-                            checked = session.isConnected,
+                            checked = myConnected,
                             onCheckedChange = { SharedQueueManager.connect(it) },
                             colors = CheckboxDefaults.colors(checkedColor = Color.Green)
                         )
@@ -116,25 +124,66 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
         containerColor = DeepBlue
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Section 1: Play Station
             if (session.isConnected) {
                 SharedPlaybackControls(session, myName, viewModel)
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2A))
+                ) {
+                    Text(
+                        "Waiting for partner to connect...",
+                        color = Color.Gray,
+                        modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally)
+                    )
+                }
             }
 
+            // Section 2: Choosing a Song
             Text(
-                text = if (session.lastTurn == myName) "Partner's Turn" else "Your Turn",
-                color = PremiumGold,
-                modifier = Modifier.padding(16.dp),
-                fontWeight = FontWeight.Bold
+                "Choose a Song",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ChoiceButton("My Library", Icons.Default.LibraryMusic, Modifier.weight(1f), enabled = isMyTurn) { showMyLibrary = true }
+                ChoiceButton("Partner's", Icons.Default.Favorite, Modifier.weight(1f), enabled = isMyTurn) { showPartnerLibrary = true }
+                ChoiceButton("Search", Icons.Default.Search, Modifier.weight(1f), enabled = isMyTurn) { showSearch = true }
+            }
+
+            if (!isMyTurn) {
+                Text(
+                    "Waiting for partner to choose a song...",
+                    color = PremiumGold,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
+            // Section 3: Queue Section
+            Text(
+                "Shared Queue",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
             )
 
             if (items.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("Queue is empty. Add some songs!", color = Color.Gray)
+                    Text("Queue is empty.", color = Color.Gray)
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(items) { item ->
@@ -154,12 +203,174 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
             }
         }
     }
+
+    // Mini Pop-ups
+    if (showMyLibrary) {
+        LdrSongSelectorPopup(
+            title = "My Library",
+            songs = viewModel.librarySongs.collectAsState().value.map {
+                VideoItem(
+                    id = it.id,
+                    title = it.title,
+                    uploader = it.artist,
+                    duration = it.duration,
+                    thumbnailUrl = it.thumbnailUrl,
+                    webUrl = "https://youtube.com/watch?v=${it.id}"
+                )
+            },
+            onDismiss = { showMyLibrary = false },
+            onAdd = { SharedQueueManager.addToQueue(it, myName); showMyLibrary = false }
+        )
+    }
+
+    if (showPartnerLibrary) {
+        var partnerSongs by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
+        LaunchedEffect(Unit) {
+            FirebaseManager.getPartnerLibrary { data ->
+                val allSongs = data?.get("allSongs") as? List<Map<String, Any>> ?: emptyList()
+                partnerSongs = allSongs.map {
+                    VideoItem(
+                        id = it["id"] as? String ?: "",
+                        title = it["title"] as? String ?: "",
+                        uploader = it["artist"] as? String ?: "",
+                        duration = "",
+                        thumbnailUrl = it["thumbnailUrl"] as? String ?: "",
+                        webUrl = "https://youtube.com/watch?v=${it["id"]}"
+                    )
+                }
+            }
+        }
+        LdrSongSelectorPopup(
+            title = "Partner's Library",
+            songs = partnerSongs,
+            onDismiss = { showPartnerLibrary = false },
+            onAdd = { SharedQueueManager.addToQueue(it, myName); showPartnerLibrary = false }
+        )
+    }
+
+    if (showSearch) {
+        LdrSearchPopup(
+            viewModel = viewModel,
+            onDismiss = { showSearch = false },
+            onAdd = { SharedQueueManager.addToQueue(it, myName); showSearch = false }
+        )
+    }
+}
+
+@Composable
+fun ChoiceButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(60.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF1E1E2A),
+            contentColor = if (enabled) Color.White else Color.Gray,
+            disabledContainerColor = Color(0xFF1E1E2A).copy(alpha = 0.5f)
+        ),
+        contentPadding = PaddingValues(4.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(label, fontSize = 10.sp, maxLines = 1)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LdrSongSelectorPopup(title: String, songs: List<VideoItem>, onDismiss: () -> Unit, onAdd: (VideoItem) -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DeepBlue) {
+        Column(modifier = Modifier.fillMaxHeight(0.8f).padding(16.dp)) {
+            Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
+            if (songs.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No songs found", color = Color.Gray)
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(songs) { song ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF1E1E2A)).padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(song.thumbnailUrl),
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(song.title, color = Color.White, fontSize = 14.sp, maxLines = 1)
+                                Text(song.uploader, color = Color.Gray, fontSize = 12.sp, maxLines = 1)
+                            }
+                            IconButton(onClick = { onAdd(song) }) {
+                                Icon(Icons.Default.Add, contentDescription = "Add", tint = PremiumGold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LdrSearchPopup(viewModel: MusicViewModel, onDismiss: () -> Unit, onAdd: (VideoItem) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val results by viewModel.uiState.collectAsState()
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DeepBlue) {
+        Column(modifier = Modifier.fillMaxHeight(0.8f).padding(16.dp)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it; viewModel.search(it) },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search songs...", color = Color.Gray) },
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            if (results.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = PremiumGold)
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(results.results) { song ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF1E1E2A)).padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(song.thumbnailUrl),
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(song.title, color = Color.White, fontSize = 14.sp, maxLines = 1)
+                                Text(song.uploader, color = Color.Gray, fontSize = 12.sp, maxLines = 1)
+                            }
+                            IconButton(onClick = { onAdd(song) }) {
+                                Icon(Icons.Default.Add, contentDescription = "Add", tint = PremiumGold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun SharedPlaybackControls(session: SharedSession, myName: String, viewModel: MusicViewModel) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val isLoading by viewModel.uiState.collectAsState()
+
+    val myReady = if (myName == "owami") session.streamerOwamiReady else session.streamerJonasReady
+    val partnerReady = if (myName == "owami") session.streamerJonasReady else session.streamerOwamiReady
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -168,13 +379,15 @@ fun SharedPlaybackControls(session: SharedSession, myName: String, viewModel: Mu
     ) {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusDot(ready = session.streamerOwamiReady, label = "Owami")
+                StatusDot(ready = myReady, label = "You")
                 Spacer(modifier = Modifier.width(16.dp))
-                StatusDot(ready = session.streamerJonasReady, label = "Jonas")
+                StatusDot(ready = partnerReady, label = "Partner")
             }
 
-            if (session.playbackMediaId.isNotEmpty() && (!session.streamerOwamiReady || !session.streamerJonasReady)) {
+            if (session.playbackMediaId.isNotEmpty() && !partnerReady) {
                 Text("Waiting for partner to get stream URL...", color = PremiumGold, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            } else if (session.playbackMediaId.isNotEmpty() && !myReady) {
+                Text("Getting stream URL...", color = PremiumGold, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
             }
 
             Row(
