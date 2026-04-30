@@ -1,28 +1,32 @@
 package com.example.musicdownloader.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.FirebaseManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PartnerLibraryScreen(onBack: () -> Unit) {
     var libraryData by remember { mutableStateOf<Map<String, Any>?>(null) }
+    var currentSubScreen by remember { mutableStateOf<PartnerSubScreen>(PartnerSubScreen.Main) }
 
     LaunchedEffect(Unit) {
         FirebaseManager.getPartnerLibrary { data ->
@@ -33,9 +37,23 @@ fun PartnerLibraryScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Partner's Library", color = Color.White) },
+                title = {
+                    Text(
+                        when (currentSubScreen) {
+                            PartnerSubScreen.Main -> "Partner's Library"
+                            PartnerSubScreen.LikedSongs -> "Partner's Liked Songs"
+                            is PartnerSubScreen.PlaylistDetail -> (currentSubScreen as PartnerSubScreen.PlaylistDetail).name
+                            PartnerSubScreen.AllSongs -> "Partner's Songs"
+                            PartnerSubScreen.Artists -> "Partner's Artists"
+                        },
+                        color = Color.White
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        if (currentSubScreen == PartnerSubScreen.Main) onBack()
+                        else currentSubScreen = PartnerSubScreen.Main
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
@@ -49,39 +67,152 @@ fun PartnerLibraryScreen(onBack: () -> Unit) {
                 CircularProgressIndicator(color = PremiumGold)
             }
         } else {
-            val playlists = libraryData!!["playlists"] as? List<Map<String, Any>> ?: emptyList()
-            val likedCount = libraryData!!["likedSongsCount"] as? Long ?: 0
+            when (val screen = currentSubScreen) {
+                PartnerSubScreen.Main -> {
+                    val playlists = libraryData!!["playlists"] as? List<Map<String, Any>> ?: emptyList()
+                    val likedSongs = libraryData!!["likedSongs"] as? List<Map<String, Any>> ?: emptyList()
+                    val allSongs = libraryData!!["allSongs"] as? List<Map<String, Any>> ?: emptyList()
 
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.Red, modifier = Modifier.size(32.dp))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text("Liked Songs", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text("$likedCount songs", color = Color.Gray)
+                    LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+                        item {
+                            LibrarySectionItem(
+                                icon = Icons.Default.Favorite,
+                                iconColor = Color.Red,
+                                title = "Liked Songs",
+                                subtitle = "${likedSongs.size} songs",
+                                onClick = { currentSubScreen = PartnerSubScreen.LikedSongs }
+                            )
+                        }
+
+                        item {
+                            LibrarySectionItem(
+                                icon = Icons.Default.MusicNote,
+                                iconColor = PremiumGold,
+                                title = "All Songs",
+                                subtitle = "${allSongs.size} songs",
+                                onClick = { currentSubScreen = PartnerSubScreen.AllSongs }
+                            )
+                        }
+
+                        item {
+                            LibrarySectionItem(
+                                icon = Icons.Default.Person,
+                                iconColor = Color.Cyan,
+                                title = "Artists",
+                                subtitle = "View partner's artists",
+                                onClick = { currentSubScreen = PartnerSubScreen.Artists }
+                            )
+                        }
+
+                        item {
+                            Text("Playlists", color = PremiumGold, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 16.dp))
+                        }
+
+                        items(playlists) { pl ->
+                            val name = pl["name"] as? String ?: "Unnamed Playlist"
+                            val id = (pl["id"] as? Number)?.toInt() ?: 0
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { currentSubScreen = PartnerSubScreen.PlaylistDetail(id, name) }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.PlaylistPlay, contentDescription = null, tint = Color.White)
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Text(name, color = Color.White, fontSize = 16.sp)
+                            }
                         }
                     }
                 }
-
-                item {
-                    Text("Playlists", color = PremiumGold, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
+                PartnerSubScreen.LikedSongs -> {
+                    val likedSongs = libraryData!!["likedSongs"] as? List<Map<String, Any>> ?: emptyList()
+                    PartnerSongList(likedSongs, padding)
                 }
-
-                items(playlists) { pl ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.PlaylistPlay, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(pl["name"] as? String ?: "Unnamed Playlist", color = Color.White, fontSize = 16.sp)
+                is PartnerSubScreen.PlaylistDetail -> {
+                    var playlistSongs by remember { mutableStateOf<List<Map<String, Any>>?>(null) }
+                    LaunchedEffect(screen.id) {
+                        FirebaseManager.getPartnerPlaylistSongs(screen.id) { songs ->
+                            playlistSongs = songs
+                        }
+                    }
+                    if (playlistSongs == null) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PremiumGold)
+                        }
+                    } else {
+                        PartnerSongList(playlistSongs!!, padding)
+                    }
+                }
+                PartnerSubScreen.AllSongs -> {
+                    val allSongs = libraryData!!["allSongs"] as? List<Map<String, Any>> ?: emptyList()
+                    PartnerSongList(allSongs, padding)
+                }
+                PartnerSubScreen.Artists -> {
+                    val allSongs = libraryData!!["allSongs"] as? List<Map<String, Any>> ?: emptyList()
+                    val artists = allSongs.mapNotNull { it["artist"] as? String }.distinct().sorted()
+                    LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+                        items(artists) { artist ->
+                            Text(
+                                artist,
+                                color = Color.White,
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                fontSize = 18.sp
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun LibrarySectionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, iconColor: Color, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(32.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = Color.Gray)
+        }
+    }
+}
+
+@Composable
+fun PartnerSongList(songs: List<Map<String, Any>>, padding: PaddingValues) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        items(songs) { song ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = rememberAsyncImagePainter(song["thumbnailUrl"] as? String),
+                    contentDescription = null,
+                    modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(song["title"] as? String ?: "Unknown", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(song["artist"] as? String ?: "Unknown", color = Color.Gray, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
+sealed class PartnerSubScreen {
+    object Main : PartnerSubScreen()
+    object LikedSongs : PartnerSubScreen()
+    data class PlaylistDetail(val id: Int, val name: String) : PartnerSubScreen()
+    object AllSongs : PartnerSubScreen()
+    object Artists : PartnerSubScreen()
 }

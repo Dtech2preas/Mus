@@ -159,6 +159,11 @@ fun SearchScreen(
                                     }
                                 },
                                 onDownloadClick = { viewModel.downloadSong(video) },
+                                onAddToSharedQueue = {
+                                    val myName = com.example.musicdownloader.UserPreferences.getUserName(context) ?: "Unknown"
+                                    com.example.musicdownloader.SharedQueueManager.addToQueue(video, myName)
+                                    com.example.musicdownloader.SharedQueueManager.updateTurn(myName)
+                                }
                             )
                         }
                     }

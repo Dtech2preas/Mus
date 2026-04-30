@@ -131,14 +131,30 @@ object FirebaseManager {
         sessionsRef.child(myName).child("listenTogether").setValue(update)
     }
 
-    fun syncLibrary(playlists: List<Playlist>, likedSongs: List<String>) {
+    fun syncLibrary(playlists: List<Playlist>, likedSongs: List<Song>, allSongs: List<Song>) {
         if (myName.isEmpty()) return
         val library = mapOf(
             "playlists" to playlists.map { mapOf("id" to it.id, "name" to it.name) },
-            "likedSongsCount" to likedSongs.size,
+            "likedSongs" to likedSongs.map { mapOf("id" to it.id, "title" to it.title, "artist" to it.artist, "thumbnailUrl" to it.thumbnailUrl) },
+            "allSongs" to allSongs.map { mapOf("id" to it.id, "title" to it.title, "artist" to it.artist, "thumbnailUrl" to it.thumbnailUrl) },
             "lastUpdated" to System.currentTimeMillis()
         )
         sessionsRef.child(myName).child("library").setValue(library)
+    }
+
+    fun syncPlaylistSongs(playlistId: Int, songs: List<Song>) {
+        if (myName.isEmpty()) return
+        val songsData = songs.map { mapOf("id" to it.id, "title" to it.title, "artist" to it.artist, "thumbnailUrl" to it.thumbnailUrl) }
+        sessionsRef.child(myName).child("playlistSongs").child(playlistId.toString()).setValue(songsData)
+    }
+
+    fun getPartnerPlaylistSongs(playlistId: Int, callback: (List<Map<String, Any>>?) -> Unit) {
+        sessionsRef.child(partnerName).child("playlistSongs").child(playlistId.toString()).addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                callback(snapshot.getValue() as? List<Map<String, Any>>)
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
     }
 
     fun getPartnerLibrary(callback: (Map<String, Any>?) -> Unit) {

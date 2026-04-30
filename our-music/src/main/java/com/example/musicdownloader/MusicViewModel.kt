@@ -198,12 +198,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         // Initialize Firebase
         FirebaseManager.initialize(application)
+        SharedQueueManager.initialize(application)
 
         // Sync local status to Firebase
         viewModelScope.launch {
-            combine(playlists, likedSongIds) { pl, liked ->
-                FirebaseManager.syncLibrary(pl, liked)
-            }.collect {}
+            combine(playlists, librarySongs) { pl, allSongs ->
+                val likedIds = likedSongIds.value.toSet()
+                val likedSongs = allSongs.filter { it.id in likedIds }
+                FirebaseManager.syncLibrary(pl, likedSongs, allSongs)
+                pl
+            }.collect { pl ->
+                // Sync playlist songs
+                pl.forEach { playlist ->
+                    launch {
+                        getSongsForPlaylist(playlist.id).collect { songs ->
+                            FirebaseManager.syncPlaylistSongs(playlist.id, songs)
+                        }
+                    }
+                }
+            }
         }
 
         viewModelScope.launch {
