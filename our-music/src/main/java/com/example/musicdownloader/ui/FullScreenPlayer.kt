@@ -80,7 +80,6 @@ fun FullScreenPlayer(
     val repeatMode by viewModel.repeatMode.collectAsState()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val audioSessionId by viewModel.audioSessionId.collectAsState()
-    val partnerReactions by viewModel.partnerReactions.collectAsState()
 
     val context = LocalContext.current
 
@@ -553,30 +552,15 @@ fun FullScreenPlayer(
 
                 // Playlist
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = {
-                        if (currentSongId != null) {
-                            val videoItem = VideoItem(
-                                id = currentSongId,
-                                title = title,
-                                uploader = artist,
-                                duration = formatTime(duration),
-                                thumbnailUrl = artworkUri?.toString() ?: "",
-                                webUrl = "https://youtube.com/watch?v=$currentSongId"
-                            )
-                            com.example.musicdownloader.SharedQueueManager.addToQueue(
-                                videoItem,
-                                com.example.musicdownloader.UserPreferences.getUserName(context) ?: "Unknown"
-                            )
-                        }
-                    }) {
+                    IconButton(onClick = { showAddToPlaylistDialog = true }) {
                         Icon(
-                            imageVector = Icons.Rounded.QueueMusic,
-                            contentDescription = "Add to Shared Queue",
-                            tint = PremiumGold
+                            imageVector = Icons.Rounded.PlaylistAdd,
+                            contentDescription = "Playlist",
+                            tint = TextSecondary
                         )
                     }
                     Text(
-                        text = "Add to LDR Queue",
+                        text = "Add to Playlist",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary.copy(alpha = 0.5f),
                         fontSize = 10.sp
@@ -609,39 +593,6 @@ fun FullScreenPlayer(
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isLiked) Color.Red else TextSecondary.copy(alpha = 0.5f),
                         fontSize = 10.sp
-                    )
-                }
-            }
-        }
-
-        // --- Live Reactions Overlay ---
-        partnerReactions?.let { reaction ->
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = reaction.type,
-                    fontSize = 80.sp,
-                    modifier = Modifier
-                        .graphicsLayer {
-                            // Simple float up animation could be added here
-                        }
-                )
-            }
-        }
-
-        // --- Reaction Buttons ---
-        Row(
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 8.dp)
-                .fillMaxHeight(0.4f),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                listOf("❤️", "🔥", "🥺", "🕺").forEach { emoji ->
-                    Text(
-                        text = emoji,
-                        fontSize = 32.sp,
-                        modifier = Modifier.clickable { viewModel.sendReaction(emoji) }
                     )
                 }
             }

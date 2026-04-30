@@ -24,6 +24,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.*
 import com.example.musicdownloader.ui.DeepBlue
 import com.example.musicdownloader.ui.PremiumGold
+import com.example.musicdownloader.ui.MusicRowItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +89,8 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
         }
     }
 
+    var showSongSelector by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -120,12 +123,26 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
                 SharedPlaybackControls(session, myName, viewModel)
             }
 
-            Text(
-                text = if (session.lastTurn == myName) "Partner's Turn" else "Your Turn",
-                color = PremiumGold,
-                modifier = Modifier.padding(16.dp),
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (session.lastTurn == myName) "Partner's Turn" else "Your Turn",
+                    color = PremiumGold,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (session.isConnected && session.lastTurn != myName) {
+                    Button(
+                        onClick = { showSongSelector = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = PremiumGold)
+                    ) {
+                        Text("Add Song", color = Color.Black)
+                    }
+                }
+            }
 
             if (items.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -149,6 +166,201 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
                             },
                             onDelete = { SharedQueueManager.removeFromQueue(item.firebaseKey) }
                         )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSongSelector) {
+        SharedSongSelectorSheet(
+            onDismiss = { showSongSelector = false },
+            onSongSelected = { video ->
+                SharedQueueManager.addToQueue(video, myName)
+                SharedQueueManager.updateTurn(myName)
+                showSongSelector = false
+            },
+            viewModel = viewModel
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SharedSongSelectorSheet(
+    onDismiss: () -> Unit,
+    onSongSelected: (VideoItem) -> Unit,
+    viewModel: MusicViewModel
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = DeepBlue,
+        modifier = Modifier.fillMaxHeight(0.9f)
+    ) {
+        var selectedTab by remember { mutableStateOf(0) }
+        val tabs = listOf("My Library", "Partner's Library", "Search")
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = DeepBlue,
+                contentColor = Color.White
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(title) }
+                    )
+                }
+            }
+
+            when (selectedTab) {
+                0 -> MyLibrarySelector(viewModel, onSongSelected)
+                1 -> PartnerLibrarySelector(onSongSelected)
+                2 -> SearchSongSelector(viewModel, onSongSelected)
+            }
+        }
+    }
+}
+
+@Composable
+fun MyLibrarySelector(viewModel: MusicViewModel, onSongSelected: (VideoItem) -> Unit) {
+    val songs by viewModel.librarySongs.collectAsState(initial = emptyList())
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(songs) { song ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = rememberAsyncImagePainter(song.thumbnailUrl),
+                    contentDescription = null,
+                    modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(song.artist, color = Color.Gray, fontSize = 12.sp, maxLines = 1)
+                }
+                Button(
+                    onClick = {
+                        onSongSelected(VideoItem(song.id, song.title, song.artist, song.artist, song.thumbnailUrl, "https://youtube.com/watch?v=${song.id}"))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PremiumGold)
+                ) {
+                    Text("Add to LDR Queue", color = Color.Black, fontSize = 10.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PartnerLibrarySelector(onSongSelected: (VideoItem) -> Unit) {
+    var libraryData by remember { mutableStateOf<Map<String, Any>?>(null) }
+
+    LaunchedEffect(Unit) {
+        FirebaseManager.getPartnerLibrary { data ->
+            libraryData = data
+        }
+    }
+
+    if (libraryData == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = PremiumGold)
+        }
+    } else {
+        val allSongs = libraryData!!["allSongs"] as? List<Map<String, Any>> ?: emptyList()
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(allSongs) { song ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painter = rememberAsyncImagePainter(song["thumbnailUrl"] as? String),
+                        contentDescription = null,
+                        modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(song["title"] as? String ?: "Unknown", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(song["artist"] as? String ?: "Unknown", color = Color.Gray, fontSize = 12.sp, maxLines = 1)
+                    }
+                    Button(
+                        onClick = {
+                            val id = song["id"] as? String ?: return@Button
+                            val title = song["title"] as? String ?: "Unknown"
+                            val artist = song["artist"] as? String ?: "Unknown"
+                            val thumb = song["thumbnailUrl"] as? String ?: ""
+                            onSongSelected(VideoItem(id, title, artist, artist, thumb, "https://youtube.com/watch?v=${id}"))
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PremiumGold)
+                    ) {
+                        Text("Add to LDR Queue", color = Color.Black, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchSongSelector(viewModel: MusicViewModel, onSongSelected: (VideoItem) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val uiState by viewModel.uiState.collectAsState()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("Search YouTube...", color = Color.Gray) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PremiumGold,
+                unfocusedBorderColor = Color.Gray,
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            trailingIcon = {
+                IconButton(onClick = { viewModel.search(query) }) {
+                    Icon(Icons.Default.Search, contentDescription = "Search", tint = PremiumGold)
+                }
+            }
+        )
+
+        if (uiState.isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = PremiumGold)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(uiState.results) { video ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = rememberAsyncImagePainter(video.thumbnailUrl),
+                            contentDescription = null,
+                            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(video.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(video.uploader, color = Color.Gray, fontSize = 12.sp, maxLines = 1)
+                        }
+                        Button(
+                            onClick = { onSongSelected(video) },
+                            colors = ButtonDefaults.buttonColors(containerColor = PremiumGold)
+                        ) {
+                            Text("Add to LDR Queue", color = Color.Black, fontSize = 10.sp)
+                        }
                     }
                 }
             }
