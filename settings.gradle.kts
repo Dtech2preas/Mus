@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MusicDownloader"
 include(":app")
+include(":our-music")
