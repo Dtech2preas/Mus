@@ -1,6 +1,7 @@
 package com.example.musicdownloader
 
 import android.content.Context
+import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.data.Song
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -133,7 +134,7 @@ object FirebaseManager {
     fun syncLibrary(playlists: List<Playlist>, likedSongs: List<String>) {
         if (myName.isEmpty()) return
         val library = mapOf(
-            "playlists" to playlists.map { mapOf("id" to it.id, "name" to it.name) },
+            "playlists" to playlists.map { mapOf<String, Any>("id" to it.id, "name" to it.name) },
             "likedSongsCount" to likedSongs.size,
             "lastUpdated" to System.currentTimeMillis()
         )

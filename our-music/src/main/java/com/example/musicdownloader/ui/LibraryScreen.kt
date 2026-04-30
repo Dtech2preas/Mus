@@ -116,6 +116,19 @@ fun LibraryScreen(
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = onNavigateToPartnerLibrary,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = PremiumGold),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Person, contentDescription = null, tint = DeepBlue)
+            Spacer(Modifier.width(8.dp))
+            Text("Peek at Partner's Library", color = DeepBlue, fontWeight = FontWeight.Bold)
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Row(
@@ -306,15 +319,6 @@ fun NavigationCard(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
-            item {
-                Button(
-                    onClick = onNavigateToPartnerLibrary,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PremiumGold)
-                ) {
-                    Text("Peek at Partner's Library", color = DeepBlue, fontWeight = FontWeight.Bold)
-                }
-            }
             Icon(
                 imageVector = icon,
                 contentDescription = null,

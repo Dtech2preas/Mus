@@ -122,6 +122,7 @@ fun MainScreen(viewModel: MusicViewModel) {
     // NAVIGATION STATE (Custom Back Stack)
     // -------------------------------------------------------------
     val navigationStack = remember { mutableStateListOf<AppScreen>(AppScreen.Home) }
+    val partnerStatusState by viewModel.partnerStatus.collectAsState()
 
     fun navigateTo(screen: AppScreen) {
         navigationStack.add(screen)
@@ -157,6 +158,8 @@ fun MainScreen(viewModel: MusicViewModel) {
         // Let's keep Search tab active if we are in ActiveDownloads for now
         is AppScreen.ActiveDownloads -> 1
         is AppScreen.YouTubePlaylistDetail -> 1
+        is AppScreen.SharedQueue -> 0
+        is AppScreen.PartnerLibrary -> 3
     }
 
     // -------------------------------------------------------------
@@ -236,11 +239,9 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
             Column {
                 val shouldShowMiniPlayer = currentScreen !is AppScreen.Roulette && currentScreen !is AppScreen.CutAndPaste
 
-                val partnerStatus by viewModel.partnerStatus.collectAsState()
-
-                if (partnerStatus != null && shouldShowMiniPlayer) {
+                if (partnerStatusState != null && shouldShowMiniPlayer) {
                     PartnerMiniPlayer(
-                        status = partnerStatus!!,
+                        status = partnerStatusState!!,
                         onClick = { isPartnerPlayerExpanded = true }
                     )
                 }
@@ -540,7 +541,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
         }
     }
 
-    if (isPartnerPlayerExpanded && partnerStatus != null) {
+    if (isPartnerPlayerExpanded && partnerStatusState != null) {
         ModalBottomSheet(
             onDismissRequest = { isPartnerPlayerExpanded = false },
             sheetState = sheetState,
@@ -548,7 +549,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
             dragHandle = null
         ) {
             PartnerViewPlayer(
-                status = partnerStatus!!,
+                status = partnerStatusState!!,
                 onCollapse = { isPartnerPlayerExpanded = false }
             )
         }

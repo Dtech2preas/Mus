@@ -3,5 +3,6 @@
 /local.properties
 /.idea
 /app/build
+/our-music/build
 *.iml
 .DS_Store
