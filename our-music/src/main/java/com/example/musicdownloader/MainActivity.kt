@@ -157,6 +157,8 @@ fun MainScreen(viewModel: MusicViewModel) {
         // Let's keep Search tab active if we are in ActiveDownloads for now
         is AppScreen.ActiveDownloads -> 1
         is AppScreen.YouTubePlaylistDetail -> 1
+        is AppScreen.PartnerLibrary -> 3
+        is AppScreen.SharedQueue -> 0
     }
 
     // -------------------------------------------------------------
@@ -540,6 +542,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
         }
     }
 
+    val partnerStatus by viewModel.partnerStatus.collectAsState()
     if (isPartnerPlayerExpanded && partnerStatus != null) {
         ModalBottomSheet(
             onDismissRequest = { isPartnerPlayerExpanded = false },

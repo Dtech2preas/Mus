@@ -148,6 +148,14 @@ fun LibraryScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
 
+        Button(
+            onClick = onNavigateToPartnerLibrary,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PremiumGold)
+        ) {
+            Text("Peek at Partner's Library", color = DeepBlue, fontWeight = FontWeight.Bold)
+        }
+
         val filteredSongs = remember(songs, localSearchQuery) {
             if (localSearchQuery.isBlank()) songs else songs.filter {
                 it.title.contains(localSearchQuery, ignoreCase = true) ||
@@ -306,15 +314,6 @@ fun NavigationCard(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
-            item {
-                Button(
-                    onClick = onNavigateToPartnerLibrary,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PremiumGold)
-                ) {
-                    Text("Peek at Partner's Library", color = DeepBlue, fontWeight = FontWeight.Bold)
-                }
-            }
             Icon(
                 imageVector = icon,
                 contentDescription = null,

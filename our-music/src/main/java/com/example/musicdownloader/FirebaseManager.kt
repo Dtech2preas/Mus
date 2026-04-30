@@ -2,6 +2,7 @@ package com.example.musicdownloader
 
 import android.content.Context
 import com.example.musicdownloader.data.Song
+import com.example.musicdownloader.data.Playlist
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
