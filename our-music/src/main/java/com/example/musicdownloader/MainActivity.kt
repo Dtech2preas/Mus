@@ -232,6 +232,8 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
         }
     }
 
+    val partnerReaction by viewModel.partnerReactions.collectAsState()
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
@@ -426,9 +428,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
                     )
                     is AppScreen.SharedQueue -> SharedQueueScreen(
                         onBack = { popBackStack() },
-                        onPlayItem = { item ->
-                            viewModel.playStream(VideoItem(item.id, item.title, "", item.artist, item.thumbnailUrl, "https://youtube.com/watch?v=${item.id}"))
-                        }
+                        viewModel = viewModel
                     )
                     is AppScreen.PartnerLibrary -> PartnerLibraryScreen(
                         onBack = { popBackStack() }
@@ -436,6 +436,8 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
                 }
              }
         }
+
+        ReactionOverlay(reaction = partnerReaction)
     }
 
 

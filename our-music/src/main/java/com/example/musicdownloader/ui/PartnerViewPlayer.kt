@@ -62,7 +62,28 @@ fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit) {
             Text(status.title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(status.artist, color = PremiumGold, fontSize = 18.sp)
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Emoji Reactions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                val emojis = listOf("❤️", "🔥", "😂", "😍", "😢")
+                emojis.forEach { emoji ->
+                    Button(
+                        onClick = { com.example.musicdownloader.FirebaseManager.sendReaction(emoji) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.size(50.dp)
+                    ) {
+                        Text(emoji, fontSize = 24.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             if (status.duration > 0) {
                 Slider(

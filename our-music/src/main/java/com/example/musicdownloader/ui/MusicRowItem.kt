@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,7 +41,8 @@ fun MusicRowItem(
     isCached: Boolean = false,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
-    onOptionClick: () -> Unit = {},
+    onOptionClick: () -> Unit = { },
+    onAddToSharedQueue: () -> Unit = { },
     showDownloadButton: Boolean = true,
     showAddButton: Boolean = false,
     onAddClick: () -> Unit = {}
@@ -172,6 +174,21 @@ fun MusicRowItem(
                             tint = ElectricPurple
                         )
                     }
+                }
+
+                val myName = com.example.musicdownloader.UserPreferences.getUserName(context) ?: "Unknown"
+                val session by com.example.musicdownloader.SharedQueueManager.session.collectAsState()
+                val isTurn = session.lastTurn != myName
+
+                IconButton(
+                    onClick = onAddToSharedQueue,
+                    enabled = isTurn
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.QueueMusic,
+                        contentDescription = "Add to Shared Queue",
+                        tint = if (isTurn) PremiumGold else Color.Gray
+                    )
                 }
 
                 IconButton(onClick = onOptionClick) {
