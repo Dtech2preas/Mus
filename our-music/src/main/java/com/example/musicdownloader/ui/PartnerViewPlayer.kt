@@ -21,9 +21,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.PlayerStatus
+import com.example.musicdownloader.MusicViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
 
 @Composable
-fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit) {
+fun PartnerViewPlayer(status: PlayerStatus, viewModel: MusicViewModel, onCollapse: () -> Unit) {
+    val partnerReactions by viewModel.partnerReactions.collectAsState()
+
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF050510))) {
         Image(
             painter = rememberAsyncImagePainter(status.thumbnailUrl),
@@ -72,7 +78,7 @@ fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit) {
                 val emojis = listOf("❤️", "🔥", "😂", "😍", "😢")
                 emojis.forEach { emoji ->
                     Button(
-                        onClick = { com.example.musicdownloader.FirebaseManager.sendReaction(emoji) },
+                        onClick = { viewModel.sendReaction(emoji) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(0.dp),
@@ -98,6 +104,20 @@ fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit) {
             }
 
             Text("VIEW ONLY MODE", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+        }
+
+        // --- Live Reactions Overlay ---
+        partnerReactions?.let { reaction ->
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = reaction.type,
+                    fontSize = 80.sp,
+                    modifier = Modifier
+                        .graphicsLayer {
+                            // Simple float up animation could be added here
+                        }
+                )
+            }
         }
     }
 }

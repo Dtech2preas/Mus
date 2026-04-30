@@ -554,6 +554,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
         ) {
             PartnerViewPlayer(
                 status = partnerStatus!!,
+                viewModel = viewModel,
                 onCollapse = { isPartnerPlayerExpanded = false }
             )
         }

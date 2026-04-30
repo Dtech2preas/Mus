@@ -176,21 +176,6 @@ fun MusicRowItem(
                     }
                 }
 
-                val myName = com.example.musicdownloader.UserPreferences.getUserName(context) ?: "Unknown"
-                val session by com.example.musicdownloader.SharedQueueManager.session.collectAsState()
-                val isTurn = session.lastTurn != myName
-
-                IconButton(
-                    onClick = onAddToSharedQueue,
-                    enabled = isTurn
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.QueueMusic,
-                        contentDescription = "Add to Shared Queue",
-                        tint = if (isTurn) PremiumGold else Color.Gray
-                    )
-                }
-
                 IconButton(onClick = onOptionClick) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
