@@ -40,9 +40,14 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
     var showMyLibrary by remember { mutableStateOf(false) }
     var showPartnerLibrary by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var isPlayerExpanded by remember { mutableStateOf(false) }
+
+    val currentItem = remember(items, session.playbackMediaId) {
+        items.find { it.id == session.playbackMediaId } ?: items.firstOrNull()
+    }
 
     // Sync Logic
-    LaunchedEffect(session.isConnected, session.playbackMediaId, session.playbackState, session.streamerOwamiReady, session.streamerJonasReady) {
+    LaunchedEffect(session.isConnected, session.playbackMediaId, session.isPlaying, session.streamerOwamiReady, session.streamerJonasReady) {
         if (session.isConnected) {
             val playbackMediaId = session.playbackMediaId
             if (playbackMediaId.isNotEmpty()) {
@@ -50,16 +55,29 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
                 if (currentId != playbackMediaId) {
                     val item = items.find { it.id == playbackMediaId }
                     if (item != null) {
-                        viewModel.playStream(VideoItem(item.id, item.title, "", item.artist, item.thumbnailUrl, "https://youtube.com/watch?v=${item.id}"))
+                        // Use pre-fetched streamUrl if available
+                        if (item.streamUrl.isNotEmpty()) {
+                            viewModel.playMedia(androidx.media3.common.MediaItem.Builder()
+                                .setUri(item.streamUrl)
+                                .setMediaId(item.id)
+                                .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder()
+                                    .setTitle(item.title)
+                                    .setArtist(item.artist)
+                                    .setArtworkUri(android.net.Uri.parse(item.thumbnailUrl))
+                                    .build())
+                                .build())
+                        } else {
+                            viewModel.playStream(VideoItem(item.id, item.title, "", item.artist, item.thumbnailUrl, "https://youtube.com/watch?v=${item.id}"))
+                        }
                     }
                 }
 
                 // Wait for both to be ready before playing
                 if (session.streamerOwamiReady && session.streamerJonasReady) {
-                    if (session.playbackState == "PLAYING" && !isPlaying) {
-                        viewModel.togglePlayPause()
-                    } else if (session.playbackState == "PAUSED" && isPlaying) {
-                        viewModel.togglePlayPause()
+                    if (session.isPlaying && !isPlaying) {
+                        viewModel.play()
+                    } else if (!session.isPlaying && isPlaying) {
+                        viewModel.pause()
                     }
                 }
             }
@@ -76,17 +94,17 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
                 SharedQueueManager.removeFirst()
                 val next = items.getOrNull(1)
                 if (next != null) {
-                    SharedQueueManager.updatePlayback(next.id, "PLAYING", 0)
+                    SharedQueueManager.updatePlayback(next.id, true, 0)
                 } else {
-                    SharedQueueManager.updatePlayback("", "IDLE", 0)
+                    SharedQueueManager.updatePlayback("", false, 0)
                 }
             }
         }
     }
 
     // Auto-Ready logic
-    LaunchedEffect(currentMediaItem, viewModel.uiState.collectAsState().value.isLoadingPlayer) {
-        if (session.isConnected && currentMediaItem?.mediaId == session.playbackMediaId && !viewModel.uiState.value.isLoadingPlayer) {
+    LaunchedEffect(currentMediaItem, uiState.isLoadingPlayer) {
+        if (session.isConnected && currentMediaItem?.mediaId == session.playbackMediaId && !uiState.isLoadingPlayer) {
             SharedQueueManager.setReady(true)
         } else {
             SharedQueueManager.setReady(false)
@@ -96,6 +114,15 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
     val isMyTurn = session.lastTurn.lowercase() != myName
 
     Scaffold(
+        bottomBar = {
+            if (session.isConnected && currentItem != null) {
+                LdrMiniPlayer(
+                    session = session,
+                    currentItem = currentItem,
+                    onClick = { isPlayerExpanded = true }
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { Text("Shared LDR Queue", color = Color.White) },
@@ -191,7 +218,7 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
                             item = item,
                             onPlay = {
                                 if (session.isConnected) {
-                                    SharedQueueManager.updatePlayback(item.id, "PLAYING", 0)
+                                    SharedQueueManager.updatePlayback(item.id, true, 0)
                                 } else {
                                     viewModel.playStream(VideoItem(item.id, item.title, "", item.artist, item.thumbnailUrl, "https://youtube.com/watch?v=${item.id}"))
                                 }
@@ -254,6 +281,20 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
             onDismiss = { showSearch = false },
             onAdd = { SharedQueueManager.addToQueue(it, myName); showSearch = false }
         )
+    }
+
+    if (isPlayerExpanded && currentItem != null) {
+        ModalBottomSheet(
+            onDismissRequest = { isPlayerExpanded = false },
+            containerColor = DeepBlue,
+            dragHandle = null
+        ) {
+            LdrFullScreenPlayer(
+                session = session,
+                currentItem = currentItem,
+                onCollapse = { isPlayerExpanded = false }
+            )
+        }
     }
 }
 
@@ -401,13 +442,12 @@ fun SharedPlaybackControls(session: SharedSession, myName: String, viewModel: Mu
 
                 IconButton(
                     onClick = {
-                        val newState = if (session.playbackState == "PLAYING") "PAUSED" else "PLAYING"
-                        SharedQueueManager.updatePlayback(session.playbackMediaId, newState, 0)
+                        SharedQueueManager.toggleSyncPlayPause()
                     },
                     modifier = Modifier.size(64.dp).background(PremiumGold, CircleShape)
                 ) {
                     Icon(
-                        if (session.playbackState == "PLAYING") Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (session.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = null,
                         tint = Color.Black
                     )

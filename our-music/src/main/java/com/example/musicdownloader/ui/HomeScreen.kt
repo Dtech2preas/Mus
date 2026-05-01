@@ -11,10 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.PlayArrow
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.musicdownloader.LdrActivity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -38,6 +41,7 @@ import com.example.musicdownloader.R
 
 @Composable
 fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit, onSharedQueueClick: () -> Unit) {
+    val context = LocalContext.current
     val homeFeedState by viewModel.uiState.collectAsStateWithLifecycle()
     val librarySongs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val recommendedSongs by viewModel.recommendedSongs.collectAsStateWithLifecycle()
@@ -62,7 +66,9 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit, onShare
 
         // Shared Queue Entry
         Button(
-            onClick = onSharedQueueClick,
+            onClick = {
+                context.startActivity(Intent(context, com.example.musicdownloader.LdrActivity::class.java))
+            },
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = PremiumGold),
             shape = RoundedCornerShape(12.dp)
