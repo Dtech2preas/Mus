@@ -40,6 +40,7 @@ import androidx.core.content.ContextCompat
 import androidx.browser.customtabs.CustomTabsIntent
 import android.net.Uri
 import androidx.compose.ui.text.style.TextAlign
+import android.content.Intent
 import androidx.compose.ui.text.font.FontWeight
 import com.example.musicdownloader.data.Playlist
 import com.example.musicdownloader.ui.*
@@ -426,10 +427,13 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
                         playlistName = targetScreen.name,
                         onBack = { popBackStack() }
                     )
-                    is AppScreen.SharedQueue -> SharedQueueScreen(
-                        onBack = { popBackStack() },
-                        viewModel = viewModel
-                    )
+                    is AppScreen.SharedQueue -> {
+                        // LDR is now in LdrActivity
+                        LaunchedEffect(Unit) {
+                            context.startActivity(Intent(context, LdrActivity::class.java))
+                            popBackStack()
+                        }
+                    }
                     is AppScreen.PartnerLibrary -> PartnerLibraryScreen(
                         onBack = { popBackStack() }
                     )

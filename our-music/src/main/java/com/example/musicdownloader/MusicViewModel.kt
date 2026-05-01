@@ -1176,6 +1176,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun playMedia(mediaItem: MediaItem) {
+        MusicControllerManager.playMedia(mediaItem)
+    }
+
+    fun play() {
+        MusicControllerManager.play()
+    }
+
+    fun pause() {
+        MusicControllerManager.pause()
+    }
+
     fun toggleShuffle() {
         MusicControllerManager.toggleShuffleMode()
     }

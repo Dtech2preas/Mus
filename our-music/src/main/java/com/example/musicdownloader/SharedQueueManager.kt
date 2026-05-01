@@ -1,13 +1,18 @@
 package com.example.musicdownloader
 
 import android.content.Context
+import android.util.Log
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class SharedSession(
     val isConnected: Boolean = false,
@@ -19,7 +24,9 @@ data class SharedSession(
     val streamerOwamiReady: Boolean = false,
     val streamerJonasReady: Boolean = false,
     val owamiConnected: Boolean = false,
-    val jonasConnected: Boolean = false
+    val jonasConnected: Boolean = false,
+    // Universal Sync Flags
+    val isPlaying: Boolean = false
 )
 
 data class QueueItem(
@@ -29,7 +36,8 @@ data class QueueItem(
     val thumbnailUrl: String = "",
     val addedBy: String = "",
     val timestamp: Long = 0,
-    val firebaseKey: String = ""
+    val firebaseKey: String = "",
+    val streamUrl: String = "" // Pre-fetched stream URL
 )
 
 object SharedQueueManager {
@@ -37,6 +45,7 @@ object SharedQueueManager {
     private val database = FirebaseDatabase.getInstance(DATABASE_URL)
     private val queueRef = database.getReference("sharedQueue")
     private val sessionRef = database.getReference("sharedSession")
+    private val managerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _queueItems = MutableStateFlow<List<QueueItem>>(emptyList())
     val queueItems: StateFlow<List<QueueItem>> = _queueItems.asStateFlow()
@@ -45,9 +54,11 @@ object SharedQueueManager {
     val session: StateFlow<SharedSession> = _session.asStateFlow()
 
     private var myName = ""
+    private var context: Context? = null
 
-    fun initialize(context: Context) {
-        myName = UserPreferences.getUserName(context) ?: ""
+    fun initialize(ctx: Context) {
+        context = ctx.applicationContext
+        myName = UserPreferences.getUserName(ctx) ?: ""
 
         queueRef.orderByChild("timestamp").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -79,26 +90,13 @@ object SharedQueueManager {
         val key = if (myName == "owami") "owamiConnected" else "jonasConnected"
         sessionRef.child(key).setValue(connected)
 
-        // Logic for the first one to connect getting the first turn
         sessionRef.get().addOnSuccessListener { snapshot ->
             val s = snapshot.getValue(SharedSession::class.java) ?: return@addOnSuccessListener
-
-            // Update global isConnected
             val overallConnected = s.owamiConnected || s.jonasConnected
             if (overallConnected != s.isConnected) {
                 sessionRef.child("isConnected").setValue(overallConnected)
             }
-
             if (connected && s.lastTurn.isEmpty()) {
-                // If I'm the first one connecting, I don't necessarily get the first turn if turn is based on adding
-                // But the request says "the first to click connect gets the first tick of a song"
-                // meaning the first one to connect gets to add a song first.
-                // In our logic, 'lastTurn' is the person who ADDED the last song.
-                // So if lastTurn is empty, and I connect, I should be able to add.
-                // If I want to EXPLICITLY set who's turn it is, I can use a 'currentTurn' field.
-                // Let's use 'lastTurn' to mean "the person who's turn it IS NOT".
-                // So if lastTurn is Jonas, it is Owami's turn.
-                // If lastTurn is empty, we can set it to the partner's name so it becomes my turn.
                 val partner = if (myName == "owami") "jonas" else "owami"
                 sessionRef.child("lastTurn").setValue(partner)
             }
@@ -106,32 +104,53 @@ object SharedQueueManager {
     }
 
     fun addToQueue(song: VideoItem, addedBy: String) {
-        val item = QueueItem(
-            id = song.id,
-            title = song.title,
-            artist = song.uploader,
-            thumbnailUrl = song.thumbnailUrl,
-            addedBy = addedBy,
-            timestamp = System.currentTimeMillis()
-        )
-        queueRef.push().setValue(item)
-        updateTurn(addedBy)
+        managerScope.launch {
+            // Hardcore logic: Fetch stream URL immediately when added to queue
+            val streamUrl = try {
+                kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    val info = YoutubeClient.getStreamUrl(context!!, song.webUrl)
+                    info.url
+                }
+            } catch (e: Exception) {
+                Log.e("SharedQueueManager", "Failed to pre-fetch stream URL for ${song.title}", e)
+                ""
+            }
+
+            val item = QueueItem(
+                id = song.id,
+                title = song.title,
+                artist = song.uploader,
+                thumbnailUrl = song.thumbnailUrl,
+                addedBy = addedBy,
+                timestamp = System.currentTimeMillis(),
+                streamUrl = streamUrl
+            )
+            queueRef.push().setValue(item)
+            updateTurn(addedBy)
+        }
     }
 
     fun removeFromQueue(firebaseKey: String) {
         queueRef.child(firebaseKey).removeValue()
     }
 
-    fun updatePlayback(mediaId: String, state: String, position: Long) {
-        val updates = mapOf(
+    fun updatePlayback(mediaId: String, isPlaying: Boolean, position: Long) {
+        val updates = mutableMapOf<String, Any>(
             "playbackMediaId" to mediaId,
-            "playbackState" to state,
+            "isPlaying" to isPlaying,
+            "playbackState" to (if (isPlaying) "PLAYING" else "PAUSED"),
             "playbackPosition" to position,
             "playbackTimestamp" to System.currentTimeMillis(),
             "streamerOwamiReady" to false,
             "streamerJonasReady" to false
         )
         sessionRef.updateChildren(updates)
+    }
+
+    fun toggleSyncPlayPause() {
+        val current = _session.value.isPlaying
+        sessionRef.child("isPlaying").setValue(!current)
+        sessionRef.child("playbackState").setValue(if (!current) "PLAYING" else "PAUSED")
     }
 
     fun setReady(ready: Boolean) {
