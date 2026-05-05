@@ -182,6 +182,55 @@ object YoutubeClient {
         return cleaned.trim()
     }
 
+    suspend fun downloadAudioExternal(context: Context, videoId: String, title: String, outputDir: File): File = withContext(Dispatchers.IO) {
+        try {
+            cancelledDownloads.remove(videoId)
+            updateProgress(videoId, title, 0f, "Calculating...", "", "")
+
+            val url = "https://www.youtube.com/watch?v=$videoId"
+            val request = YoutubeDLRequest(url)
+
+            request.addOption("-f", "bestaudio/best")
+            request.addOption("-S", "+size,+br")
+            request.addOption("--no-check-certificate")
+            request.addOption("--extractor-args", "youtube:player_client=android,ios")
+
+            val cleanedTitle = cleanTitle(title).replace("/", "_").replace("\\", "_")
+            val outputFile = File(outputDir, "$cleanedTitle.mp3")
+            request.addOption("-o", outputFile.absolutePath)
+
+            request.addOption("--force-ipv4")
+            request.addOption("--no-warnings")
+
+            val cookieFile = CookieManager.getCookieFile(context)
+            if (cookieFile != null) {
+                request.addOption("--cookies", cookieFile.absolutePath)
+            }
+
+            YoutubeDL.getInstance().execute(request) { progress, _, line ->
+                if (line.isNotBlank()) {
+                    AppLogger.log("[yt-dlp] $line")
+                    if (progress > 0) {
+                         updateProgress(videoId, title, progress, "Unknown", "", "")
+                    }
+                }
+            }
+
+            val foundFile = outputFile
+
+            if (!foundFile.exists()) {
+                 throw java.io.FileNotFoundException("Downloaded file not found at ${outputFile.absolutePath}")
+            }
+
+            updateProgress(videoId, title, 100f, "Done", "", "")
+            return@withContext foundFile
+        } catch (e: Exception) {
+            e.printStackTrace()
+            updateProgress(videoId, title, 0f, "Error", "", "")
+            throw e
+        }
+    }
+
     suspend fun downloadAudio(context: Context, videoId: String, title: String, outputDir: File): File = withContext(Dispatchers.IO) {
         try {
             // Clear cancellation flag if retrying

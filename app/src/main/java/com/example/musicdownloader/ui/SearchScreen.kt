@@ -19,6 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsServiceConnection
+import androidx.browser.customtabs.CustomTabsSession
+import android.content.ComponentName
+import androidx.compose.ui.draw.scale
 import androidx.browser.customtabs.CustomTabsIntent
 import android.net.Uri
 import androidx.compose.ui.text.input.ImeAction
@@ -68,6 +73,42 @@ fun SearchScreen(
         "https://omg10.com/4/10205357"
     )
 
+    var customTabsClient by remember { mutableStateOf<CustomTabsClient?>(null) }
+    var customTabsSession by remember { mutableStateOf<CustomTabsSession?>(null) }
+
+    DisposableEffect(context) {
+        val connection = object : CustomTabsServiceConnection() {
+            override fun onCustomTabsServiceConnected(name: ComponentName, client: CustomTabsClient) {
+                customTabsClient = client
+                client.warmup(0)
+                customTabsSession = client.newSession(null)
+
+                // Pre-fetch all ad urls
+                adUrls.forEach { url ->
+                    customTabsSession?.mayLaunchUrl(Uri.parse(url), null, null)
+                }
+            }
+            override fun onServiceDisconnected(name: ComponentName) {
+                customTabsClient = null
+                customTabsSession = null
+            }
+        }
+        var isBound = false
+        val packageName = CustomTabsClient.getPackageName(context, null)
+        if (packageName != null) {
+            isBound = CustomTabsClient.bindCustomTabsService(context, packageName, connection)
+        }
+        onDispose {
+            if (isBound) {
+                try {
+                    context.unbindService(connection)
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+        }
+    }
+
     var pendingDownloadVideo by remember { mutableStateOf<com.example.musicdownloader.VideoItem?>(null) }
 
     val requestPermissionLauncher = rememberLauncherForActivityResult(
@@ -85,7 +126,7 @@ fun SearchScreen(
 
     fun openAdAndDownload(video: com.example.musicdownloader.VideoItem) {
         val url = adUrls[Random.nextInt(adUrls.size)]
-        val customTabsIntent = CustomTabsIntent.Builder().build()
+        val customTabsIntent = CustomTabsIntent.Builder(customTabsSession).build()
         try {
             customTabsIntent.launchUrl(context, Uri.parse(url))
         } catch (e: Exception) {
@@ -138,17 +179,19 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "Download to device (mp3)",
                     color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 8.dp)
                 )
                 Switch(
                     checked = isExternalMode,
                     onCheckedChange = { viewModel.setExternalDownloadMode(it) },
+                    modifier = Modifier.scale(0.8f),
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = ElectricPurple,

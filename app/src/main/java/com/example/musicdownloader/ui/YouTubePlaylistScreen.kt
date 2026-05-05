@@ -20,6 +20,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsServiceConnection
+import androidx.browser.customtabs.CustomTabsSession
+import android.content.ComponentName
 import androidx.browser.customtabs.CustomTabsIntent
 import android.net.Uri
 import android.widget.Toast
@@ -57,6 +61,42 @@ fun YouTubePlaylistScreen(
         "https://omg10.com/4/10205357"
     )
 
+    var customTabsClient by remember { mutableStateOf<CustomTabsClient?>(null) }
+    var customTabsSession by remember { mutableStateOf<CustomTabsSession?>(null) }
+
+    DisposableEffect(context) {
+        val connection = object : CustomTabsServiceConnection() {
+            override fun onCustomTabsServiceConnected(name: ComponentName, client: CustomTabsClient) {
+                customTabsClient = client
+                client.warmup(0)
+                customTabsSession = client.newSession(null)
+
+                // Pre-fetch all ad urls
+                adUrls.forEach { url ->
+                    customTabsSession?.mayLaunchUrl(Uri.parse(url), null, null)
+                }
+            }
+            override fun onServiceDisconnected(name: ComponentName) {
+                customTabsClient = null
+                customTabsSession = null
+            }
+        }
+        var isBound = false
+        val packageName = CustomTabsClient.getPackageName(context, null)
+        if (packageName != null) {
+            isBound = CustomTabsClient.bindCustomTabsService(context, packageName, connection)
+        }
+        onDispose {
+            if (isBound) {
+                try {
+                    context.unbindService(connection)
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+        }
+    }
+
     var pendingDownloadVideo by remember { mutableStateOf<com.example.musicdownloader.VideoItem?>(null) }
     var pendingDownloadAllVideos by remember { mutableStateOf<List<com.example.musicdownloader.VideoItem>?>(null) }
 
@@ -79,7 +119,7 @@ fun YouTubePlaylistScreen(
 
     fun openAdAndDownload(video: com.example.musicdownloader.VideoItem) {
         val url = adUrls[Random.nextInt(adUrls.size)]
-        val customTabsIntent = CustomTabsIntent.Builder().build()
+        val customTabsIntent = CustomTabsIntent.Builder(customTabsSession).build()
         try {
             customTabsIntent.launchUrl(context, Uri.parse(url))
         } catch (e: Exception) {
@@ -96,7 +136,7 @@ fun YouTubePlaylistScreen(
 
     fun openAdAndDownloadAll(videos: List<com.example.musicdownloader.VideoItem>) {
         val url = adUrls[Random.nextInt(adUrls.size)]
-        val customTabsIntent = CustomTabsIntent.Builder().build()
+        val customTabsIntent = CustomTabsIntent.Builder(customTabsSession).build()
         try {
             customTabsIntent.launchUrl(context, Uri.parse(url))
         } catch (e: Exception) {
