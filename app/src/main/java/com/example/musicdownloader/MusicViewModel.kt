@@ -73,6 +73,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MusicUiState())
     val uiState: StateFlow<MusicUiState> = _uiState.asStateFlow()
 
+    private val _externalDownloadMode = MutableStateFlow(false)
+    val externalDownloadMode: StateFlow<Boolean> = _externalDownloadMode.asStateFlow()
+
+    fun setExternalDownloadMode(enabled: Boolean) {
+        _externalDownloadMode.value = enabled
+    }
+
     // Toast Events Channel
     private val _toastEvent = MutableSharedFlow<String>()
     val toastEvent = _toastEvent.asSharedFlow()
@@ -497,6 +504,46 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
                 }
             }
+        }
+    }
+
+    fun downloadSongExternally(video: VideoItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val outputDir = java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "MusicDownloader")
+            if (!outputDir.exists()) outputDir.mkdirs()
+            val existingFiles = outputDir.listFiles { _, name -> name.startsWith(video.id) }
+            if (existingFiles != null && existingFiles.isNotEmpty()) {
+                 withContext(Dispatchers.Main) {
+                     _toastEvent.emit("File already downloaded to device")
+                 }
+                 return@launch
+            }
+
+            val workManager = androidx.work.WorkManager.getInstance(getApplication())
+            val inputData = androidx.work.workDataOf(
+                "videoId" to video.id,
+                "title" to video.title,
+                "artist" to video.uploader,
+                "thumbnailUrl" to video.thumbnailUrl,
+                "duration" to video.duration,
+                "album" to (video.album ?: "Unknown Album")
+            )
+
+            val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.example.musicdownloader.workers.ExternalDownloadWorker>()
+                .setInputData(inputData)
+                .build()
+
+            workManager.enqueue(workRequest)
+
+            withContext(Dispatchers.Main) {
+                _toastEvent.emit("External download started")
+            }
+        }
+    }
+
+    fun downloadAllExternally(videos: List<VideoItem>) {
+        for (video in videos) {
+            downloadSongExternally(video)
         }
     }
 

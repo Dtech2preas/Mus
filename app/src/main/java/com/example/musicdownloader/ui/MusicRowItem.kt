@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,7 +44,9 @@ fun MusicRowItem(
     onOptionClick: () -> Unit = {},
     showDownloadButton: Boolean = true,
     showAddButton: Boolean = false,
-    onAddClick: () -> Unit = {}
+    onAddClick: () -> Unit = {},
+    showExternalDownloadButton: Boolean = false,
+    onExternalDownloadClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -179,6 +182,17 @@ fun MusicRowItem(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "Options",
                         tint = Color.Gray
+                    )
+                }
+            } else if (showExternalDownloadButton) {
+                IconButton(onClick = {
+                    HapticUtils.performHapticFeedback(context)
+                    onExternalDownloadClick()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.SaveAlt,
+                        contentDescription = "Download to Device",
+                        tint = PremiumGold
                     )
                 }
             } else if (showDownloadButton) {

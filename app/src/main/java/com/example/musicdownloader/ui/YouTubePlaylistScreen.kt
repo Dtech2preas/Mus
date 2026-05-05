@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,8 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.browser.customtabs.CustomTabsIntent
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.musicdownloader.MusicViewModel
+import com.example.musicdownloader.utils.PermissionUtils
+import kotlin.random.Random
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,8 +44,72 @@ fun YouTubePlaylistScreen(
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val activeDownloads by viewModel.activeDownloads.collectAsStateWithLifecycle()
     val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
+    val isExternalMode by viewModel.externalDownloadMode.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
 
     val downloadedIds = remember(librarySongs) { librarySongs.map { it.id }.toSet() }
+
+    val adUrls = listOf(
+        "https://omg10.com/4/10250311",
+        "https://omg10.com/4/10358600",
+        "https://omg10.com/4/9515888",
+        "https://omg10.com/4/10205357"
+    )
+
+    var pendingDownloadVideo by remember { mutableStateOf<com.example.musicdownloader.VideoItem?>(null) }
+    var pendingDownloadAllVideos by remember { mutableStateOf<List<com.example.musicdownloader.VideoItem>?>(null) }
+
+    val requestPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            pendingDownloadVideo?.let {
+                viewModel.downloadSongExternally(it)
+                pendingDownloadVideo = null
+            }
+            pendingDownloadAllVideos?.let {
+                viewModel.downloadAllExternally(it)
+                pendingDownloadAllVideos = null
+            }
+        } else {
+            Toast.makeText(context, "Storage permission is required to save to device", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun openAdAndDownload(video: com.example.musicdownloader.VideoItem) {
+        val url = adUrls[Random.nextInt(adUrls.size)]
+        val customTabsIntent = CustomTabsIntent.Builder().build()
+        try {
+            customTabsIntent.launchUrl(context, Uri.parse(url))
+        } catch (e: Exception) {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
+        }
+        if (PermissionUtils.hasStoragePermission(context)) {
+            viewModel.downloadSongExternally(video)
+        } else {
+            pendingDownloadVideo = video
+            requestPermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
+    fun openAdAndDownloadAll(videos: List<com.example.musicdownloader.VideoItem>) {
+        val url = adUrls[Random.nextInt(adUrls.size)]
+        val customTabsIntent = CustomTabsIntent.Builder().build()
+        try {
+            customTabsIntent.launchUrl(context, Uri.parse(url))
+        } catch (e: Exception) {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
+        }
+        if (PermissionUtils.hasStoragePermission(context)) {
+            viewModel.downloadAllExternally(videos)
+        } else {
+            pendingDownloadAllVideos = videos
+            requestPermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
 
     // Load videos when screen opens
     LaunchedEffect(playlistId) {
@@ -92,30 +165,44 @@ fun YouTubePlaylistScreen(
                     )
 
                     if (uiState.playlistVideos.isNotEmpty()) {
-                        Row {
+                        if (isExternalMode) {
                             Button(
                                 onClick = {
-                                    viewModel.addAllToLibrary(uiState.playlistVideos, playlistName)
+                                    openAdAndDownloadAll(uiState.playlistVideos)
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1E2A)),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                                modifier = Modifier.padding(end = 8.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Add All", modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Add All")
-                            }
-
-                            Button(
-                                onClick = {
-                                    viewModel.downloadAll(uiState.playlistVideos, playlistName)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = ElectricPurple),
+                                colors = ButtonDefaults.buttonColors(containerColor = PremiumGold),
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = "Download All", modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.SaveAlt, contentDescription = "Download All to Device", modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Download")
+                                Text("Download All to Device")
+                            }
+                        } else {
+                            Row {
+                                Button(
+                                    onClick = {
+                                        viewModel.addAllToLibrary(uiState.playlistVideos, playlistName)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1E2A)),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                    modifier = Modifier.padding(end = 8.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Add All", modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Add All")
+                                }
+
+                                Button(
+                                    onClick = {
+                                        viewModel.downloadAll(uiState.playlistVideos, playlistName)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ElectricPurple),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = "Download All", modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Download")
+                                }
                             }
                         }
                     }
@@ -146,9 +233,11 @@ fun YouTubePlaylistScreen(
                                 }
                             },
                             onDownloadClick = { viewModel.downloadSong(video) },
-                            showAddButton = true,
+                            showAddButton = !isExternalMode,
                             onAddClick = { viewModel.addToLibraryOnly(video) },
-                            showDownloadButton = true
+                            showDownloadButton = !isExternalMode,
+                            showExternalDownloadButton = isExternalMode,
+                            onExternalDownloadClick = { openAdAndDownload(video) }
                         )
                     }
                 }
