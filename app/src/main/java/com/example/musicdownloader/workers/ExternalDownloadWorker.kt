@@ -21,13 +21,13 @@ class ExternalDownloadWorker(
         val context = applicationContext
 
         // Save to public Downloads directory
-        val outputDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MusicDownloader")
+        val outputDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "MusicDownloader")
         if (!outputDir.exists()) outputDir.mkdirs()
 
         AppLogger.log("[ExternalWorker] Starting download for $title ($videoId) to public folder")
 
         try {
-            val resultFile = YoutubeClient.downloadAudio(context, videoId, title, outputDir)
+            val resultFile = YoutubeClient.downloadAudioExternal(context, videoId, title, outputDir)
 
             if (resultFile.exists()) {
                 AppLogger.log("[ExternalWorker] Download success: ${resultFile.absolutePath}")
