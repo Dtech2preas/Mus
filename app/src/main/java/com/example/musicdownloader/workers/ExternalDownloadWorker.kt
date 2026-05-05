@@ -27,23 +27,17 @@ class ExternalDownloadWorker(
         AppLogger.log("[ExternalWorker] Starting download for $title ($videoId) to public folder")
 
         try {
-            // Update initial progress
-            YoutubeClient.updateProgress(videoId, title, 0f, "Starting...", "", "")
-
             val resultFile = YoutubeClient.downloadAudio(context, videoId, title, outputDir)
 
             if (resultFile.exists()) {
                 AppLogger.log("[ExternalWorker] Download success: ${resultFile.absolutePath}")
-                YoutubeClient.updateProgress(videoId, title, 100f, "Complete", "", "")
                 return Result.success(workDataOf("filePath" to resultFile.absolutePath))
             } else {
                 AppLogger.log("[ExternalWorker] Download failed (file missing) for $videoId")
-                YoutubeClient.updateProgress(videoId, title, 0f, "Failed", "", "")
                 return Result.failure()
             }
         } catch (e: Exception) {
             AppLogger.log("[ExternalWorker] Error downloading $videoId: ${e.message}")
-            YoutubeClient.updateProgress(videoId, title, 0f, "Error", "", "")
             return Result.failure()
         }
     }
