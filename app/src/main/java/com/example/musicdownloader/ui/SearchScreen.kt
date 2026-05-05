@@ -19,10 +19,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.browser.customtabs.CustomTabsIntent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.musicdownloader.MusicViewModel
+import com.example.musicdownloader.utils.PermissionUtils
+import kotlin.random.Random
 
 @Composable
 fun SearchScreen(
@@ -48,11 +55,52 @@ fun SearchScreen(
     val activeDownloads by viewModel.activeDownloads.collectAsStateWithLifecycle()
     val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
     val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
+    val isExternalMode by viewModel.externalDownloadMode.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
 
     val downloadedIds = remember(librarySongs) { librarySongs.map { it.id }.toSet() }
+
+    val adUrls = listOf(
+        "https://omg10.com/4/10250311",
+        "https://omg10.com/4/10358600",
+        "https://omg10.com/4/9515888",
+        "https://omg10.com/4/10205357"
+    )
+
+    var pendingDownloadVideo by remember { mutableStateOf<com.example.musicdownloader.VideoItem?>(null) }
+
+    val requestPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            pendingDownloadVideo?.let {
+                viewModel.downloadSongExternally(it)
+                pendingDownloadVideo = null
+            }
+        } else {
+            Toast.makeText(context, "Storage permission is required to save to device", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun openAdAndDownload(video: com.example.musicdownloader.VideoItem) {
+        val url = adUrls[Random.nextInt(adUrls.size)]
+        val customTabsIntent = CustomTabsIntent.Builder().build()
+        try {
+            customTabsIntent.launchUrl(context, Uri.parse(url))
+        } catch (e: Exception) {
+            // fallback if chrome not available
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
+        }
+        if (PermissionUtils.hasStoragePermission(context)) {
+            viewModel.downloadSongExternally(video)
+        } else {
+            pendingDownloadVideo = video
+            requestPermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -85,6 +133,31 @@ fun SearchScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { if (selectedTab == 0) viewModel.search(query) else viewModel.searchPlaylists(query) })
             )
+
+            // External Download Toggle
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Download to device (mp3)",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Switch(
+                    checked = isExternalMode,
+                    onCheckedChange = { viewModel.setExternalDownloadMode(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = ElectricPurple,
+                        uncheckedThumbColor = Color.Gray,
+                        uncheckedTrackColor = Color.DarkGray
+                    )
+                )
+            }
 
             // Download Summary Bar
             if (activeDownloads.isNotEmpty()) {
@@ -159,6 +232,8 @@ fun SearchScreen(
                                     }
                                 },
                                 onDownloadClick = { viewModel.downloadSong(video) },
+                                showExternalDownloadButton = isExternalMode,
+                                onExternalDownloadClick = { openAdAndDownload(video) }
                             )
                         }
                     }
