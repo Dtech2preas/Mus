@@ -24,12 +24,12 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build Debug APK
-      run: ./gradlew assembleDebug
+      run: ./gradlew :our-music:assembleDebug
 
     - name: Prepare Debug Artifacts
       run: |
         mkdir -p debug
-        cp app/build/outputs/apk/debug/app-debug.apk debug/music-downloader-debug.apk
+        #cp app/build/outputs/apk/debug/app-debug.apk debug/music-downloader-debug.apk
         cp our-music/build/outputs/apk/debug/our-music-debug.apk debug/our-music-debug.apk
 
     - name: Upload Debug Artifact

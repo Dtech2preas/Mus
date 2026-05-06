@@ -42,20 +42,18 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
     var showSearch by remember { mutableStateOf(false) }
 
     // Sync Logic
-    LaunchedEffect(session.isConnected, session.playbackMediaId, session.playbackState, session.streamerOwamiReady, session.streamerJonasReady) {
+    LaunchedEffect(session.isConnected, session.playbackMediaId, session.playbackState) {
         if (session.isConnected) {
             val playbackMediaId = session.playbackMediaId
             if (playbackMediaId.isNotEmpty()) {
                 val currentId = currentMediaItem?.mediaId
-                if (currentId != playbackMediaId) {
+                if (currentId != playbackMediaId && session.playbackState == "PLAYING") {
                     val item = items.find { it.id == playbackMediaId }
                     if (item != null) {
                         viewModel.playStream(VideoItem(item.id, item.title, "", item.artist, item.thumbnailUrl, "https://youtube.com/watch?v=${item.id}"))
                     }
-                }
-
-                // Wait for both to be ready before playing
-                if (session.streamerOwamiReady && session.streamerJonasReady) {
+                } else if (currentId == playbackMediaId) {
+                    // It's loaded, make sure playback matches state
                     if (session.playbackState == "PLAYING" && !isPlaying) {
                         viewModel.togglePlayPause()
                     } else if (session.playbackState == "PAUSED" && isPlaying) {
