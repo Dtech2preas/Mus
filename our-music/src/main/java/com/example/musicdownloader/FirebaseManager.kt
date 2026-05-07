@@ -48,7 +48,7 @@ object FirebaseManager {
     private var myName: String = ""
 
     fun initialize(context: Context) {
-        val name = UserPreferences.getUserName(context) ?: return
+        val name = UserPreferences.getUserName(context)?.lowercase() ?: return
         if (myName == name) return // Already initialized with this name
 
         myName = name

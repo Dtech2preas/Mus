@@ -245,10 +245,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     val mediaId = cmd["mediaId"] as? String ?: ""
                     val position = cmd["position"] as? Long ?: 0
                     val isPlayingPartner = cmd["isPlaying"] as? Boolean ?: false
+                    val seeker = cmd["seeker"] as? String ?: ""
 
-                    // Only apply if it's for the same song
-                    if (currentMediaItem.value?.mediaId == mediaId) {
+                    val myName = UserPreferences.getUserName(application)?.lowercase() ?: ""
+
+                    // Only apply if it's for the same song, AND I am not the one who initiated this sync command
+                    if (currentMediaItem.value?.mediaId == mediaId && seeker.lowercase() != myName) {
                         val currentPos = currentPosition.value
+                        isRemoteSyncing = true
+
                         if (Math.abs(currentPos - position) > 2000) {
                             MusicControllerManager.seekTo(position)
                         }
@@ -256,6 +261,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         if (isPlayingPartner != isPlaying.value) {
                             if (isPlayingPartner) MusicControllerManager.play()
                             else MusicControllerManager.pause()
+                        }
+
+                        viewModelScope.launch {
+                            delay(1000) // Debounce period
+                            isRemoteSyncing = false
                         }
                     }
                 }
@@ -1163,6 +1173,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var isRemoteSyncing = false
+
     fun togglePlayPause() {
         if (isPlaying.value) {
             MusicControllerManager.pause()
@@ -1171,8 +1183,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Sync to partner for "Listen Together"
-        currentMediaItem.value?.let {
-            FirebaseManager.syncListenTogether(it.mediaId, currentPosition.value, !isPlaying.value)
+        if (!isRemoteSyncing) {
+            currentMediaItem.value?.let {
+                FirebaseManager.syncListenTogether(it.mediaId, currentPosition.value, !isPlaying.value)
+            }
         }
     }
 
@@ -1204,8 +1218,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         MusicControllerManager.seekTo(position)
 
         // Sync to partner for "Listen Together"
-        currentMediaItem.value?.let {
-            FirebaseManager.syncListenTogether(it.mediaId, position, isPlaying.value)
+        if (!isRemoteSyncing) {
+            currentMediaItem.value?.let {
+                FirebaseManager.syncListenTogether(it.mediaId, position, isPlaying.value)
+            }
         }
     }
 

@@ -47,7 +47,7 @@ object SharedQueueManager {
     private var myName = ""
 
     fun initialize(context: Context) {
-        myName = UserPreferences.getUserName(context) ?: ""
+        myName = UserPreferences.getUserName(context)?.lowercase() ?: ""
 
         queueRef.orderByChild("timestamp").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
