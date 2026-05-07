@@ -8,6 +8,9 @@ import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 data class SharedSession(
     val isConnected: Boolean = false,
@@ -19,7 +22,9 @@ data class SharedSession(
     val streamerOwamiReady: Boolean = false,
     val streamerJonasReady: Boolean = false,
     val owamiConnected: Boolean = false,
-    val jonasConnected: Boolean = false
+    val jonasConnected: Boolean = false,
+    val owamiFinished: Boolean = false,
+    val jonasFinished: Boolean = false
 )
 
 data class QueueItem(
@@ -46,16 +51,27 @@ object SharedQueueManager {
 
     private var myName = ""
 
+    private var appContext: Context? = null
     fun initialize(context: Context) {
+        appContext = context.applicationContext
         myName = UserPreferences.getUserName(context)?.lowercase() ?: ""
 
         queueRef.orderByChild("timestamp").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val items = mutableListOf<QueueItem>()
+                val previousItems = _queueItems.value.map { it.id }.toSet()
+
                 for (child in snapshot.children) {
                     val item = child.getValue(QueueItem::class.java)?.copy(firebaseKey = child.key ?: "")
                     if (item != null) {
                         items.add(item)
+
+                        // Prefetch if it's a new item added to the queue
+                        if (!previousItems.contains(item.id)) {
+                            CoroutineScope(Dispatchers.IO).launch {
+                                appContext?.let { MusicRepository.prefetchStream(it, item.id) }
+                            }
+                        }
                     }
                 }
                 _queueItems.value = items
@@ -129,7 +145,9 @@ object SharedQueueManager {
             "playbackPosition" to position,
             "playbackTimestamp" to System.currentTimeMillis(),
             "streamerOwamiReady" to false,
-            "streamerJonasReady" to false
+            "streamerJonasReady" to false,
+            "owamiFinished" to false,
+            "jonasFinished" to false
         )
         sessionRef.updateChildren(updates)
     }
@@ -142,6 +160,12 @@ object SharedQueueManager {
 
     fun updateTurn(user: String) {
         sessionRef.child("lastTurn").setValue(user)
+    }
+
+    fun setFinished(finished: Boolean) {
+        if (myName.isEmpty()) return
+        val key = if (myName == "owami") "owamiFinished" else "jonasFinished"
+        sessionRef.child(key).setValue(finished)
     }
 
     fun removeFirst() {

@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,17 +48,20 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
             val playbackMediaId = session.playbackMediaId
             if (playbackMediaId.isNotEmpty()) {
                 val currentId = currentMediaItem?.mediaId
-                if (currentId != playbackMediaId && session.playbackState == "PLAYING") {
+                if (currentId != playbackMediaId) {
+                    // Fetch the stream URL immediately when ID changes, but don't play yet if state is IDLE
                     val item = items.find { it.id == playbackMediaId }
-                    if (item != null) {
+                    if (item != null && viewModel.uiState.value.isLoadingPlayer == false) {
                         viewModel.playStream(VideoItem(item.id, item.title, "", item.artist, item.thumbnailUrl, "https://youtube.com/watch?v=${item.id}"))
+                        // After calling playStream, it will auto-play locally. But if the partner isn't ready or state is IDLE, we pause.
+                        // Actually, playStream automatically plays. We handle pausing below when it loads.
                     }
                 } else if (currentId == playbackMediaId) {
                     // It's loaded, make sure playback matches state
                     if (session.playbackState == "PLAYING" && !isPlaying) {
-                        viewModel.togglePlayPause()
-                    } else if (session.playbackState == "PAUSED" && isPlaying) {
-                        viewModel.togglePlayPause()
+                        // viewModel.togglePlayPause() - handle this via LaunchedEffect to avoid recomposition loops
+                    } else if ((session.playbackState == "PAUSED" || session.playbackState == "IDLE") && isPlaying) {
+                        // viewModel.togglePlayPause() - handle this via LaunchedEffect
                     }
                 }
             }
@@ -67,16 +71,36 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
     // Auto-remove finished song
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
+
+    // When my playback finishes, mark myself as finished
     LaunchedEffect(currentPosition, duration) {
         if (session.isConnected && session.playbackMediaId.isNotEmpty() && duration > 0 && currentPosition >= duration - 1000) {
-            // Song finished, remove it and potentially play next
+            val myFinished = if (myName == "owami") session.owamiFinished else session.jonasFinished
+            if (!myFinished) {
+                SharedQueueManager.setFinished(true)
+                // Optionally pause if we're waiting for the other
+                if (isPlaying) viewModel.togglePlayPause()
+            }
+        }
+    }
+
+    // When both are finished, advance the queue
+    LaunchedEffect(session.owamiFinished, session.jonasFinished) {
+        if (session.isConnected && session.owamiFinished && session.jonasFinished) {
+            // Only one person should trigger the queue advance to avoid race conditions.
+            // Let's use lastTurn or whoever added the song. Or just arbitrarily pick 'owami' as the coordinator for advancing.
+            // Wait, we can just say if it's the current song, let's just advance it.
             if (session.playbackMediaId == items.firstOrNull()?.id) {
-                SharedQueueManager.removeFirst()
-                val next = items.getOrNull(1)
-                if (next != null) {
-                    SharedQueueManager.updatePlayback(next.id, "PLAYING", 0)
-                } else {
-                    SharedQueueManager.updatePlayback("", "IDLE", 0)
+                // Since this runs on both clients, let's make only the person whose turn it is NOT (meaning the one who added the song) advance it.
+                // Actually, an easier way is just one explicit coordinator:
+                if (myName == "owami" || (!session.owamiConnected && myName == "jonas")) {
+                    SharedQueueManager.removeFirst()
+                    val next = items.getOrNull(1)
+                    if (next != null) {
+                        SharedQueueManager.updatePlayback(next.id, "PLAYING", 0)
+                    } else {
+                        SharedQueueManager.updatePlayback("", "IDLE", 0)
+                    }
                 }
             }
         }
@@ -88,6 +112,17 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
             SharedQueueManager.setReady(true)
         } else {
             SharedQueueManager.setReady(false)
+        }
+    }
+
+    // Playback state sync effect
+    LaunchedEffect(session.playbackState, isPlaying, session.playbackMediaId, currentMediaItem?.mediaId) {
+        if (session.isConnected && currentMediaItem?.mediaId == session.playbackMediaId) {
+            if (session.playbackState == "PLAYING" && !isPlaying) {
+                viewModel.togglePlayPause()
+            } else if ((session.playbackState == "PAUSED" || session.playbackState == "IDLE") && isPlaying) {
+                viewModel.togglePlayPause()
+            }
         }
     }
 
@@ -189,7 +224,7 @@ fun SharedQueueScreen(onBack: () -> Unit, viewModel: MusicViewModel) {
                             item = item,
                             onPlay = {
                                 if (session.isConnected) {
-                                    SharedQueueManager.updatePlayback(item.id, "PLAYING", 0)
+                                    SharedQueueManager.updatePlayback(item.id, "IDLE", 0)
                                 } else {
                                     viewModel.playStream(VideoItem(item.id, item.title, "", item.artist, item.thumbnailUrl, "https://youtube.com/watch?v=${item.id}"))
                                 }
@@ -397,10 +432,15 @@ fun SharedPlaybackControls(session: SharedSession, myName: String, viewModel: Mu
                     Icon(Icons.Default.SkipPrevious, contentDescription = null, tint = Color.White)
                 }
 
+                val context = LocalContext.current
                 IconButton(
                     onClick = {
-                        val newState = if (session.playbackState == "PLAYING") "PAUSED" else "PLAYING"
-                        SharedQueueManager.updatePlayback(session.playbackMediaId, newState, 0)
+                        if (!partnerReady && session.playbackState != "PLAYING") {
+                            Toast.makeText(context, "Partner is not ready", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val newState = if (session.playbackState == "PLAYING") "PAUSED" else "PLAYING"
+                            SharedQueueManager.updatePlayback(session.playbackMediaId, newState, 0)
+                        }
                     },
                     modifier = Modifier.size(64.dp).background(PremiumGold, CircleShape)
                 ) {
