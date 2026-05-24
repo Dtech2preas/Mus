@@ -144,7 +144,7 @@ object MusicRepository {
     /**
      * Enqueues a download request to WorkManager.
      */
-    suspend fun downloadSong(context: Context, video: VideoItem): Result<String> {
+    suspend fun downloadSong(context: Context, video: VideoItem, delayIndex: Int = 0): Result<String> {
         if (video.id.isBlank()) {
             AppLogger.log("[Repo] downloadSong called with empty ID")
             return Result.failure(Exception("Invalid Video ID"))
@@ -194,6 +194,7 @@ object MusicRepository {
         val downloadRequest = OneTimeWorkRequestBuilder<MusicDownloadWorker>()
             .setInputData(workData)
             .setConstraints(constraints)
+            .setInitialDelay(delayIndex * 5L, java.util.concurrent.TimeUnit.SECONDS)
             .addTag("download") // Generic tag
             .addTag("download_${video.id}") // Specific tag
             .build()

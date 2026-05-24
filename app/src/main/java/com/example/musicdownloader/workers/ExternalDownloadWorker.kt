@@ -63,6 +63,7 @@ class ExternalDownloadWorker(
 
     private fun copyToPublicMusic(context: Context, tempFile: File, title: String): String? {
         val fileName = tempFile.name
+        val safeTitle = title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -71,7 +72,7 @@ class ExternalDownloadWorker(
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
                     put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
-                    put(MediaStore.Audio.Media.TITLE, title)
+                    put(MediaStore.Audio.Media.TITLE, safeTitle)
                     put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/MusicDownloader")
                     put(MediaStore.Audio.Media.IS_PENDING, 1)
                 }

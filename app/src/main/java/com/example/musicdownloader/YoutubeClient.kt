@@ -1,4 +1,6 @@
 package com.example.musicdownloader
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 import android.content.Context
 import com.yausername.youtubedl_android.YoutubeDL
@@ -42,7 +44,11 @@ private data class CachedStream(
     val expiryTimestamp: Long // Unix timestamp in seconds
 )
 
+
 object YoutubeClient {
+    // Limit concurrent downloads globally to 10 to reduce CPU/RAM usage on low end devices
+    private val downloadSemaphore = Semaphore(10)
+
 
     private val _downloadProgress = MutableStateFlow<Map<String, DownloadStatus>>(emptyMap())
     val downloadProgress: StateFlow<Map<String, DownloadStatus>> = _downloadProgress
@@ -195,8 +201,9 @@ object YoutubeClient {
             request.addOption("--no-check-certificate")
             request.addOption("--extractor-args", "youtube:player_client=android,ios")
 
-            val cleanedTitle = cleanTitle(title).replace("/", "_").replace("\\", "_")
-            val outputFile = File(outputDir, "$cleanedTitle.mp3")
+            // Remove any potential invalid characters that cause "Operation not permitted" or [Errno 1]
+            val safeTitle = cleanTitle(title).replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            val outputFile = File(outputDir, "$safeTitle.mp3")
             request.addOption("-o", outputFile.absolutePath)
 
             request.addOption("--force-ipv4")
@@ -207,11 +214,13 @@ object YoutubeClient {
                 request.addOption("--cookies", cookieFile.absolutePath)
             }
 
-            YoutubeDL.getInstance().execute(request) { progress, _, line ->
-                if (line.isNotBlank()) {
-                    AppLogger.log("[yt-dlp] $line")
-                    if (progress > 0) {
-                         updateProgress(videoId, title, progress, "Unknown", "", "")
+            downloadSemaphore.withPermit {
+                YoutubeDL.getInstance().execute(request) { progress, _, line ->
+                    if (line.isNotBlank()) {
+                        AppLogger.log("[yt-dlp] $line")
+                        if (progress > 0) {
+                             updateProgress(videoId, title, progress, "Unknown", "", "")
+                        }
                     }
                 }
             }
@@ -260,25 +269,27 @@ object YoutubeClient {
                 request.addOption("--cookies", cookieFile.absolutePath)
             }
 
-            YoutubeDL.getInstance().execute(request) { progress, _, line ->
-                if (line.isNotBlank()) {
-                    AppLogger.log("[yt-dlp] $line")
+            downloadSemaphore.withPermit {
+                YoutubeDL.getInstance().execute(request) { progress, _, line ->
+                    if (line.isNotBlank()) {
+                        AppLogger.log("[yt-dlp] $line")
 
-                    // Parse progress from line
-                    val matcher = progressRegex.matcher(line)
-                    if (matcher.find()) {
-                        val percentStr = matcher.group(1)
-                        val totalSize = matcher.group(2) ?: "Unknown"
-                        val speed = matcher.group(3) ?: ""
-                        val eta = matcher.group(4) ?: ""
+                        // Parse progress from line
+                        val matcher = progressRegex.matcher(line)
+                        if (matcher.find()) {
+                            val percentStr = matcher.group(1)
+                            val totalSize = matcher.group(2) ?: "Unknown"
+                            val speed = matcher.group(3) ?: ""
+                            val eta = matcher.group(4) ?: ""
 
-                        val percent = percentStr?.toFloatOrNull()
-                        if (percent != null) {
-                            updateProgress(videoId, title, percent, totalSize, speed, eta)
+                            val percent = percentStr?.toFloatOrNull()
+                            if (percent != null) {
+                                updateProgress(videoId, title, percent, totalSize, speed, eta)
+                            }
+                        } else if (progress > 0) {
+                             // Fallback to library progress if available
+                             updateProgress(videoId, title, progress, "Unknown", "", "")
                         }
-                    } else if (progress > 0) {
-                         // Fallback to library progress if available
-                         updateProgress(videoId, title, progress, "Unknown", "", "")
                     }
                 }
             }
