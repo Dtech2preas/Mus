@@ -398,8 +398,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun downloadAll(videos: List<VideoItem>, localPlaylistName: String) {
         addAllToLibrary(videos, localPlaylistName)
-        for (video in videos) {
-            downloadSong(video)
+        videos.forEachIndexed { index, video ->
+            downloadSong(video, index)
         }
     }
 
@@ -507,7 +507,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun downloadSongExternally(video: VideoItem) {
+    fun downloadSongExternally(video: VideoItem, delayIndex: Int = 0) {
         viewModelScope.launch(Dispatchers.IO) {
             val outputDir = java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "MusicDownloader")
             if (!outputDir.exists()) outputDir.mkdirs()
@@ -531,6 +531,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
             val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.example.musicdownloader.workers.ExternalDownloadWorker>()
                 .setInputData(inputData)
+                .setInitialDelay(delayIndex * 5L, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
             workManager.enqueue(workRequest)
@@ -542,12 +543,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun downloadAllExternally(videos: List<VideoItem>) {
-        for (video in videos) {
-            downloadSongExternally(video)
+        videos.forEachIndexed { index, video ->
+            downloadSongExternally(video, index)
         }
     }
 
-    fun downloadSong(video: VideoItem) {
+    fun downloadSong(video: VideoItem, delayIndex: Int = 0) {
         viewModelScope.launch(Dispatchers.IO) {
             val file = File(getApplication<Application>().filesDir, "music_downloads/${video.id}")
             val outputDir = File(getApplication<Application>().filesDir, "music_downloads")
@@ -569,7 +570,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
             try {
                 _toastEvent.emit("Download started for ${video.title}")
-                val result = MusicRepository.downloadSong(getApplication(), video)
+                val result = MusicRepository.downloadSong(getApplication(), video, delayIndex)
 
                 result.onSuccess { msg ->
                     withContext(Dispatchers.Main) {
