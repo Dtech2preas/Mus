@@ -1148,6 +1148,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteMultipleSongs(songsToDelete: List<Song>) {
+        viewModelScope.launch {
+            val db = AppDatabase.getDatabase(getApplication()).songDao()
+            // 1. Remove all from DB
+            songsToDelete.forEach { song ->
+                db.deleteById(song.id)
+            }
+
+            // 2. Move files to "trash"
+            withContext(Dispatchers.IO) {
+                songsToDelete.forEach { song ->
+                    val file = File(song.filePath)
+                    if (file.exists()) {
+                        file.renameTo(File(file.absolutePath + ".deleted"))
+                    }
+                }
+            }
+        }
+    }
+
     fun restoreSong(song: Song) {
         viewModelScope.launch {
             // 1. Restore file from "trash"
