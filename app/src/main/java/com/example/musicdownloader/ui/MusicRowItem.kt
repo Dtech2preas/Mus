@@ -3,6 +3,8 @@ package com.example.musicdownloader.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,6 +31,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.ui.ElectricPurple
 import com.example.musicdownloader.utils.HapticUtils
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MusicRowItem(
     title: String,
@@ -45,6 +48,9 @@ fun MusicRowItem(
     showDownloadButton: Boolean = true,
     showAddButton: Boolean = false,
     onAddClick: () -> Unit = {},
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
     showExternalDownloadButton: Boolean = false,
     onExternalDownloadClick: () -> Unit = {}
 ) {
@@ -54,16 +60,30 @@ fun MusicRowItem(
         color = Color.Transparent,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                onClick()
-            }
+            .combinedClickable(
+                onClick = { onClick() },
+                onLongClick = { onLongClick?.invoke() }
+            )
     ) {
         Row(
             modifier = Modifier
+                .background(if (isSelected) ElectricPurple.copy(alpha = 0.2f) else Color.Transparent)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onClick() },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = ElectricPurple,
+                        uncheckedColor = Color.Gray
+                    ),
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .size(56.dp)

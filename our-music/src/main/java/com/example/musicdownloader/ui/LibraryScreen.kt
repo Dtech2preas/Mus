@@ -22,6 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.VideoItem
@@ -57,6 +60,15 @@ fun LibraryScreen(
 
     // Manage Metadata Editing
     var showEditMetadataForSong by remember { mutableStateOf<Song?>(null) }
+
+    // Selection Mode State
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedSongs by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    BackHandler(enabled = isSelectionMode) {
+        isSelectionMode = false
+        selectedSongs = emptySet()
+    }
 
     Column(
         modifier = Modifier
@@ -188,6 +200,8 @@ fun LibraryScreen(
                          val downloadStatus = downloadProgress[song.id]
                          val isInit = initializingDownloads.contains(song.id)
 
+                         val isSelected = selectedSongs.contains(song.id)
+
                          MusicRowItem(
                             title = song.title,
                             subtitle = subtitle,
@@ -197,8 +211,25 @@ fun LibraryScreen(
                             downloadProgress = downloadStatus?.progress,
                             isWaiting = isInit,
                             isCached = cachedStreamIds.contains(song.id),
+                            isSelectionMode = isSelectionMode,
+                            isSelected = isSelected,
                             onClick = {
-                                viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
+                                if (isSelectionMode) {
+                                    selectedSongs = if (isSelected) {
+                                        selectedSongs - song.id
+                                    } else {
+                                        selectedSongs + song.id
+                                    }
+                                } else {
+                                    viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
+                                }
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    isSelectionMode = true
+                                    selectedSongs = setOf(song.id)
+                                    HapticUtils.performHapticFeedback(context)
+                                }
                             },
                             onDownloadClick = {
                                 val videoItem = VideoItem(
