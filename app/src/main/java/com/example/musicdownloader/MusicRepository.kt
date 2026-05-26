@@ -85,8 +85,15 @@ object MusicRepository {
     suspend fun fetchGenreFeeds(context: Context, genres: Set<String>): List<GenreFeed> = coroutineScope {
         val lastRefreshed = UserPreferences.getLastGenreRefreshTime(context)
         val currentTime = System.currentTimeMillis()
-        val TWO_HOURS_MS = 2 * 60 * 60 * 1000L
-        val shouldRefresh = (currentTime - lastRefreshed) > TWO_HOURS_MS
+
+        val isHighEndMode = UserPreferences.isHighEndModeEnabled(context)
+        val refreshIntervalMs = if (isHighEndMode) {
+            2 * 60 * 60 * 1000L // 2 hours for high end
+        } else {
+            5 * 60 * 60 * 1000L // 5 hours default
+        }
+
+        val shouldRefresh = (currentTime - lastRefreshed) > refreshIntervalMs
 
         if (shouldRefresh) {
             // Instead of fully clearing the memory cache, we'll keep 75% of existing results and fetch 25% new ones.
