@@ -44,11 +44,8 @@ fun LibraryScreen(
 ) {
     val songs by viewModel.librarySongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
-    val initializingDownloads by viewModel.initializingDownloads.collectAsStateWithLifecycle()
-    val filterDownloadedOnly by viewModel.filterDownloadedOnly.collectAsState()
-    val cachedStreamIds by viewModel.cachedStreamIds.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+            val filterDownloadedOnly by viewModel.filterDownloadedOnly.collectAsState()
+        val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     // State for Search Bar interaction
@@ -185,56 +182,32 @@ fun LibraryScreen(
                     }
                 ) {
                      Box(modifier = Modifier.background(Color(0xFF0F0F13))) {
-                         val isStream = song.filePath.startsWith("stream://")
-                         val baseSubtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
-                         val subtitle = if (isStream) "$baseSubtitle • Stream" else baseSubtitle
-                         val downloadStatus = downloadProgress[song.id]
-                         val isInit = initializingDownloads.contains(song.id)
-
                          val isSelected = selectedSongs.contains(song.id)
 
-                         MusicRowItem(
-                            title = song.title,
-                            subtitle = subtitle,
-                            thumbnailUrl = song.thumbnailUrl,
-                            isLibrary = true,
-                            isDownloaded = !isStream,
-                            downloadProgress = downloadStatus?.progress,
-                            isWaiting = isInit,
-                            isCached = cachedStreamIds.contains(song.id),
-                            isSelectionMode = isSelectionMode,
-                            isSelected = isSelected,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    selectedSongs = if (isSelected) {
-                                        selectedSongs - song.id
-                                    } else {
-                                        selectedSongs + song.id
-                                    }
-                                } else {
-                                    viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
-                                }
-                            },
-                            onLongClick = {
-                                if (!isSelectionMode) {
-                                    isSelectionMode = true
-                                    selectedSongs = setOf(song.id)
-                                    HapticUtils.performHapticFeedback(context)
-                                }
-                            },
-                            onDownloadClick = {
-                                val videoItem = VideoItem(
-                                    id = song.id,
-                                    title = song.title,
-                                    uploader = song.artist,
-                                    duration = song.duration,
-                                    thumbnailUrl = song.thumbnailUrl,
-                                    webUrl = "https://youtube.com/watch?v=${song.id}"
-                                )
-                                viewModel.downloadSong(videoItem)
-                            },
-                            onOptionClick = { showMenu = true }
-                        )
+                         LibrarySongRowWrapper(
+                             song = song,
+                             viewModel = viewModel,
+                             isSelectionMode = isSelectionMode,
+                             isSelected = isSelected,
+                             onToggleSelection = { selected ->
+                                 selectedSongs = if (selected) {
+                                     selectedSongs + song.id
+                                 } else {
+                                     selectedSongs - song.id
+                                 }
+                             },
+                             onPlay = {
+                                 viewModel.playSong(song.id, song.title, song.artist, song.thumbnailUrl)
+                             },
+                             onLongClick = {
+                                 if (!isSelectionMode) {
+                                     isSelectionMode = true
+                                     selectedSongs = setOf(song.id)
+                                     HapticUtils.performHapticFeedback(context)
+                                 }
+                             },
+                             onShowMenu = { showMenu = true }
+                         )
 
                         DropdownMenu(
                             expanded = showMenu,
@@ -314,6 +287,80 @@ fun LibraryScreen(
             }
         )
     }
+}
+
+
+@Composable
+fun LibrarySongRowWrapper(
+    song: com.example.musicdownloader.data.Song,
+    viewModel: MusicViewModel,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
+    onToggleSelection: (Boolean) -> Unit,
+    onPlay: () -> Unit,
+    onLongClick: () -> Unit,
+    onShowMenu: () -> Unit
+) {
+    val downloadProgressFlow = viewModel.downloadProgress
+    val initializingDownloadsFlow = viewModel.initializingDownloads
+    val cachedStreamIdsFlow = viewModel.cachedStreamIds
+
+    val downloadProgressState by produceState<Float?>(initialValue = null, song.id, downloadProgressFlow) {
+        downloadProgressFlow.collect { progressMap ->
+            value = progressMap[song.id]?.progress
+        }
+    }
+
+    val isInit by produceState(initialValue = false, song.id, initializingDownloadsFlow) {
+        initializingDownloadsFlow.collect { initSet ->
+            value = initSet.contains(song.id)
+        }
+    }
+
+    val isCached by produceState(initialValue = false, song.id, cachedStreamIdsFlow) {
+        cachedStreamIdsFlow.collect { cacheList ->
+            value = cacheList.contains(song.id)
+        }
+    }
+
+    val context = LocalContext.current
+
+    val isStream = song.filePath.startsWith("stream://")
+    val baseSubtitle = if (song.album != "Unknown Album") "${song.artist} • ${song.album}" else song.artist
+    val subtitle = if (isStream) "$baseSubtitle • Stream" else baseSubtitle
+
+    MusicRowItem(
+        title = song.title,
+        subtitle = subtitle,
+        thumbnailUrl = song.thumbnailUrl,
+        isLibrary = true,
+        isDownloaded = !isStream,
+        downloadProgress = downloadProgressState,
+        isWaiting = isInit,
+        isCached = isCached,
+        isSelectionMode = isSelectionMode,
+        isSelected = isSelected,
+        onClick = {
+            if (isSelectionMode) {
+                onToggleSelection(!isSelected)
+            } else {
+                onPlay()
+            }
+        },
+        onLongClick = onLongClick,
+        onDownloadClick = {
+            val videoItem = VideoItem(
+                id = song.id,
+                title = song.title,
+                uploader = song.artist,
+                duration = song.duration,
+                thumbnailUrl = song.thumbnailUrl,
+                webUrl = "https://youtube.com/watch?v=${song.id}"
+            )
+            viewModel.downloadSong(videoItem)
+        },
+        onOptionClick = onShowMenu
+    )
 }
 
 @Composable

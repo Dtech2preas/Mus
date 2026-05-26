@@ -75,10 +75,10 @@ fun HomeScreen(viewModel: MusicViewModel, onSongClick: (String) -> Unit) {
         }
 
         // Compute deduplicated lists sequentially to prevent UI state loop
-        val deduplicatedLists = remember(recommendedSongs, playHistory, homeFeedState.genreFeeds, downloadedIds, displayMadeForYou) {
+        val deduplicatedLists = remember(recommendedSongs, homeFeedState.genreFeeds, displayMadeForYou) {
             val seenIds = mutableSetOf<String>()
 
-            val recommended = recommendedSongs.filter { !downloadedIds.contains(it.id) && seenIds.add(it.id) }
+            val recommended = recommendedSongs.filter { seenIds.add(it.id) }
             val history = playHistory.filter { seenIds.add(it.songId) }
 
             // "Made for You" is pre-deduplicated in Repository to ensure count,
