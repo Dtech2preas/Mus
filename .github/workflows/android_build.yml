@@ -23,17 +23,37 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Debug APK
-      run: ./gradlew :app:assembleDebug
+    - name: Build Release APKs
+      run: ./gradlew :app:assembleRelease :our-music:assembleRelease
 
-    - name: Prepare Debug Artifacts
+    - name: Sign App APK
+      uses: r0adkll/sign-android-release@v1
+      id: sign_app
+      with:
+        releaseDirectory: app/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Sign Our-Music APK
+      uses: r0adkll/sign-android-release@v1
+      id: sign_our_music
+      with:
+        releaseDirectory: our-music/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Prepare Release Artifacts
       run: |
-        mkdir -p debug
-        cp app/build/outputs/apk/debug/app-debug.apk debug/music-downloader-debug.apk
-        #cp our-music/build/outputs/apk/debug/our-music-debug.apk debug/our-music-debug.apk
+        mkdir -p release
+        cp ${{steps.sign_app.outputs.signedReleaseFile}} release/music-downloader-release.apk
+        cp ${{steps.sign_our_music.outputs.signedReleaseFile}} release/our-music-release.apk
 
-    - name: Upload Debug Artifact
+    - name: Upload Release Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: debug-apk
-        path: debug/
+        name: release-apks
+        path: release/
