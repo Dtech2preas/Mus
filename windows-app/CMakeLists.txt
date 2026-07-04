@@ -9,10 +9,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Fix MSVC C2065 error by disabling permissive mode and defining _HAS_STD_BYTE=0
-add_compile_options(/permissive-)
-add_compile_definitions(_HAS_STD_BYTE=0 _ENFORCE_FACET_SPECIALIZATIONS=1)
-
 # Find Qt6 components
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Sql Multimedia)
 
