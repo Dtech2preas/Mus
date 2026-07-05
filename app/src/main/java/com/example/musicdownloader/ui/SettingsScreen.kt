@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import kotlinx.coroutines.launch
+import com.example.musicdownloader.utils.AppUpdater
 import com.example.musicdownloader.CookieManager
 import com.example.musicdownloader.MusicViewModel
 import com.example.musicdownloader.UserPreferences
@@ -431,8 +433,88 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        var isCheckingUpdate by remember { mutableStateOf(false) }
+        var showUpdateDialog by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
+        var updateDownloadProgress by remember { mutableStateOf(-1f) }
+        val scope = rememberCoroutineScope()
+
+        Button(
+            onClick = {
+                if (isCheckingUpdate) return@Button
+                isCheckingUpdate = true
+                scope.launch {
+                    val updateInfo = AppUpdater.checkForUpdate(context, false)
+                    isCheckingUpdate = false
+                    if (updateInfo != null && updateInfo.isUpdateAvailable) {
+                        showUpdateDialog = updateInfo
+                    } else {
+                        Toast.makeText(context, "You're using the latest version.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6FF))
+        ) {
+            if (isCheckingUpdate) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            } else {
+                Text("Check for Updates", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
         CenterText(text = "App Version: 1.2 (DTECH DNA UPDATE)")
         Spacer(modifier = Modifier.height(24.dp))
+
+        if (showUpdateDialog != null) {
+            AlertDialog(
+                onDismissRequest = { if (updateDownloadProgress < 0f) showUpdateDialog = null },
+                title = { Text("Update Available") },
+                text = {
+                    Column {
+                        Text("Version: ${showUpdateDialog!!.latestVersion}", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(showUpdateDialog!!.releaseNotes)
+
+                        if (updateDownloadProgress >= 0f) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            LinearProgressIndicator(
+                                progress = updateDownloadProgress,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("Downloading...", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (updateDownloadProgress >= 0f) return@Button
+                            updateDownloadProgress = 0f
+                            scope.launch {
+                                val success = AppUpdater.downloadAndInstallUpdate(context, showUpdateDialog!!.downloadUrl) { progress ->
+                                    updateDownloadProgress = progress
+                                }
+                                if (!success) {
+                                    Toast.makeText(context, "Download failed.", Toast.LENGTH_SHORT).show()
+                                }
+                                showUpdateDialog = null
+                                updateDownloadProgress = -1f
+                            }
+                        },
+                        enabled = updateDownloadProgress < 0f
+                    ) {
+                        Text(if (updateDownloadProgress >= 0f) "Downloading..." else "Download & Install")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showUpdateDialog = null }, enabled = updateDownloadProgress < 0f) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
     }
 
     if (showCookieDialog) {
