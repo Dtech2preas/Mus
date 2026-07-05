@@ -67,3 +67,18 @@ jobs:
       with:
         name: release-apks
         path: release/
+
+    - name: Get Short SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Create or Update Release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "release/music-downloader-release.apk,release/our-music-release.apk"
+        tag: "v1.2-${{ steps.vars.outputs.sha_short }}"
+        name: "Release ${{ steps.vars.outputs.sha_short }}"
+        body: "Automated release build."
+        makeLatest: true
+        allowUpdates: true
+        token: ${{ secrets.GITHUB_TOKEN }}
