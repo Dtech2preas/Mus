@@ -397,23 +397,74 @@ object InnerTubeClient {
                     for (i in 0 until contents.length()) {
                         val items = contents.optJSONObject(i)?.optJSONObject("itemSectionRenderer")?.optJSONArray("contents") ?: continue
                         for (j in 0 until items.length()) {
-                            val playlistItems = items.optJSONObject(j)?.optJSONObject("playlistVideoListRenderer")?.optJSONArray("contents") ?: continue
-                            for (k in 0 until playlistItems.length()) {
-                                val renderer = playlistItems.optJSONObject(k)?.optJSONObject("playlistVideoRenderer")
-                                if (renderer != null) {
-                                    val videoId = renderer.optString("videoId")
-                                    val title = renderer.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: "Unknown"
-                                    val durationText = renderer.optJSONObject("lengthText")?.optString("simpleText") ?: ""
-                                    val uploader = renderer.optJSONObject("shortBylineText")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: "Unknown"
-                                    val thumbnails = renderer.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                            val itemObj = items.optJSONObject(j) ?: continue
+
+                            // Old fallback
+                            val playlistItems = itemObj.optJSONObject("playlistVideoListRenderer")?.optJSONArray("contents")
+                            if (playlistItems != null) {
+                                for (k in 0 until playlistItems.length()) {
+                                    val renderer = playlistItems.optJSONObject(k)?.optJSONObject("playlistVideoRenderer")
+                                    if (renderer != null) {
+                                        val videoId = renderer.optString("videoId")
+                                        val title = renderer.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: "Unknown"
+                                        val durationText = renderer.optJSONObject("lengthText")?.optString("simpleText") ?: ""
+                                        val uploader = renderer.optJSONObject("shortBylineText")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text") ?: "Unknown"
+                                        val thumbnails = renderer.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                                        val thumbnailUrl = if (thumbnails != null && thumbnails.length() > 0) {
+                                            thumbnails.optJSONObject(thumbnails.length() - 1).optString("url")
+                                        } else {
+                                            "https://i.ytimg.com/vi/$videoId/mqdefault.jpg"
+                                        }
+                                        if (videoId.isNotEmpty()) {
+                                            videos.add(VideoItem(id = videoId, title = title, duration = durationText, uploader = uploader, thumbnailUrl = thumbnailUrl, webUrl = "https://www.youtube.com/watch?v=$videoId"))
+                                        }
+                                    }
+                                }
+                            }
+
+                            // New lockupViewModel
+                            val lockup = itemObj.optJSONObject("lockupViewModel")
+                            if (lockup != null) {
+                                val videoId = lockup.optString("contentId")
+                                if (videoId.isNotEmpty()) {
+                                    val metadata = lockup.optJSONObject("metadata")?.optJSONObject("lockupMetadataViewModel")
+                                    val title = metadata?.optJSONObject("title")?.optString("content") ?: "Unknown"
+
+                                    var uploader = "Unknown"
+                                    val metadataRows = metadata?.optJSONObject("metadata")?.optJSONObject("contentMetadataViewModel")?.optJSONArray("metadataRows")
+                                    if (metadataRows != null && metadataRows.length() > 0) {
+                                        val parts = metadataRows.optJSONObject(0)?.optJSONArray("metadataParts")
+                                        if (parts != null && parts.length() > 0) {
+                                            uploader = parts.optJSONObject(0)?.optJSONObject("text")?.optString("content") ?: "Unknown"
+                                        }
+                                    }
+
+                                    var durationText = ""
+                                    val contentImage = lockup.optJSONObject("contentImage")?.optJSONObject("thumbnailViewModel")
+                                    val overlays = contentImage?.optJSONArray("overlays")
+                                    if (overlays != null) {
+                                        for (o in 0 until overlays.length()) {
+                                            val overlay = overlays.optJSONObject(o)
+                                            val badges = overlay?.optJSONObject("thumbnailBottomOverlayViewModel")?.optJSONArray("badges")
+                                            if (badges != null) {
+                                                for (b in 0 until badges.length()) {
+                                                    val text = badges.optJSONObject(b)?.optJSONObject("thumbnailBadgeViewModel")?.optString("text")
+                                                    if (!text.isNullOrEmpty()) {
+                                                        durationText = text
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    val thumbnails = contentImage?.optJSONObject("image")?.optJSONArray("sources")
                                     val thumbnailUrl = if (thumbnails != null && thumbnails.length() > 0) {
                                         thumbnails.optJSONObject(thumbnails.length() - 1).optString("url")
                                     } else {
                                         "https://i.ytimg.com/vi/$videoId/mqdefault.jpg"
                                     }
-                                    if (videoId.isNotEmpty()) {
-                                        videos.add(VideoItem(id = videoId, title = title, duration = durationText, uploader = uploader, thumbnailUrl = thumbnailUrl, webUrl = "https://www.youtube.com/watch?v=$videoId"))
-                                    }
+
+                                    videos.add(VideoItem(id = videoId, title = title, duration = durationText, uploader = uploader, thumbnailUrl = thumbnailUrl, webUrl = "https://www.youtube.com/watch?v=$videoId"))
                                 }
                             }
                         }
