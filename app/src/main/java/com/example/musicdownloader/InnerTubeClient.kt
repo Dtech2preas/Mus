@@ -416,6 +416,40 @@ object InnerTubeClient {
                                     }
                                 }
                             }
+                            if (items.optJSONObject(j)?.has("lockupViewModel") == true) {
+                            val lvm = items.optJSONObject(j)?.optJSONObject("lockupViewModel")
+                            if (lvm != null) {
+                                val videoId = lvm.optString("contentId")
+                                val metadata = lvm.optJSONObject("metadata")?.optJSONObject("lockupMetadataViewModel")
+                                val title = metadata?.optJSONObject("title")?.optString("content", "Unknown") ?: "Unknown"
+
+                                var uploader = "Unknown"
+                                val metadataRows = metadata?.optJSONObject("metadata")?.optJSONObject("contentMetadataViewModel")?.optJSONArray("metadataRows")
+                                if (metadataRows != null) {
+                                    for (r in 0 until metadataRows.length()) {
+                                        val parts = metadataRows.optJSONObject(r)?.optJSONArray("metadataParts")
+                                        if (parts != null) {
+                                            for (p in 0 until parts.length()) {
+                                                val textContent = parts.optJSONObject(p)?.optJSONObject("text")?.optString("content", "") ?: ""
+                                                if (!textContent.contains("views", ignoreCase = true) && !textContent.contains("ago", ignoreCase = true)) {
+                                                    uploader = textContent
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                var thumbnailUrl = "https://i.ytimg.com/vi/$videoId/mqdefault.jpg"
+                                val sources = lvm.optJSONObject("contentImage")?.optJSONObject("thumbnailViewModel")?.optJSONObject("image")?.optJSONArray("sources")
+                                if (sources != null && sources.length() > 0) {
+                                    thumbnailUrl = sources.optJSONObject(sources.length() - 1)?.optString("url", thumbnailUrl) ?: thumbnailUrl
+                                }
+
+                                if (videoId.isNotEmpty()) {
+                                    videos.add(VideoItem(id = videoId, title = title, duration = "", uploader = uploader, thumbnailUrl = thumbnailUrl, webUrl = "https://www.youtube.com/watch?v=$videoId"))
+                                }
+                            }
+                        }
                         }
                     }
                 }
