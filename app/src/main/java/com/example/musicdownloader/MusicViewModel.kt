@@ -1065,8 +1065,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     .build()
 
-                MusicControllerManager.addMediaItemToQueue(mediaItem)
-                _manuallyQueuedItems.value = _manuallyQueuedItems.value + mediaItem
+                withContext(Dispatchers.Main) {
+                    MusicControllerManager.addMediaItemToQueue(mediaItem)
+                    _manuallyQueuedItems.value = _manuallyQueuedItems.value + mediaItem
+                }
                 true
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding to queue: ${e.message}")
@@ -1101,8 +1103,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     .build()
 
-                MusicControllerManager.addMediaItemToQueue(mediaItem)
-                _manuallyQueuedItems.value = _manuallyQueuedItems.value + mediaItem
+                withContext(Dispatchers.Main) {
+                    MusicControllerManager.addMediaItemToQueue(mediaItem)
+                    _manuallyQueuedItems.value = _manuallyQueuedItems.value + mediaItem
+                }
                 _toastEvent.emit("Added to queue")
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding video to queue: ${e.message}")
