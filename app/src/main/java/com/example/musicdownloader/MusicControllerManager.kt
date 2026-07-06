@@ -362,11 +362,16 @@ object MusicControllerManager {
 
     fun addMediaItemToQueue(mediaItem: MediaItem) {
         AppLogger.log("[Controller] addMediaItemToQueue: ${mediaItem.mediaMetadata.title}")
-        if (mediaController == null) {
+        val controller = mediaController
+        if (controller == null) {
             AppLogger.log("[Controller] ERROR: MediaController is null, cannot add to queue")
             return
         }
-        mediaController?.addMediaItem(mediaItem)
+        controller.addMediaItem(mediaItem)
+        if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE || controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+            controller.prepare()
+            controller.play()
+        }
     }
 
     fun play() {
