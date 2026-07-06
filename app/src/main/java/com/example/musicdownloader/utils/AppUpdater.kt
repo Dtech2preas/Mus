@@ -136,8 +136,11 @@ object AppUpdater {
     }
 
     private fun compareVersions(v1: String, v2: String): Int {
-        val parts1 = v1.split(".").mapNotNull { it.toIntOrNull() }
-        val parts2 = v2.split(".").mapNotNull { it.toIntOrNull() }
+        val cleanV1 = v1.substringBefore("-")
+        val cleanV2 = v2.substringBefore("-")
+
+        val parts1 = cleanV1.split(".").mapNotNull { it.toIntOrNull() }
+        val parts2 = cleanV2.split(".").mapNotNull { it.toIntOrNull() }
         val length = maxOf(parts1.size, parts2.size)
         for (i in 0 until length) {
             val p1 = parts1.getOrElse(i) { 0 }
