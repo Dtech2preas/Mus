@@ -194,6 +194,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val partnerReactions = FirebaseManager.partnerReactions
     private val syncCommand = FirebaseManager.syncCommand
 
+
+
+
+    private val _manuallyQueuedItems = MutableStateFlow<List<androidx.media3.common.MediaItem>>(emptyList())
+    val manuallyQueuedItems: StateFlow<List<androidx.media3.common.MediaItem>> = _manuallyQueuedItems.asStateFlow()
+
     init {
         // Initialize the controller connection
         MusicControllerManager.initialize(application)
@@ -569,6 +575,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.Main) {
                         AppLogger.log("[ViewModel] Dispatching playMedia to MusicControllerManager...")
                         MusicControllerManager.playMedia(mediaItem)
+            _manuallyQueuedItems.value = emptyList()
                     }
                 } else {
                     AppLogger.log("[ViewModel] ERROR: Stream URL is blank!")
@@ -826,6 +833,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     .build()
 
                 MusicControllerManager.playMedia(mediaItem)
+            _manuallyQueuedItems.value = emptyList()
 
                 // Ensure looping is ON for the clipped segment
                 MusicControllerManager.mediaController?.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
@@ -856,6 +864,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 .build()
 
             MusicControllerManager.playMedia(mediaItem)
+            _manuallyQueuedItems.value = emptyList()
         }
     }
 
@@ -976,6 +985,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         if (index != -1) {
             AppLogger.log("[ViewModel] Delegating to MusicControllerManager.playPlaylist")
             MusicControllerManager.playPlaylist(queueToUse, index)
+            _manuallyQueuedItems.value = emptyList()
         } else {
             // Fallback for non-library play (e.g. search result not in library yet)
              AppLogger.log("[ViewModel] Song not in current queue. Attempting direct file playback.")
@@ -1000,6 +1010,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
              AppLogger.log("[ViewModel] Delegating to MusicControllerManager.playMedia")
              MusicControllerManager.playMedia(mediaItem)
+            _manuallyQueuedItems.value = emptyList()
         }
     }
 
@@ -1091,7 +1102,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     .build()
 
-                MusicControllerManager.addMediaItemToQueue(mediaItem)
+                withContext(Dispatchers.Main) {
+                    MusicControllerManager.addMediaItemToQueue(mediaItem)
+                    _manuallyQueuedItems.value = _manuallyQueuedItems.value + mediaItem
+                }
                 true
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding to queue: ${e.message}")
@@ -1126,7 +1140,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     .build()
 
-                MusicControllerManager.addMediaItemToQueue(mediaItem)
+                withContext(Dispatchers.Main) {
+                    MusicControllerManager.addMediaItemToQueue(mediaItem)
+                    _manuallyQueuedItems.value = _manuallyQueuedItems.value + mediaItem
+                }
                 _toastEvent.emit("Added to queue")
             } catch (e: Exception) {
                 AppLogger.log("[ViewModel] Error adding video to queue: ${e.message}")

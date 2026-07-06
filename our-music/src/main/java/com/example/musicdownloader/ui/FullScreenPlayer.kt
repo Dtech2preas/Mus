@@ -82,6 +82,7 @@ fun FullScreenPlayer(
     val audioSessionId by viewModel.audioSessionId.collectAsState()
     val currentQueue by viewModel.currentQueue.collectAsState()
     val currentQueueIndex by viewModel.currentQueueIndex.collectAsState()
+    val manuallyQueuedItems by viewModel.manuallyQueuedItems.collectAsState()
     val partnerReactions by viewModel.partnerReactions.collectAsState()
 
     val context = LocalContext.current
@@ -667,9 +668,9 @@ fun FullScreenPlayer(
                 androidx.compose.foundation.lazy.LazyColumn(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(currentQueue.size) { index ->
-                        val item = currentQueue[index]
-                        val isCurrent = index == currentQueueIndex
+                    items(manuallyQueuedItems.size) { index ->
+                        val item = manuallyQueuedItems[index]
+                        val isCurrent = currentSongId != null && currentSongId == item.mediaId
 
                         Row(
                             modifier = Modifier
