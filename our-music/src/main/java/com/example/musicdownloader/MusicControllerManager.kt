@@ -65,6 +65,12 @@ object MusicControllerManager {
     private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    private val _currentQueue = MutableStateFlow<List<MediaItem>>(emptyList())
+    val currentQueue: StateFlow<List<MediaItem>> = _currentQueue.asStateFlow()
+
+    private val _currentQueueIndex = MutableStateFlow(-1)
+    val currentQueueIndex: StateFlow<Int> = _currentQueueIndex.asStateFlow()
+
     private val _audioSessionId = MutableStateFlow(0)
     val audioSessionId: StateFlow<Int> = _audioSessionId.asStateFlow()
 
