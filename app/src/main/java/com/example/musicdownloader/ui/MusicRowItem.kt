@@ -148,14 +148,18 @@ fun MusicRowItem(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold, // Bold as requested
-                    maxLines = 1, // Max 1 line as requested
+                    maxLines = 2, // Allow up to 2 lines to prevent aggressive cutoff
                     overflow = TextOverflow.Ellipsis,
-                    color = Color.White
+                    color = Color.White,
+                    lineHeight = 18.sp
                 )
                 Text(
                     text = subtitle,
@@ -378,8 +382,8 @@ fun MusicCard(
                 }
             }
             Column(modifier = Modifier.padding(8.dp)) {
-                Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 14.sp)
-                Text(subtitle, color = Color.Gray, maxLines = 1, fontSize = 12.sp)
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, lineHeight = 16.sp)
+                Text(subtitle, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
             }
         }
     }
