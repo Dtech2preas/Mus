@@ -174,9 +174,7 @@ fun LibraryScreen(
                     onSwipeToQueue = {
                         val success = viewModel.addToQueue(song)
                         if (success) {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Added to Queue")
-                            }
+                            android.widget.Toast.makeText(context, "Added to Queue", android.widget.Toast.LENGTH_SHORT).show()
                         }
                         success
                     }
