@@ -104,6 +104,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val audioSessionId = MusicControllerManager.audioSessionId
     val isSmartShuffleEnabled = MusicControllerManager.isSmartShuffleEnabled
     val showAdPopupEvent = MusicControllerManager.showAdPopupEvent
+    val currentQueue = MusicControllerManager.currentQueue
+    val currentQueueIndex = MusicControllerManager.currentQueueIndex
 
     // Download Progress Flow (Global)
     val downloadProgress = YoutubeClient.downloadProgress

@@ -274,5 +274,22 @@ class MusicService : MediaSessionService() {
             }
             return super.onCustomCommand(session, controller, customCommand, args)
         }
+
+        // Handle dynamically added queue items ensuring they resolve properly
+        override fun onAddMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: MutableList<MediaItem>
+        ): com.google.common.util.concurrent.ListenableFuture<MutableList<MediaItem>> {
+            val updatedMediaItems = mediaItems.map { item ->
+                // Ensure the URI is maintained across the IPC boundary for our dtech scheme
+                // The ResolvingDataSource we set up in onCreate will handle the actual resolution
+                item.buildUpon()
+                    .setUri(item.localConfiguration?.uri ?: item.mediaId.let { android.net.Uri.parse("dtech://stream/$it") })
+                    .build()
+            }.toMutableList()
+
+            return com.google.common.util.concurrent.Futures.immediateFuture(updatedMediaItems)
+        }
     }
 }

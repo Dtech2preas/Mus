@@ -80,6 +80,8 @@ fun FullScreenPlayer(
     val repeatMode by viewModel.repeatMode.collectAsState()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val audioSessionId by viewModel.audioSessionId.collectAsState()
+    val currentQueue by viewModel.currentQueue.collectAsState()
+    val currentQueueIndex by viewModel.currentQueueIndex.collectAsState()
 
     val context = LocalContext.current
 
@@ -97,6 +99,7 @@ fun FullScreenPlayer(
     var showMoreOptions by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showPlaybackSpeedDialog by remember { mutableStateOf(false) }
+    var showQueueBottomSheet by remember { mutableStateOf(false) }
 
     var showLyrics by remember { mutableStateOf(false) }
     var currentLyrics by remember { mutableStateOf<String?>(null) }
@@ -550,6 +553,23 @@ fun FullScreenPlayer(
                     )
                 }
 
+                // Queue Display
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = { showQueueBottomSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = TextSecondary
+                        )
+                    }
+                    Text(
+                        text = "Queue",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary.copy(alpha = 0.5f),
+                        fontSize = 10.sp
+                    )
+                }
+
                 // Playlist
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(onClick = { showAddToPlaylistDialog = true }) {
@@ -621,6 +641,91 @@ fun FullScreenPlayer(
     }
 
     // --- Dialogs ---
+    if (showQueueBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showQueueBottomSheet = false },
+            containerColor = DeepBlack,
+            scrimColor = Color.Black.copy(alpha = 0.5f),
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Up Next",
+                    color = TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(currentQueue.size) { index ->
+                        val item = currentQueue[index]
+                        val isCurrent = index == currentQueueIndex
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    // Could add play specific item logic here
+                                    viewModel.playSong(item.mediaId, item.mediaMetadata.title.toString(), item.mediaMetadata.artist.toString(), item.mediaMetadata.artworkUri?.toString() ?: "")
+                                    showQueueBottomSheet = false
+                                }
+                                .background(if (isCurrent) GlassWhite else Color.Transparent, RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Number or Icon
+                            if (isCurrent) {
+                                Icon(
+                                    imageVector = Icons.Rounded.PlayArrow,
+                                    contentDescription = "Playing",
+                                    tint = AccentBlue,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = "${index + 1}",
+                                    color = TextSecondary,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.width(24.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // Details
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.mediaMetadata.title?.toString() ?: "Unknown Title",
+                                    color = if (isCurrent) AccentBlue else TextPrimary,
+                                    fontSize = 16.sp,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
+                                    color = TextSecondary,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+
     if (showAddToPlaylistDialog) {
         val currentSong = Song(
             id = currentSongId ?: "",

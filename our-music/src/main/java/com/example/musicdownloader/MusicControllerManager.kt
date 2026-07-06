@@ -65,6 +65,16 @@ object MusicControllerManager {
     private val _repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    private val _currentQueue = MutableStateFlow<List<MediaItem>>(emptyList())
+    val currentQueue: StateFlow<List<MediaItem>> = _currentQueue.asStateFlow()
+
+    private val _currentQueueIndex = MutableStateFlow(-1)
+    val currentQueueIndex: StateFlow<Int> = _currentQueueIndex.asStateFlow()
+
+    // Track how many user-added items are currently in the queue right after the current item.
+    private var userQueuedItemsCount = 0
+    private var previousMediaItemIndex = -1
+
     private val _audioSessionId = MutableStateFlow(0)
     val audioSessionId: StateFlow<Int> = _audioSessionId.asStateFlow()
 
@@ -135,8 +145,35 @@ object MusicControllerManager {
                     }
                 }
 
+                mediaController?.let { controller ->
+                    val currentIndex = controller.currentMediaItemIndex
+
+                    // Cleanup previous user-queued item if we moved past it
+                    if (reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+                         if (userQueuedItemsCount > 0 && previousMediaItemIndex != -1 && currentIndex > previousMediaItemIndex) {
+                             val removeIndex = previousMediaItemIndex
+                             if (removeIndex >= 0 && removeIndex < controller.mediaItemCount) {
+                                 userQueuedItemsCount--
+                                 try {
+                                     controller.removeMediaItem(removeIndex)
+                                 } catch (e: Exception) {
+                                     AppLogger.log("[Controller] Failed to remove played queue item: ${e.message}")
+                                 }
+                             }
+                         }
+                    }
+                    previousMediaItemIndex = controller.currentMediaItemIndex
+                }
+
+                updateQueueState()
+
                 // Trigger Smart Logic
                 checkQueueAndPrefetch()
+            }
+
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                super.onTimelineChanged(timeline, reason)
+                updateQueueState()
             }
 
             override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
@@ -352,11 +389,14 @@ object MusicControllerManager {
 
         mediaController?.let { controller ->
             // Ensure normal repeat mode is off so we don't accidentally loop single items from preview modes
+            userQueuedItemsCount = 0 // Reset queue tracking when starting a new playlist
+            previousMediaItemIndex = startIndex
             controller.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
             controller.setMediaItems(mediaItems, startIndex, 0)
             controller.prepare()
             controller.play()
             AppLogger.log("[Controller] Playlist playback started.")
+            updateQueueState()
         }
     }
 
@@ -367,10 +407,22 @@ object MusicControllerManager {
             AppLogger.log("[Controller] ERROR: MediaController is null, cannot add to queue")
             return
         }
-        controller.addMediaItem(mediaItem)
-        if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE || controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+
+        val currentIndex = controller.currentMediaItemIndex
+        val isIdle = controller.playbackState == androidx.media3.common.Player.STATE_IDLE || controller.playbackState == androidx.media3.common.Player.STATE_ENDED
+
+        if (isIdle) {
+            // If nothing is playing, just set it and play
+            controller.setMediaItem(mediaItem)
             controller.prepare()
             controller.play()
+        } else {
+            // Insert it right after the currently playing song + any existing user queued items
+            val insertIndex = (currentIndex + 1 + userQueuedItemsCount).coerceAtMost(controller.mediaItemCount)
+            controller.addMediaItem(insertIndex, mediaItem)
+            userQueuedItemsCount++
+            AppLogger.log("[Controller] Added to queue at index $insertIndex. Total queued: $userQueuedItemsCount")
+            updateQueueState()
         }
     }
 
@@ -485,4 +537,15 @@ object MusicControllerManager {
         }
     }
 
+
+    private fun updateQueueState() {
+        mediaController?.let { controller ->
+            val queue = mutableListOf<MediaItem>()
+            for (i in 0 until controller.mediaItemCount) {
+                queue.add(controller.getMediaItemAt(i))
+            }
+            _currentQueue.value = queue
+            _currentQueueIndex.value = controller.currentMediaItemIndex
+        }
+    }
 }
