@@ -464,13 +464,7 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        val currentVersionName = remember {
-            try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
-            } catch (e: Exception) {
-                "Unknown"
-            }
-        }
+        val currentVersionName = com.example.musicdownloader.BuildConfig.GIT_TAG
 
         CenterText(text = "App Version: $currentVersionName (DTECH DNA UPDATE)")
         Spacer(modifier = Modifier.height(24.dp))

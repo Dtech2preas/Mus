@@ -41,13 +41,20 @@ object AppUpdater {
                 val releaseNotes = json.optString("body", "No release notes provided.")
 
                 // For simplified version comparison, assuming tags like "1.1" or "v1.1"
-                val currentVersion = try {
-                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
-                } catch (e: Exception) {
-                    "1.0"
-                }
+                val currentTag = com.example.musicdownloader.BuildConfig.GIT_TAG
 
-                val isUpdateAvailable = compareVersions(tagName, currentVersion) > 0
+                // If it's a dev build, we can ignore updates, or say yes if you prefer.
+                // But generally dev-builds don't need updates.
+                // We'll compare the exact strings: if the tag on GitHub != our compiled tag, an update is available.
+                // Note: tagName from GitHub has 'v' removed. So GitHub's 'v1.2-abc' becomes '1.2-abc' in tagName variable above.
+                // Our currentTag includes 'v'. So we should normalize them.
+                val normalizedCurrentTag = currentTag.removePrefix("v")
+
+                val isUpdateAvailable = if (currentTag == "dev-build") {
+                    false
+                } else {
+                    tagName != normalizedCurrentTag
+                }
 
                 var downloadUrl = ""
                 val assets = json.optJSONArray("assets")

@@ -1,38 +1,46 @@
 # Over-The-Air (OTA) Update Logic & CI/CD Setup
 
-This document details how the in-app update mechanism and the automated GitHub Actions CI/CD release process are implemented. You can use this guide to replicate this functionality in other Android app repositories.
+This document details how the in-app update mechanism and the automated GitHub Actions CI/CD release process are implemented. You can use this guide to replicate this fully automated functionality in other Android app repositories.
 
-## 1. AppUpdater.kt - Checking for Updates
-The core logic for checking updates relies on comparing the app's current `versionName` (defined in `build.gradle.kts`) against the latest release tag on GitHub.
+## 1. AppUpdater.kt - Automated Tag-Based Updating
+The core update logic is fully automated and tied to the exact Git commit SHA that triggered the GitHub Action. You never have to manually bump versions in `build.gradle.kts`.
 
 ### How it works:
 - **API Call**: The app makes a GET request to the GitHub API: `https://api.github.com/repos/<OWNER>/<REPO>/releases/latest`.
-- **Parsing**: It parses the JSON response to extract the `tag_name` (e.g., `v1.2`) and strips any prefixes/suffixes to get a clean semantic version string (e.g., `1.2`).
-- **Comparison**: It fetches the local app version using `context.packageManager.getPackageInfo(context.packageName, 0).versionName`. If the GitHub tag version is greater than the local version, an update is available.
+- **Parsing**: It parses the JSON response to extract the `tag_name` (e.g., `v1.2-a63100c`) and normalizes it.
+- **Comparison**: The app checks its internal build tag using `BuildConfig.GIT_TAG`.
+  - If `BuildConfig.GIT_TAG` is exactly the same as the latest GitHub release tag, there is no update.
+  - If the tags differ, an update is available!
+  - (Local dev builds gracefully fallback to `"dev-build"` and won't trigger update prompts).
 - **Downloading**: It searches the `assets` array in the JSON response for the appropriate `.apk` file. If found, it downloads the APK using `OkHttpClient` to the app's `cacheDir`.
-- **Installing**: Once downloaded, it uses an Android `FileProvider` to launch an `ACTION_VIEW` intent with the `application/vnd.android.package-archive` MIME type, prompting the user to install the update.
-
-*Crucial Note*: The `versionName` in your `build.gradle.kts` must always be manually updated before creating a new GitHub release, otherwise the app will enter a continuous update loop.
+- **Installing**: Once downloaded, it uses an Android `FileProvider` to launch an `ACTION_VIEW` intent to install the update.
 
 ## 2. Dynamic UI Versioning
-To ensure the settings UI correctly reflects the app's actual version (and doesn't mislead the user), always fetch the version dynamically in your UI (e.g., Jetpack Compose) rather than hardcoding it:
-```kotlin
-val currentVersionName = remember {
-    try {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
-    } catch (e: Exception) {
-        "Unknown"
-    }
-}
-// Use currentVersionName in your UI
-```
+The Settings UI directly displays `BuildConfig.GIT_TAG`. This means when a user looks at the version, they see exactly which commit the APK was built from (e.g., `v1.2-a63100c`), making debugging much easier.
 
 ## 3. CI/CD GitHub Actions Setup (.github/workflows/android_build.yml)
-To make updates seamless, GitHub Actions is used to automatically build, sign, and attach the release APKs whenever a new tag is pushed.
+To make this tag automation work, the GitHub Action extracts the short commit SHA and injects it into the Gradle build process as an environment variable (`APP_VERSION_TAG`).
 
-The workflow uses the `r0adkll/sign-android-release@v1` action. For this to work, you must define 4 specific Repository Secrets in your GitHub repository settings (Settings > Secrets and variables > Actions > New repository secret).
+```yaml
+    - name: Get Short SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Build Release APKs
+      env:
+        APP_VERSION_TAG: "v1.2-${{ steps.vars.outputs.sha_short }}"
+      run: ./gradlew :app:assembleRelease :our-music:assembleRelease
+```
+
+The app's `build.gradle.kts` captures this environment variable and writes it into the `BuildConfig` class:
+```kotlin
+val gitTag = System.getenv("APP_VERSION_TAG") ?: "dev-build"
+buildConfigField("String", "GIT_TAG", "\"${gitTag}\"")
+```
 
 ### The 4 Required GitHub Secrets:
+To sign the automated release builds via the `r0adkll/sign-android-release@v1` action, you must define 4 specific Repository Secrets in your GitHub repository settings (Settings > Secrets and variables > Actions > New repository secret):
+
 1. **`SIGNING_KEY`**
    - **What it is**: The base64-encoded string of your Android Keystore file (`.jks` or `.keystore`).
    - **How to generate**: Run `base64 -i your_keystore.jks -o base64_keystore.txt` in your terminal, and copy the entire contents of the text file.
@@ -48,5 +56,3 @@ The workflow uses the `r0adkll/sign-android-release@v1` action. For this to work
 4. **`KEYSTORE_PASSWORD`**
    - **What it is**: The password for the keystore file itself.
    - **Content**: Plain text password (often the same as `KEY_PASSWORD`, but depends on how you set it up).
-
-When a new release tag is created, the CI/CD pipeline takes the unsigned release APK generated by `./gradlew assembleRelease`, signs it using these secrets, and uploads the signed APK as a release asset, which `AppUpdater.kt` will then find and download.
