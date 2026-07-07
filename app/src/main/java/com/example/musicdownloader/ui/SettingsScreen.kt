@@ -464,7 +464,15 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        CenterText(text = "App Version: 1.2 (DTECH DNA UPDATE)")
+        val currentVersionName = remember {
+            try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
+            } catch (e: Exception) {
+                "Unknown"
+            }
+        }
+
+        CenterText(text = "App Version: $currentVersionName (DTECH DNA UPDATE)")
         Spacer(modifier = Modifier.height(24.dp))
 
         if (showUpdateDialog != null) {
