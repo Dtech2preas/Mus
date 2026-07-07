@@ -431,7 +431,8 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
                         viewModel = viewModel
                     )
                     is AppScreen.PartnerLibrary -> PartnerLibraryScreen(
-                        onBack = { popBackStack() }
+                        onBack = { popBackStack() },
+                        onPlaySong = { video -> viewModel.playStream(video) }
                     )
                 }
              }
@@ -554,6 +555,7 @@ var isPlayerExpanded by remember { mutableStateOf(false) }
             PartnerViewPlayer(
                 status = partnerStatus!!,
                 onCollapse = { isPartnerPlayerExpanded = false },
+                onPlaySong = { video -> viewModel.playStream(video) },
                 partnerReaction = partnerReaction
             )
         }

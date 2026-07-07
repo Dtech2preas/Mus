@@ -21,10 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.FirebaseManager
+import com.example.musicdownloader.VideoItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PartnerLibraryScreen(onBack: () -> Unit) {
+fun PartnerLibraryScreen(onBack: () -> Unit, onPlaySong: (VideoItem) -> Unit) {
     var libraryData by remember { mutableStateOf<Map<String, Any>?>(null) }
     var currentSubScreen by remember { mutableStateOf<PartnerSubScreen>(PartnerSubScreen.Main) }
 
@@ -127,7 +128,7 @@ fun PartnerLibraryScreen(onBack: () -> Unit) {
                 }
                 PartnerSubScreen.LikedSongs -> {
                     val likedSongs = libraryData!!["likedSongs"] as? List<Map<String, Any>> ?: emptyList()
-                    PartnerSongList(likedSongs, padding)
+                    PartnerSongList(likedSongs, padding, onPlaySong)
                 }
                 is PartnerSubScreen.PlaylistDetail -> {
                     var playlistSongs by remember { mutableStateOf<List<Map<String, Any>>?>(null) }
@@ -141,12 +142,12 @@ fun PartnerLibraryScreen(onBack: () -> Unit) {
                             CircularProgressIndicator(color = PremiumGold)
                         }
                     } else {
-                        PartnerSongList(playlistSongs!!, padding)
+                        PartnerSongList(playlistSongs!!, padding, onPlaySong)
                     }
                 }
                 PartnerSubScreen.AllSongs -> {
                     val allSongs = libraryData!!["allSongs"] as? List<Map<String, Any>> ?: emptyList()
-                    PartnerSongList(allSongs, padding)
+                    PartnerSongList(allSongs, padding, onPlaySong)
                 }
                 PartnerSubScreen.Artists -> {
                     val allSongs = libraryData!!["allSongs"] as? List<Map<String, Any>> ?: emptyList()
@@ -186,11 +187,22 @@ fun LibrarySectionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, ic
 }
 
 @Composable
-fun PartnerSongList(songs: List<Map<String, Any>>, padding: PaddingValues) {
+fun PartnerSongList(songs: List<Map<String, Any>>, padding: PaddingValues, onPlaySong: (VideoItem) -> Unit) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
         items(songs) { song ->
+            val title = song["title"] as? String ?: "Unknown"
+            val artist = song["artist"] as? String ?: "Unknown"
+            val thumbnailUrl = song["thumbnailUrl"] as? String ?: ""
+            val id = song["id"] as? String ?: song["videoId"] as? String ?: ""
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        if (id.isNotEmpty()) {
+                            onPlaySong(VideoItem(id, title, "", artist, thumbnailUrl, "https://youtube.com/watch?v=$id"))
+                        }
+                    }
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
@@ -200,9 +212,16 @@ fun PartnerSongList(songs: List<Map<String, Any>>, padding: PaddingValues) {
                     contentScale = ContentScale.Crop
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(song["title"] as? String ?: "Unknown", color = Color.White, fontWeight = FontWeight.Bold)
-                    Text(song["artist"] as? String ?: "Unknown", color = Color.Gray, fontSize = 14.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(artist, color = Color.Gray, fontSize = 14.sp)
+                }
+                IconButton(onClick = {
+                    if (id.isNotEmpty()) {
+                        onPlaySong(VideoItem(id, title, "", artist, thumbnailUrl, "https://youtube.com/watch?v=$id"))
+                    }
+                }) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = PremiumGold)
                 }
             }
         }

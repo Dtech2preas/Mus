@@ -84,6 +84,7 @@ fun FullScreenPlayer(
     val currentQueueIndex by viewModel.currentQueueIndex.collectAsState()
     val manuallyQueuedItems by viewModel.manuallyQueuedItems.collectAsState()
     val partnerReactions by viewModel.partnerReactions.collectAsState()
+    val partnerStatus by viewModel.partnerStatus.collectAsState()
 
     val context = LocalContext.current
 
@@ -144,11 +145,16 @@ fun FullScreenPlayer(
 
     // Determine Status Text
     val uri = currentMediaItem?.localConfiguration?.uri
-    val statusText = remember(uri) {
-        when {
-            uri?.scheme == "file" -> "Offline Playback"
-            uri?.scheme == "dtech" -> "Hi-Res Audio"
-            else -> "Streaming"
+    val isSameVibe = partnerStatus != null && partnerStatus?.title == title && partnerStatus?.artist == artist
+    val statusText = remember(uri, isSameVibe) {
+        if (isSameVibe) {
+            "CONNECTED VIBES \u2728"
+        } else {
+            when {
+                uri?.scheme == "file" -> "Offline Playback"
+                uri?.scheme == "dtech" -> "Hi-Res Audio"
+                else -> "Streaming"
+            }
         }
     }
 
@@ -173,7 +179,7 @@ fun FullScreenPlayer(
             modifier = Modifier
                 .fillMaxSize()
                 .blur(80.dp) // Heavy blur for abstract background
-                .alpha(0.3f),
+                .alpha(if (isSameVibe) 0.6f * breatheAlpha else 0.3f),
             contentScale = ContentScale.Crop
         )
 
@@ -183,11 +189,19 @@ fun FullScreenPlayer(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            animatedColor.copy(alpha = 0.15f), // Slight tint at top
-                            DeepBlack.copy(alpha = 0.6f),      // Darker middle
-                            DeepBlack.copy(alpha = 0.95f)      // Almost black bottom
-                        )
+                        colors = if (isSameVibe) {
+                            listOf(
+                                AccentBlue.copy(alpha = 0.4f * breatheAlpha), // Pulsing neon blue top
+                                PremiumGold.copy(alpha = 0.2f * breatheAlpha), // Glowing gold middle
+                                DeepBlack.copy(alpha = 0.95f)
+                            )
+                        } else {
+                            listOf(
+                                animatedColor.copy(alpha = 0.15f), // Slight tint at top
+                                DeepBlack.copy(alpha = 0.6f),      // Darker middle
+                                DeepBlack.copy(alpha = 0.95f)      // Almost black bottom
+                            )
+                        }
                     )
                 )
         )
@@ -220,17 +234,19 @@ fun FullScreenPlayer(
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "NOW PLAYING",
+                        text = if (isSameVibe) "SAME VIBE \uD83D\uDC96" else "NOW PLAYING",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
+                        color = if (isSameVibe) PremiumGold else TextSecondary,
                         letterSpacing = 2.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = if (isSameVibe) Modifier.alpha(breatheAlpha) else Modifier
                     )
                     Text(
                         text = statusText,
                         style = MaterialTheme.typography.labelMedium,
-                        color = animatedColor, // Dynamic accent color
-                        fontSize = 10.sp
+                        color = if (isSameVibe) AccentBlue else animatedColor, // Dynamic accent color
+                        fontSize = 10.sp,
+                        modifier = if (isSameVibe) Modifier.alpha(breatheAlpha) else Modifier
                     )
                 }
 

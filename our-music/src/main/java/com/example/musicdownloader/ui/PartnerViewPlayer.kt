@@ -21,9 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.example.musicdownloader.PlayerStatus
+import com.example.musicdownloader.VideoItem
+import androidx.compose.material.icons.filled.PlayArrow
 
 @Composable
-fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit, partnerReaction: com.example.musicdownloader.Reaction? = null) {
+fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit, onPlaySong: (VideoItem) -> Unit, partnerReaction: com.example.musicdownloader.Reaction? = null) {
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF050510))) {
         Image(
             painter = rememberAsyncImagePainter(status.thumbnailUrl),
@@ -62,7 +64,22 @@ fun PartnerViewPlayer(status: PlayerStatus, onCollapse: () -> Unit, partnerReact
             Text(status.title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(status.artist, color = PremiumGold, fontSize = 18.sp)
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    val id = status.mediaId.ifEmpty { "unknown" }
+                    onPlaySong(VideoItem(id, status.title, "", status.artist, status.thumbnailUrl, "https://youtube.com/watch?v=$id"))
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PremiumGold),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = "Play Locally", tint = Color.Black)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Play Locally", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Emoji Reactions
             Row(
