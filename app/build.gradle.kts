@@ -13,7 +13,10 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.2"
+
+        val gitTag = System.getenv("APP_VERSION_TAG") ?: "dev-build"
+        buildConfigField("String", "GIT_TAG", "\"${gitTag}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -40,6 +43,7 @@ android {
         jvmTarget = "1.8"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 

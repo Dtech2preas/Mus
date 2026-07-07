@@ -464,7 +464,9 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        CenterText(text = "App Version: 1.2 (DTECH DNA UPDATE)")
+        val currentVersionName = com.example.musicdownloader.BuildConfig.GIT_TAG
+
+        CenterText(text = "App Version: $currentVersionName (DTECH DNA UPDATE)")
         Spacer(modifier = Modifier.height(24.dp))
 
         if (showUpdateDialog != null) {
