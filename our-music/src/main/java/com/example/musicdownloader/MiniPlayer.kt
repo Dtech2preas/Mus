@@ -30,15 +30,21 @@ fun MiniPlayer(viewModel: MusicViewModel, onClick: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
+    val partnerStatus by viewModel.partnerStatus.collectAsState()
 
     if (currentMediaItem == null) return
+
+    val title = currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown Title"
+    val artist = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown Artist"
+    val isSameVibe = partnerStatus != null && partnerStatus?.title == title && partnerStatus?.artist == artist
+    val accentBlueColor = Color(0xFF2962FF) // Defined locally as AccentBlue is private in FullScreenPlayer
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .height(70.dp) // Slightly taller
             .clickable { onClick() },
-        color = MaterialTheme.colorScheme.surfaceContainerHighest, // Modern container color
+        color = if (isSameVibe) accentBlueColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceContainerHighest, // Modern container color
         shadowElevation = 8.dp,
         tonalElevation = 8.dp
     ) {
@@ -67,19 +73,28 @@ fun MiniPlayer(viewModel: MusicViewModel, onClick: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown Title",
+                        text = title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown Artist",
+                        text = artist,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (isSameVibe) {
+                        Text(
+                            text = "SAME VIBE \uD83D\uDC96",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = com.example.musicdownloader.ui.PremiumGold,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
                 }
 
                 // Play/Pause Button
