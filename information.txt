@@ -1,8 +1,18 @@
 # D-TECH DISCOVER (Music Downloader) - System Analysis & Technical Documentation
 
+## Table of Contents
+1. [App Overview](#1-app-overview)
+2. [High-Level Architecture & Data Flow](#2-high-level-architecture--data-flow)
+3. [External Integrations](#3-external-integrations)
+4. [Detailed File Breakdown](#4-detailed-file-breakdown)
+5. [Database and Local Storage (`data/`)](#5-database-and-local-storage-data)
+6. [UI Layer (`ui/`)](#6-ui-layer-ui)
+7. [Utilities & Utilities Layer (`utils/`)](#7-utilities--utilities-layer-utils)
+8. [Lyrics Management (`lyrics/`)](#8-lyrics-management-lyrics)
+9. [2026 August 2nd - New Features and Updates](#9-2026-august-2nd---new-features-and-updates)
+
 ## 1. App Overview
 The D-TECH DISCOVER app (Android module `:app`) is a comprehensive music discovery, streaming, and downloading application. It is designed to provide a rich, uninterrupted music listening experience with a modern "tech vibe" (black background, neon blue accents).
-
 ### Key Features
 *   **Search and Discovery:** Allows users to search for individual songs, albums, and playlists using data sourced from YouTube (via InnerTube API). It features a "Music Discovery Roulette" for swiping through new tracks.
 *   **Streaming & Playback:** Seamless streaming of audio with background playback capabilities, gapless transitions, and custom media session commands.
@@ -12,7 +22,6 @@ The D-TECH DISCOVER app (Android module `:app`) is a comprehensive music discove
 
 ## 2. High-Level Architecture & Data Flow
 The application follows a modern Android Architecture (MVVM - Model-View-ViewModel) using Jetpack Compose for the UI and Kotlin Coroutines/Flow for asynchronous data handling.
-
 *   **UI Layer (Compose):** The UI reacts to state changes emitted by the `MusicViewModel`. Components are stateless where possible, relying on hoisted state.
 *   **ViewModel (`MusicViewModel`):** Acts as the central hub connecting the UI to the data layer. It manages `StateFlow`s for the current playing song, queue, library, UI states (loading, errors), and user preferences. It orchestrates complex operations like smart shuffling, prefetching, and dispatching download tasks.
 *   **Data/Repository Layer (`MusicRepository`):** Provides a clean API for the ViewModel to fetch data. It handles caching, interacts with the local Room database (`AppDatabase`), and coordinates network requests via clients (`InnerTubeClient`, `YoutubeClient`).
@@ -25,48 +34,118 @@ The application follows a modern Android Architecture (MVVM - Model-View-ViewMod
 *   **yt-dlp (`YoutubeClient` / `ExternalDownloadWorker`):** To bypass complex YouTube stream extraction blocks (like SABR), the app relies on `yt-dlp`. For streaming, it fetches the direct audio URL. For downloads, it uses `yt-dlp` to download the `.m4a`/`.mp3` file, initially to internal cache and then migrating it to public storage via MediaStore/File APIs.
 *   **Last.fm (`LastFmClient`):** Used to fetch additional metadata, particularly artist images and richer bios, enhancing the UI presentation.
 *   **Remote Configuration:** Fetches configuration files (`config.json`, `update.txt`, ad configs) from external URLs to dynamically update app behavior, update banners, and ad logic without requiring an app store update.
+*   **Firebase (if applicable):** Used for things like LDR (Long Distance Relationship) shared queue syncing, though largely separated to `:our-music` module, the main `:app` may have some underlying references to it depending on shared components.
 
-## 4. Detailed File Breakdown (`app/src/main/java/com/example/musicdownloader`)
+## 4. Detailed File Breakdown
+This section covers the core files in the `app/src/main/java/com/example/musicdownloader` package and what they do, how they work, and why they exist.
 
-### Core App & State Management
-*   **`MusicDownloaderApp.kt`**: The custom `Application` class. It initializes global configurations, sets up caching, and establishes early configurations.
-*   **`MainActivity.kt`**: The single activity entry point. It sets up the Jetpack Compose navigation graph (`AppNavigation`), requests necessary permissions (handling Android 13+ media permissions and Android 10+ scoped storage nuances), and binds to the `MusicService`.
-*   **`InstanceRegistry.kt`**: A manual dependency injection registry to provide singletons (like `MusicRepository` and `AppDatabase`) across the application, preventing multiple instances of heavy objects.
+### App Initialization & Main Activity
+*   **`MusicDownloaderApp.kt`**: The custom `Application` class. It initializes global configurations, sets up caching, and establishes early configurations. It serves as the top-level lifecycle owner for application-wide dependencies.
+*   **`MainActivity.kt`**: The single activity entry point. It sets up the Jetpack Compose navigation graph (`AppNavigation`), requests necessary permissions (handling Android 13+ media permissions and Android 10+ scoped storage nuances), and binds to the `MusicService`. It acts as the anchor for the entire UI.
+*   **`InstanceRegistry.kt`**: A manual dependency injection registry to provide singletons (like `MusicRepository` and `AppDatabase`) across the application, preventing multiple instances of heavy objects and managing lifecycle scopes manually without relying on Dagger/Hilt.
 
-### ViewModels & Logic
+### ViewModels & Logic Controllers
 *   **`MusicViewModel.kt`**: The largest and most complex class. It holds the entire UI state using `StateFlow`. Responsibilities include:
-    *   Managing the current playing song and queue.
-    *   Handling user intents (play, pause, skip, seek).
+    *   Managing the current playing song, queue, and UI states.
+    *   Handling user intents (play, pause, skip, seek, download).
     *   Coordinating "Smart Shuffle" logic (fetching related songs).
-    *   Managing interactions with the Library (add/remove favorites, playlists).
+    *   Managing interactions with the Library (add/remove favorites, custom playlists).
     *   Orchestrating URL prefetching for smooth playback.
-    *   Interfacing with the `CompressionManager` and UI state updates.
-*   **`MusicControllerManager.kt`**: Manages the `MediaController` connection to the `MusicService`. It abstracts the complexity of connecting to the background service and sending commands from the UI/ViewModel.
+    *   Interfacing with the `CompressionManager` and triggering worker downloads (`downloadSongExternally`, `downloadAll`).
+    *   Managing specific features like "Music Discovery Roulette", handling prefetching and preview playbacks.
+*   **`MusicControllerManager.kt`**: Manages the `MediaController` connection to the `MusicService`. It abstracts the complexity of connecting to the background service, sending custom session commands (like `PLAY_STREAM`, `PLAY_CUSTOM_MIX`), and synchronizing the ExoPlayer state back to the UI/ViewModel.
 
-### Services & Workers
-*   **`MusicService.kt`**: Extends `MediaSessionService`. It houses the `ExoPlayer` instance. It handles building `MediaItem`s, applying `ClippingConfiguration` for specific features (like previews), processing custom session commands (e.g., `PLAY_STREAM`, `PLAY_CUSTOM_MIX`), and updating playback state to the system.
-*   **`workers/MusicDownloadWorker.kt`**: A `CoroutineWorker` responsible for downloading audio streams directly using basic HTTP connections (often fallback or simpler streams).
-*   **`workers/ExternalDownloadWorker.kt`**: Handles complex downloads using `yt-dlp`. It manages the two-step download process (internal cache -> public storage) to bypass Scoped Storage write restrictions on modern Android versions.
-*   **`workers/StreamRefresherWorker.kt`**: Periodically runs to refresh YouTube stream URLs that are close to expiring, ensuring uninterrupted playback for cached streams.
+### Services & Workers (`workers/`)
+*   **`MusicService.kt`**: Extends `MediaSessionService`. It houses the `ExoPlayer` instance and is responsible for robust background audio playback. It handles building `MediaItem`s, applying `ClippingConfiguration` for specific features (like previews), processing custom session commands, and updating playback state to the Android system (MediaSession).
+*   **`MusicDownloadWorker.kt`**: A `CoroutineWorker` responsible for downloading audio streams directly using basic HTTP connections. This often serves as a fallback or for simpler streams that do not require complex extraction.
+*   **`ExternalDownloadWorker.kt`**: Handles complex downloads using `yt-dlp`. It manages the two-step download process: initially saving to internal cache (to bypass Scoped Storage write restrictions) and then migrating it to public storage (Music/MusicDownloader) via MediaStore/File APIs.
+*   **`StreamRefresherWorker.kt`**: Periodically runs to refresh YouTube stream URLs that are close to expiring, ensuring uninterrupted playback for cached streams.
 
-### Network & Clients
-*   **`InnerTubeClient.kt`**: Implements the communication with the YouTube InnerTube API. Constructs JSON payloads to search for songs, playlists, and albums.
-*   **`YoutubeClient.kt`**: Manages the interaction with the streaming/download backend. It acts as a wrapper around the logic needed to get playable URLs, often interfacing with local or remote `yt-dlp` instances or APIs. It tracks download statuses.
+### Network & API Clients
+*   **`InnerTubeClient.kt`**: Implements communication with the YouTube InnerTube API. Constructs complex JSON payloads to search for songs, playlists, and albums. It extracts video IDs, titles, and thumbnails directly from the InnerTube response.
+*   **`YoutubeClient.kt`**: Manages the interaction with the streaming/download backend. It acts as a wrapper around the logic needed to get playable URLs, often interfacing with local or remote `yt-dlp` instances or APIs. It heavily manages concurrent downloads and stream link extractions.
 *   **`PipedClient.kt`**: An alternative client (often used as a fallback) to interact with Piped API instances for stream extraction when InnerTube/yt-dlp face issues.
-*   **`NetworkUtils.kt`**: Helper functions to check network connectivity status.
-*   **`CookieManager.kt`**: Manages cookies required for some web requests, ensuring they are stored and retrieved correctly for authenticated or session-based API calls.
+*   **`NetworkUtils.kt`**: Contains helper functions to check network connectivity status, allowing the app to fail gracefully or switch to offline mode.
+*   **`CookieManager.kt`**: Manages cookies required for web requests, ensuring they are stored and retrieved correctly for authenticated or session-based API calls (e.g., bypassing some YouTube restrictions).
 
-### Data & Repositories
-*   **`MusicRepository.kt`**: The single source of truth for data. It manages in-memory caching (`searchCache`), interfaces with the Room `AppDatabase` for all CRUD operations on songs, playlists, history, and favorites. It implements the logic to fetch feeds and process stream URLs.
-*   **`data/` (Package)**: Contains Room Entities (`Song`, `Playlist`, `PlayHistory`, `FavoriteSong`), DAOs (Data Access Objects), and the `AppDatabase` setup. It also includes utility classes like `CompressionManager` for audio file compression.
+### Core Utilities (`utils/` & Root)
+*   **`UserPreferences.kt`**: A wrapper around `SharedPreferences` to manage user settings (themes, quality preferences, first-run flags, favorite genres/artists). Crucially, settings that require immediate application restart use synchronous `.edit(commit = true)`.
+*   **`AppLogger.kt`**: A centralized logging utility. It writes logs to a file or in-memory buffer that can be viewed in the `LogConsoleOverlay` (Debug Mode), aiding in troubleshooting in production.
+*   **`LogConsoleOverlay.kt`**: A UI overlay for debugging, displaying logs generated by `AppLogger` directly on the screen.
+*   **`PlaylistItem.kt` / `StreamInfo.kt`**: Data classes representing specific structures used across network and UI layers.
 
-### Utilities
-*   **`UserPreferences.kt`**: A wrapper around `SharedPreferences` (or DataStore) to manage user settings (themes, quality preferences, first-run flags, favorite genres/artists). Crucially, uses synchronous `.edit(commit = true)` for settings that require immediate application restart.
-*   **`AdManager.kt`**: Handles the logic for fetching ad configurations and displaying ads/popups. It manages session counts (like the `noThanksCount`) and uses Chrome Custom Tabs for external links.
-*   **`UpdateManager.kt`**: Checks a remote URL on launch to determine if an update banner should be displayed.
-*   **`AppLogger.kt`**: A centralized logging utility. It writes logs to a file or in-memory buffer that can be viewed in the `LogConsoleOverlay` (Debug Mode).
-*   **`DnaAnalyzer.kt`**: Contains logic (potentially placeholder or specific algorithmic logic) for analyzing listening habits or "audio DNA" to fuel recommendations.
+## 5. Database and Local Storage (`data/`)
+This directory contains all the Room database logic, providing offline access and local management.
+*   **`AppDatabase.kt`**: The main Room Database class holding all tables.
+*   **Entities**: `Song.kt`, `Playlist.kt`, `PlayHistory.kt`, `FavoriteSong.kt`, `CustomMix.kt`, `MixSegment.kt`, `StreamSong.kt`, `StreamCache.kt`, `LyricsEntity.kt`.
+*   **DAOs**: Data Access Objects like `SongDao.kt`, `PlaylistDao.kt`, `PlayHistoryDao.kt`, `FavoriteDao.kt`, `StreamSongDao.kt`, `CustomMixDao.kt`, `StreamCacheDao.kt`, `LyricsDao.kt` which define the SQL queries.
+*   **`CompressionManager.kt`**: A utility specifically for compressing local audio files. It analyzes the bitrate of downloaded files and re-encodes them to save disk space while keeping acceptable quality.
 
-### Key UI Components
-*   **`MiniPlayer.kt`**: The persistent player bar at the bottom of the screen. It observes the `MusicViewModel` for current song state and provides quick play/pause/skip controls.
-*   **`ui/` (Package)**: Contains all the Jetpack Compose screens (`LibraryScreen`, `SearchScreen`, `FullScreenPlayer`, `MusicDiscoveryRouletteScreen`, etc.). These screens are built to be responsive and adhere strictly to the "D-TECH DISCOVER" branding guidelines.
+## 6. UI Layer (`ui/`)
+Contains all Jetpack Compose screens and reusable components.
+*   **Navigation**: `Navigation.kt` manages the `NavHost` and routes between screens.
+*   **Core Screens**: `HomeScreen.kt`, `LibraryScreen.kt`, `SearchScreen.kt`, `SettingsScreen.kt`, `FullScreenPlayer.kt`.
+*   **Feature Screens**: `MusicDiscoveryRouletteScreen.kt` (Tinder-like swiping for songs), `CutAndPasteScreen.kt` (for creating custom mixes by cropping), `CompressionScreen.kt`, `IdentifyScreen.kt` (WebView for external link parsing), `LikedSongsScreen.kt`, `ActiveDownloadsScreen.kt`.
+*   **UI Components**: `MusicRowItem.kt`, `SwipeableSongRow.kt`, `MiniPlayer.kt`, `SkeletonLoader.kt`, `RealtimeVisualizer.kt`, `Theme.kt`, `DnaComponents.kt`.
+
+## 7. Utilities & Utilities Layer (`utils/`)
+Commonly used utility functions.
+*   **`AdManager.kt`**: Handles fetching ad configurations and displaying ads/popups. It manages session counts (like the `noThanksCount`) and uses Chrome Custom Tabs for external links.
+*   **`AppUpdater.kt` & `UpdateManager.kt`**: Checks remote URLs (e.g., GitHub API, `update.txt`) on launch to determine if an OTA update banner should be displayed, parsing the release tags and `BuildConfig.GIT_TAG`.
+*   **`LastFmClient.kt`**: Fetches artist bios and higher quality imagery.
+*   **`DnaAnalyzer.kt`**: Logic for analyzing listening habits or "audio DNA" to fuel recommendations.
+*   **`SmartShuffleManager.kt`**: Orchestrates prefetching and queuing related songs based on the current context to create endless listening sessions.
+*   **`RemoteConfigClient.kt`**: Fetches configurations from `config.json`.
+
+## 8. Lyrics Management (`lyrics/`)
+Handles fetching and displaying synced and unsynced lyrics.
+*   **`LyricsProvider.kt`**, **`LrcLibLyricsProvider.kt`**, **`KuGouLyricsProvider.kt`**: Interfaces and implementations for fetching lyrics from different external APIs.
+*   **`LyricsHelper.kt` / `LyricsUtils.kt`**: Parsing LRC files, synchronizing timestamps with ExoPlayer's current position, and formatting text for the `Lyrics.kt` UI component.
+
+## 9. 2026 August 2nd - New Features and Updates
+This section documents the latest changes, features, and deep-dive discoveries in the codebase as of August 2nd, 2026.
+
+### 9.1 Music Discovery Roulette Improvements
+*   **Animation & UI:** Uses Compose animations (`AnimatedVisibility`, `offset`), gradients, and specific "D-TECH DISCOVER" branding to instruct users on swipe gestures.
+*   **Prefetching Deferral:** Stream URL prefetching is explicitly deferred on the very first launch until the user completes the genre/artist setup via `initializeAfterFirstRun()`. This prevents heavy network usage before the app knows what the user actually wants. On subsequent launches, prefetching begins immediately. Loading is indicated by a neon blue overlay.
+*   **Endless Swiping:** Implemented by dynamically triggering `MusicRepository.refreshRecommendations()` and appending deduplicated items to `_rouletteState` when the unswiped list runs low.
+
+### 9.2 Custom Mixes (Cut & Paste)
+*   **Non-destructive Editing:** When playing custom mixes, the app strings together multiple `MediaItem`s using `MediaItem.ClippingConfiguration` for each segment. It *does not* mutate or trim the original downloaded audio files, preserving the library's original state.
+*   **Session Commands:** Requires custom media session commands like `PLAY_CUSTOM_MIX` to be explicitly whitelisted in `MusicService`'s `CustomMediaSessionCallback.onConnect`.
+
+### 9.3 Over-the-Air (OTA) Updates & Configurations
+*   **Dynamic Versioning:** The app's version displayed in `SettingsScreen.kt` dynamically reads `BuildConfig.GIT_TAG` to show the precise commit hash (e.g., `v1.2-a63100c`) currently running. It no longer relies on manually synced `versionName` values inside `build.gradle.kts`.
+*   **GitHub Release Integration:** `AppUpdater.kt` checks for over-the-air updates by querying the GitHub API (`https://api.github.com/repos/Dtech2preas/Mus/releases/latest`) and comparing the remote tag with `BuildConfig.GIT_TAG`.
+*   **Update Banner:** The update banner logic parses `https://www.dtech-services.co.za/update.txt` on launch, rendering clickable URLs automatically.
+
+### 9.4 Ad Integrations & Chrome Custom Tabs
+*   **Chrome Custom Tabs:** The app rigorously uses Chrome Custom Tabs (`CustomTabsIntent`) for external links (ads, external platforms) natively within the app. They are pre-warmed using `CustomTabsClient.bindCustomTabsService` and `mayLaunchUrl` to minimize loading delays.
+*   **Ad Logic:** Features a time-based "Support Us" popup and a 20-second auto-close ad triggered after a set number of auto-played songs.
+*   **Support Us Mechanics:** The overlay uses a session-based counter (`noThanksCount`). If dismissed 3 times, the 'No Thanks' button hides. Clicking 'Support Us' grants a 30-minute ad-free period by temporarily setting the `appUsageMinutes` counter to `-30`.
+
+### 9.5 Background Workers & Downloads
+*   **Two-Step Downloads:** `ExternalDownloadWorker` bypasses Android 10+ Scoped Storage restrictions by first saving files to `context.cacheDir`, then copying them to the public `Music/MusicDownloader` directory using `MediaStore` or direct `File` API, and finally deleting the cache.
+*   **Staggered Downloads:** When downloading a full playlist, the app staggers execution using `WorkManager`'s `setInitialDelay` multiplied by the list index (e.g., 5 seconds per song) to prevent rate limits and main thread blocking.
+*   **Concurrency Limits:** Concurrent `yt-dlp` downloads are globally limited to 10 using a `Semaphore(10)` in `YoutubeClient.kt` to prevent CPU and RAM exhaustion.
+*   **Filename Sanitization:** To prevent `[Errno 1] Operation not permitted` crashes, filenames and titles are sanitized using `replace(Regex("[\\\\/:*?\"<>|]"), "_")` to remove illegal characters.
+
+### 9.6 Streaming & Playback Enhancements
+*   **Stream vs. Download Distinction:** The UI differentiates between local and streamed songs by checking if `song.filePath.startsWith("stream://")` (e.g., showing "Remove from Library" vs "Delete").
+*   **Smart Features Resource Tuning:** Auto-refresh intervals for recommendations in `MusicRepository.kt` are 5 hours by default, but drop to 2 hours in 'High-End Mode' to keep content fresher while managing CPU load. High-End Mode also auto-prefetches URLs for *all* visible songs, whereas Smart Shuffle only pre-fetches a limited amount based on related contexts.
+*   **IPC MediaItem Reconstruction:** When dynamically adding items to ExoPlayer queue via `MediaController.addMediaItem`, `MediaSession.Callback` must override `onAddMediaItems` in `MusicService` to rebuild `MediaItem`s and preserve custom `dtech://` URIs across the IPC boundary.
+*   **WebView Fallbacks:** In `IdentifyScreen.kt`, the custom `WebViewClient` intercepts custom intent schemes (like `sheinlink://`). If it fails to open an external app, it falls back to a `browser_fallback_url` or the Play Store to prevent `net::ERR_UNKNOWN_URL_SCHEME` errors.
+
+### 9.7 Jetpack Compose UI Optimizations
+*   **Granular State Updates:** List screens like `LibraryScreen` use wrapper composables (e.g., `LibrarySongRowWrapper`) with `produceState` to observe download progress *per song*. This avoids full `LazyColumn` recompositions which would freeze the UI.
+*   **Locked Interaction States:** In `HomeScreen`, lists are locked during user interaction by omitting volatile states (like `downloadedIds` or `playHistory`) from their `remember` dependency keys, stopping the UI from shuffling unexpectedly.
+*   **Pointer Input Fixes:** For card stacks (Roulette), `pointerInput(isCurrent)` is explicitly used so drag gesture detectors properly re-initialize when underlying cards become active.
+*   **Typography Tuning:** Track and playlist titles explicitly use `maxLines = 2`, `overflow = TextOverflow.Ellipsis`, and strict line heights (e.g., `18.sp`) to optimize horizontal space without aggressive truncation.
+
+### 9.8 CI/CD & Build Integrations
+*   **GitHub Actions:** The `.github/workflows/android_build.yml` signs release APKs using `r0adkll/sign-android-release@v1` and injects variables like `APP_VERSION_TAG` into `BuildConfig`.
+*   **Adaptive Icons:** The app uses `@drawable/dtech_logo` with a `@color/black` background instead of default system icons in `mipmap-anydpi-v26/ic_launcher.xml` to ensure branding consistency.
+
+### 9.9 API Parsing Nuances
+*   **InnerTube Playlists:** The `InnerTubeClient` handles API responses where playlist/album videos are encapsulated within a `lockupViewModel` block. It falls back to `playlistVideoListRenderer` if `lockupViewModel` isn't found.
+*   **Search Parameters:** Uses the parameter `"EgIQAw%3D%3D"` specifically for playlist/album searches in the InnerTube API.
