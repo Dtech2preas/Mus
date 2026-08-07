@@ -43,6 +43,31 @@ object FirebaseManager {
 
     private val _syncCommand = MutableStateFlow<Map<String, Any>?>(null)
     val syncCommand: StateFlow<Map<String, Any>?> = _syncCommand.asStateFlow()
+    private val _partnerDnaStats = MutableStateFlow<DnaStats?>(null)
+    val partnerDnaStats: StateFlow<DnaStats?> = _partnerDnaStats.asStateFlow()
+
+    fun syncDnaStats(context: Context, stats: DnaStats) {
+        val userName = UserPreferences.getUserName(context)?.lowercase() ?: ""
+        if (userName.isNotEmpty()) {
+            database.getReference("users").child(userName).child("dnaStats").setValue(stats)
+        }
+    }
+
+    fun listenToPartnerDnaStats(partnerName: String) {
+        val partnerNode = partnerName.lowercase()
+        if (partnerNode.isEmpty()) return
+
+        database.getReference("users").child(partnerNode).child("dnaStats")
+            .addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val stats = snapshot.getValue(DnaStats::class.java)
+                    _partnerDnaStats.value = stats
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    AppLogger.log("Partner DNA sync failed: ${error.message}")
+                }
+            })
+    }
 
     private var partnerName: String = ""
     private var myName: String = ""
