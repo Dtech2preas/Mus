@@ -46,6 +46,7 @@ fun PartnerLibraryScreen(onBack: () -> Unit, onPlaySong: (VideoItem) -> Unit) {
                             is PartnerSubScreen.PlaylistDetail -> (currentSubScreen as PartnerSubScreen.PlaylistDetail).name
                             PartnerSubScreen.AllSongs -> "Partner's Songs"
                             PartnerSubScreen.Artists -> "Partner's Artists"
+                            PartnerSubScreen.DnaStats -> "Partner's DNA Stats"
                         },
                         color = Color.White
                     )
@@ -106,6 +107,16 @@ fun PartnerLibraryScreen(onBack: () -> Unit, onPlaySong: (VideoItem) -> Unit) {
                         }
 
                         item {
+                            LibrarySectionItem(
+                                icon = Icons.Default.Face,
+                                iconColor = Color.Magenta,
+                                title = "Music DNA",
+                                subtitle = "View partner's stats",
+                                onClick = { currentSubScreen = PartnerSubScreen.DnaStats }
+                            )
+                        }
+
+                        item {
                             Text("Playlists", color = PremiumGold, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 16.dp))
                         }
 
@@ -161,6 +172,11 @@ fun PartnerLibraryScreen(onBack: () -> Unit, onPlaySong: (VideoItem) -> Unit) {
                                 fontSize = 18.sp
                             )
                         }
+                    }
+                }
+                PartnerSubScreen.DnaStats -> {
+                    Box(modifier = Modifier.padding(padding)) {
+                        PartnerDnaStatsScreen()
                     }
                 }
             }
@@ -234,4 +250,21 @@ sealed class PartnerSubScreen {
     data class PlaylistDetail(val id: Int, val name: String) : PartnerSubScreen()
     object AllSongs : PartnerSubScreen()
     object Artists : PartnerSubScreen()
+    object DnaStats : PartnerSubScreen()
+}
+
+
+@Composable
+fun PartnerDnaStatsScreen() {
+    val partnerStats by FirebaseManager.partnerDnaStats.collectAsState()
+
+    if (partnerStats != null) {
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            DnaDashboard(stats = partnerStats!!)
+        }
+    } else {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("DNA Stats not available for partner yet.", color = Color.Gray)
+        }
+    }
 }

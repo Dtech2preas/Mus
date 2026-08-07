@@ -170,6 +170,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CurrentSongStatus())
 
     // D-TECH DNA Stats Flow
+
     val dnaStats: StateFlow<DnaStats> = combine(
         MusicRepository.getTopArtist(application),
         MusicRepository.getTotalPlayCount(application)
@@ -179,7 +180,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         val (type, desc) = DnaAnalyzer.calculatePersonality(topArtist, totalPlays, genres.size)
 
-        DnaStats(
+        val stats = DnaStats(
             topArtist = topArtist?.artist ?: "None Yet",
             topArtistPlays = topArtist?.playCount ?: 0,
             totalPlays = totalPlays,
@@ -187,11 +188,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             personalityType = type,
             personalityDescription = desc
         )
+
+        // Sync to Firebase
+        FirebaseManager.syncDnaStats(application, stats)
+
+        stats
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DnaStats())
+
 
     // Firebase State
     val partnerStatus = FirebaseManager.partnerStatus
     val partnerReactions = FirebaseManager.partnerReactions
+    val partnerDnaStats = FirebaseManager.partnerDnaStats
+
+    fun listenToPartnerDnaStats() {
+        val userName = UserPreferences.getUserName(getApplication())?.lowercase() ?: ""
+        if (userName.isNotEmpty()) {
+            val partnerName = if (userName == "owami") "jonas" else "owami"
+            FirebaseManager.listenToPartnerDnaStats(partnerName)
+        }
+    }
     private val syncCommand = FirebaseManager.syncCommand
 
 
@@ -207,6 +223,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize Firebase
         FirebaseManager.initialize(application)
         SharedQueueManager.initialize(application)
+        listenToPartnerDnaStats()
 
         // Sync local status to Firebase
         viewModelScope.launch {

@@ -77,16 +77,28 @@ fun DnaDashboard(
                 color = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.weight(1f).height(120.dp)
             )
-             // Placeholder for future stat or simply a quote
+
+            val milestoneInfo = getMilestoneInfo(stats.totalPlays)
+
             DnaStatCard(
-                label = "Status",
-                value = "Active",
-                subValue = "Music Lover",
+                label = "Milestone",
+                value = milestoneInfo.first,
+                subValue = milestoneInfo.second,
                 icon = Icons.Default.Face,
-                color = Color(0xFFE91E63), // Pink
+                color = milestoneInfo.third,
                 modifier = Modifier.weight(1f).height(120.dp)
             )
         }
+    }
+}
+
+fun getMilestoneInfo(plays: Int): Triple<String, String, Color> {
+    return when {
+        plays >= 5000 -> Triple("Diamond", "Music God", Color(0xFF00E5FF))
+        plays >= 1000 -> Triple("Gold", "Audiophile", Color(0xFFFFD700))
+        plays >= 500 -> Triple("Silver", "Super Fan", Color(0xFFC0C0C0))
+        plays >= 100 -> Triple("Bronze", "Listener", Color(0xFFCD7F32))
+        else -> Triple("Rookie", "Just Started", Color(0xFF4CAF50))
     }
 }
 
