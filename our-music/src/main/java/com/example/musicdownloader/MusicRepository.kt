@@ -360,6 +360,11 @@ object MusicRepository {
         dao.insert(history)
         dao.enforceLimit()
 
+        // Update Artist Play Count
+        val currentArtistCount = dao.getArtistPlayCount(video.uploader)
+        val newCount = (currentArtistCount?.playCount ?: 0) + 1
+        dao.insertOrUpdateArtistPlayCount(com.example.musicdownloader.data.ArtistPlayCount(video.uploader, newCount))
+
         // Hook: if this was a recommended song, remove it and fetch a new one
         val streamSongDao = db.streamSongDao()
         val streamSong = streamSongDao.getStreamSongById(video.id)
@@ -386,6 +391,11 @@ object MusicRepository {
         val dao = db.playHistoryDao()
         dao.insert(history)
         dao.enforceLimit()
+
+        // Update Artist Play Count
+        val currentArtistCount = dao.getArtistPlayCount(song.artist)
+        val newCount = (currentArtistCount?.playCount ?: 0) + 1
+        dao.insertOrUpdateArtistPlayCount(com.example.musicdownloader.data.ArtistPlayCount(song.artist, newCount))
 
         // Hook: if this was a recommended song, remove it and fetch a new one
         val streamSongDao = db.streamSongDao()

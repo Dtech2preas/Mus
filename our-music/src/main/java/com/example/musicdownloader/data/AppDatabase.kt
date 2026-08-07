@@ -18,9 +18,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StreamSong::class,
         LyricsEntity::class,
         CustomMix::class,
+        ArtistPlayCount::class,
         MixSegment::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,7 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "music_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration() // Simple migration strategy for this overhaul
                 .build()
                 INSTANCE = instance
@@ -150,6 +151,21 @@ abstract class AppDatabase : RoomDatabase() {
                 """.trimIndent())
 
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_mix_segments_mixId` ON `mix_segments` (`mixId`)")
+            }
+        }
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `artist_play_counts` (
+                        `artist` TEXT NOT NULL,
+                        `playCount` INTEGER NOT NULL,
+                        PRIMARY KEY(`artist`)
+                    )
+                """.trimIndent())
+                database.execSQL("""
+                    INSERT OR REPLACE INTO `artist_play_counts` (`artist`, `playCount`)
+                    SELECT artist, COUNT(*) FROM `play_history` GROUP BY artist
+                """.trimIndent())
             }
         }
     }

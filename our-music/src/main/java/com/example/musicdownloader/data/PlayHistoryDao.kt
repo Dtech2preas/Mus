@@ -26,11 +26,17 @@ interface PlayHistoryDao {
     suspend fun clearHistory()
 
     // DNA Stats Queries
-    @Query("SELECT artist, COUNT(*) as playCount FROM play_history GROUP BY artist ORDER BY playCount DESC LIMIT 1")
+    @Query("SELECT artist, playCount FROM artist_play_counts ORDER BY playCount DESC LIMIT 1")
     fun getTopArtist(): Flow<ArtistCount?>
 
-    @Query("SELECT COUNT(*) FROM play_history")
+    @Query("SELECT IFNULL(SUM(playCount), 0) FROM artist_play_counts")
     fun getTotalPlayCount(): Flow<Int>
+
+    @Query("SELECT * FROM artist_play_counts WHERE artist = :artist LIMIT 1")
+    suspend fun getArtistPlayCount(artist: String): ArtistPlayCount?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateArtistPlayCount(artistPlayCount: ArtistPlayCount)
 
     // Get all song IDs in history (for filtering recommendations)
     @Query("SELECT DISTINCT songId FROM play_history")
@@ -41,6 +47,6 @@ interface PlayHistoryDao {
 
 
     // Sync query for Smart Shuffle
-    @Query("SELECT artist, COUNT(*) as playCount FROM play_history GROUP BY artist ORDER BY playCount DESC LIMIT 1")
+    @Query("SELECT artist, playCount FROM artist_play_counts ORDER BY playCount DESC LIMIT 1")
     suspend fun getTopArtistSync(): ArtistCount?
 }
