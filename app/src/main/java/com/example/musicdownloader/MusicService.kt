@@ -25,6 +25,7 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
+import androidx.media3.session.CommandButton
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +48,7 @@ class MusicService : MediaSessionService() {
         val PLAY_STREAM_COMMAND = SessionCommand("PLAY_STREAM", Bundle())
         val PLAY_CUSTOM_MIX_COMMAND = SessionCommand("PLAY_CUSTOM_MIX", Bundle())
         val GET_SESSION_ID_COMMAND = SessionCommand("GET_SESSION_ID", Bundle())
+        val ADD_TO_LIBRARY_COMMAND = SessionCommand("ADD_TO_LIBRARY", Bundle())
     }
 
     @OptIn(UnstableApi::class)
@@ -142,8 +144,15 @@ class MusicService : MediaSessionService() {
         )
 
         // 6. MediaSession Build
+        val addToLibraryButton = CommandButton.Builder()
+            .setDisplayName("Add to Library")
+            .setIconResId(R.drawable.ic_add_to_library)
+            .setSessionCommand(ADD_TO_LIBRARY_COMMAND)
+            .build()
+
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(pendingIntent)
+            .setCustomLayout(listOf(addToLibraryButton))
             .setCallback(CustomMediaSessionCallback())
             .build()
     }
@@ -185,6 +194,7 @@ class MusicService : MediaSessionService() {
                 .add(PLAY_STREAM_COMMAND)
                 .add(PLAY_CUSTOM_MIX_COMMAND)
                 .add(GET_SESSION_ID_COMMAND)
+                .add(ADD_TO_LIBRARY_COMMAND)
                 .build()
 
             // Allow all standard player commands (Play, Pause, etc.) + Custom Commands
@@ -232,6 +242,8 @@ class MusicService : MediaSessionService() {
                             if (title != null) metadataBuilder.setTitle(title)
                             if (artist != null) metadataBuilder.setArtist(artist)
                             if (artworkUri != null) metadataBuilder.setArtworkUri(Uri.parse(artworkUri))
+                            metadataBuilder.setAlbumTitle("DTECH MUSIC")
+                            metadataBuilder.setSubtitle("DTECH MUSIC")
                             val metadata = metadataBuilder.build()
 
                             // 4. Build Media Item with Metadata
@@ -271,6 +283,28 @@ class MusicService : MediaSessionService() {
                     putInt("AUDIO_SESSION_ID", player.audioSessionId)
                 }
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))
+            } else if (customCommand.customAction == ADD_TO_LIBRARY_COMMAND.customAction) {
+                // Handle Add to Library directly from notification
+                val currentMediaItem = player.currentMediaItem
+                if (currentMediaItem != null && !currentMediaItem.mediaId.isNullOrBlank()) {
+                    serviceScope.launch(Dispatchers.IO) {
+                        try {
+                            val videoItem = VideoItem(
+                                id = currentMediaItem.mediaId,
+                                title = currentMediaItem.mediaMetadata.title?.toString() ?: "Unknown",
+                                uploader = currentMediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
+                                thumbnailUrl = currentMediaItem.mediaMetadata.artworkUri?.toString() ?: "",
+                                duration = "", // Duration can be empty for this logic
+                                webUrl = "https://www.youtube.com/watch?v=${currentMediaItem.mediaId}"
+                            )
+                            MusicRepository.addToLibrary(this@MusicService, videoItem)
+                            AppLogger.log("[Service] Added to library from notification: ${videoItem.title}")
+                        } catch (e: Exception) {
+                            AppLogger.log("[Service] Error adding to library: ${e.message}")
+                        }
+                    }
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             return super.onCustomCommand(session, controller, customCommand, args)
         }
