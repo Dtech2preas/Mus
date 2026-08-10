@@ -475,11 +475,32 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             try {
-                AppLogger.log("[ViewModel] Calling YoutubeClient.getStreamUrl...")
-                val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
-                AppLogger.log("[ViewModel] Stream Info received. URL Length: ${streamInfo.url.length}, isHls: ${streamInfo.isHls}")
+                var streamInfo: StreamInfo? = null
+                val startTime = System.currentTimeMillis()
 
-                if (streamInfo.url.isNotBlank()) {
+                // 1. Fast Path: InnerTube Client
+                try {
+                    AppLogger.log("[ViewModel] Attempting Fast Path (InnerTube)...")
+                    streamInfo = InnerTubeClient.getStreamUrl(getApplication(), video.id)
+                    val duration = System.currentTimeMillis() - startTime
+                    AppLogger.log("[ViewModel] Fast Path Success in ${duration}ms")
+                } catch (e: Exception) {
+                    AppLogger.log("[ViewModel] Fast Path failed: ${e.message}")
+                }
+
+                // 2. Slow Path: YoutubeDL (Fallback)
+                if (streamInfo == null || streamInfo.url.isBlank()) {
+                    AppLogger.log("[ViewModel] Falling back to Slow Path (YoutubeDL)...")
+                    val slowStartTime = System.currentTimeMillis()
+                    // This call might throw, which will be caught by the outer catch block
+                    streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
+                    val duration = System.currentTimeMillis() - slowStartTime
+                    AppLogger.log("[ViewModel] Slow Path Success in ${duration}ms")
+                }
+
+                AppLogger.log("[ViewModel] Stream Info received. URL Length: ${streamInfo?.url?.length ?: 0}, isHls: ${streamInfo?.isHls ?: false}")
+
+                if (streamInfo != null && streamInfo.url.isNotBlank()) {
                     AppLogger.log("[ViewModel] Building MediaMetadata...")
                     val mediaMetadata = MediaMetadata.Builder()
                         .setTitle(video.title)
