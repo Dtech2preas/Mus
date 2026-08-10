@@ -106,7 +106,7 @@ object MusicRepository {
                         // Fetch new ones
                         val newResults = InnerTubeClient.search(genre)
                         val newFiltered = newResults.filter { parseDuration(it.duration) in 60..600 }
-                        // Take 25% (roughly 3 new ones if size is 10)
+                        // Take 25% (roughly 12 new ones if size is 50)
                         val numNew = (oldList.size * 0.25).toInt().coerceAtLeast(1)
                         val distinctNew = newFiltered.filter { newVideo -> oldList.none { it.id == newVideo.id } }.take(numNew)
 
@@ -120,7 +120,7 @@ object MusicRepository {
                     // Initial fetch
                     try {
                         val newResults = InnerTubeClient.search(genre)
-                        searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(10)
+                        searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(50)
                     } catch (e: Exception) {
                         AppLogger.log("[Repo] Failed initial fetch for $genre: ${e.message}")
                     }
@@ -133,7 +133,7 @@ object MusicRepository {
                 if (searchCache[genre].isNullOrEmpty()) {
                     try {
                         val newResults = InnerTubeClient.search(genre)
-                        searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(10)
+                        searchCache[genre] = newResults.filter { parseDuration(it.duration) in 60..600 }.take(50)
                     } catch (e: Exception) {
                         // Ignore
                     }
@@ -144,7 +144,7 @@ object MusicRepository {
         // Return feeds from cache
         genres.map { genre ->
             val results = searchCache[genre] ?: emptyList()
-            GenreFeed(genre, results.take(10))
+            GenreFeed(genre, results.take(50))
         }
     }
 
