@@ -255,7 +255,8 @@ object YoutubeClient {
             request.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
             request.addOption("-S", "+size,+br")
             request.addOption("--no-check-certificate")
-            request.addOption("--extractor-args", "youtube:player_client=android,ios")
+            // Prioritize android_creator and android_embedded to avoid slow TVHTML5 fallback
+            request.addOption("--extractor-args", "youtube:player_client=android_creator,android_embedded,ios")
 
             // Use videoId for filename to ensure consistency
             val outputFile = File(outputDir, "$videoId.%(ext)s")
@@ -425,6 +426,8 @@ object YoutubeClient {
             request.addOption("--retries", "0")
             request.addOption("--no-warnings")
             request.addOption("--force-ipv4")
+            // Prioritize android_creator and android_embedded to avoid slow TVHTML5 fallback
+            request.addOption("--extractor-args", "youtube:player_client=android_creator,android_embedded,ios")
 
             AppLogger.log("[YoutubeClient] Request Options: -g, -f bestaudio/best, --extractor-args youtube:player_client=android,ios, --no-playlist, --retries 0, --no-warnings, --force-ipv4")
 
