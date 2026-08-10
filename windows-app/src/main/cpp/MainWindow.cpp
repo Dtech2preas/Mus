@@ -37,7 +37,7 @@ MainWindow::MainWindow(QWidget *parent)
             QListWidgetItem* listItem = new QListWidgetItem(searchResultsList);
             listItem->setSizeHint(QSize(0, 60)); // Make room for custom widget
 
-            QWidget* widget = createSongItemWidget(item);
+            QWidget* widget = createSongItemWidget(item, results);
             searchResultsList->addItem(listItem);
             searchResultsList->setItemWidget(listItem, widget);
         }
@@ -46,7 +46,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Handle updates when a download finishes (handled in specific widgets for accurate metadata)
 }
 
-QWidget* MainWindow::createSongItemWidget(const VideoItem& song) {
+QWidget* MainWindow::createSongItemWidget(const VideoItem& song, const QList<VideoItem>& queue) {
     QWidget* widget = new QWidget(this);
     QHBoxLayout* layout = new QHBoxLayout(widget);
     layout->setContentsMargins(10, 5, 10, 5);
@@ -64,8 +64,14 @@ QWidget* MainWindow::createSongItemWidget(const VideoItem& song) {
     playBtn->setStyleSheet("QPushButton { text-align: left; background: transparent; border: none; color: white; font-size: 13px; padding-left: 5px; } "
                            "QPushButton:hover { color: #00a6ff; }");
 
-    connect(playBtn, &QPushButton::clicked, this, [this, song]() {
-        player->playSong(song);
+    connect(playBtn, &QPushButton::clicked, this, [this, song, queue]() {
+        if (!queue.isEmpty()) {
+            int index = queue.indexOf(song);
+            if (index == -1) index = 0;
+            player->setQueue(queue, index);
+        } else {
+            player->playSong(song);
+        }
         db->addToHistory({song.id, song.title, song.uploader, song.duration, song.thumbnailUrl});
     });
 
@@ -294,8 +300,10 @@ void MainWindow::loadHomeRecommendations() {
             btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: left; font-size: 11px;");
             btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-            connect(btnPlay, &QPushButton::clicked, this, [this, vItem]() {
-                player->playSong(vItem);
+            connect(btnPlay, &QPushButton::clicked, this, [this, vItem, results]() {
+                int index = results.indexOf(vItem);
+                if (index == -1) index = 0;
+                player->setQueue(results, index);
                 db->addToHistory({vItem.id, vItem.title, vItem.uploader, vItem.duration, vItem.thumbnailUrl});
             });
 
@@ -366,8 +374,10 @@ void MainWindow::loadHomeRecommendations() {
             btnPlay->setStyleSheet("background: transparent; border: none; color: white; text-align: left; font-size: 11px;");
             btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-            connect(btnPlay, &QPushButton::clicked, this, [this, vItem]() {
-                player->playSong(vItem);
+            connect(btnPlay, &QPushButton::clicked, this, [this, vItem, results]() {
+                int index = results.indexOf(vItem);
+                if (index == -1) index = 0;
+                player->setQueue(results, index);
                 db->addToHistory({vItem.id, vItem.title, vItem.uploader, vItem.duration, vItem.thumbnailUrl});
             });
             cardLayout->addWidget(btnPlay);
@@ -575,13 +585,17 @@ QWidget* MainWindow::createHomeScreen() {
         btnPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
         connect(btnPlay, &QPushButton::clicked, this, [this, history, i]() {
-            VideoItem item;
-            item.id = history[i].id;
-            item.title = history[i].title;
-            item.uploader = history[i].uploader;
-            item.duration = history[i].duration;
-            item.thumbnailUrl = history[i].thumbnailUrl;
-            player->playSong(item);
+            QList<VideoItem> queue;
+            for (const auto& h : history) {
+                VideoItem vi;
+                vi.id = h.id;
+                vi.title = h.title;
+                vi.uploader = h.uploader;
+                vi.duration = h.duration;
+                vi.thumbnailUrl = h.thumbnailUrl;
+                queue.append(vi);
+            }
+            player->setQueue(queue, i);
             db->addToHistory(history[i]);
         });
 
@@ -871,6 +885,16 @@ QWidget* MainWindow::createLibraryScreen() {
     auto loadLibrary = [this]() {
         libraryList->clear();
         QList<DbSong> songs = db->getLibrarySongs();
+        QList<VideoItem> queueSongs;
+        for (const auto& s : songs) {
+            VideoItem vi;
+            vi.id = s.id;
+            vi.title = s.title;
+            vi.uploader = s.uploader;
+            vi.duration = s.duration;
+            vi.thumbnailUrl = s.thumbnailUrl;
+            queueSongs.append(vi);
+        }
         if (songs.isEmpty()) {
             libraryList->addItem("Your library is empty. Search for songs to add them or download them.");
         } else {
@@ -884,7 +908,7 @@ QWidget* MainWindow::createLibraryScreen() {
 
                 QListWidgetItem* listItem = new QListWidgetItem(libraryList);
                 listItem->setSizeHint(QSize(0, 60));
-                QWidget* widget = createSongItemWidget(vi);
+                QWidget* widget = createSongItemWidget(vi, queueSongs);
                 libraryList->addItem(listItem);
                 libraryList->setItemWidget(listItem, widget);
             }

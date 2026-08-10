@@ -11,6 +11,9 @@
 #include <QJsonArray>
 
 struct VideoItem {
+    bool operator==(const VideoItem& other) const {
+        return id == other.id;
+    }
     QString id;
     QString title;
     QString uploader;

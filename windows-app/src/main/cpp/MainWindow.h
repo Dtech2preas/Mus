@@ -105,7 +105,7 @@ private:
     QPushButton *btnPlaylists;
     QPushButton *btnArtists;
 
-    QWidget* createSongItemWidget(const VideoItem& song);
+    QWidget* createSongItemWidget(const VideoItem& song, const QList<VideoItem>& queue = QList<VideoItem>());
     void checkOnboarding();
     void loadHomeRecommendations();
 
