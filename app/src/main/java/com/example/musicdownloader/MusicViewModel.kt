@@ -474,12 +474,50 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _toastEvent.emit("Fetching stream for ${video.title}...")
             }
 
-            try {
-                AppLogger.log("[ViewModel] Calling YoutubeClient.getStreamUrl...")
-                val streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
-                AppLogger.log("[ViewModel] Stream Info received. URL Length: ${streamInfo.url.length}, isHls: ${streamInfo.isHls}")
+            var streamInfo: StreamInfo? = null
 
-                if (streamInfo.url.isNotBlank()) {
+            // --- Fast Path (InnerTube) ---
+            try {
+                AppLogger.log("[ViewModel] Attempting Fast Path (InnerTube)...")
+                val start = System.currentTimeMillis()
+                val info = InnerTubeClient.getStreamUrl(getApplication(), video.id)
+                val duration = System.currentTimeMillis() - start
+
+                if (info.url.isNotBlank()) {
+                    // Check URL validity (HEAD request) to avoid 403s
+                    if (InnerTubeClient.checkStreamUrl(info.url)) {
+                        AppLogger.log("[ViewModel] Fast Path Success in ${duration}ms")
+                        streamInfo = info
+                    } else {
+                        AppLogger.log("[ViewModel] Fast Path URL valid check FAILED (403/404). Falling back...")
+                    }
+                } else {
+                    AppLogger.log("[ViewModel] Fast Path returned empty URL. Falling back...")
+                }
+            } catch (e: Exception) {
+                AppLogger.log("[ViewModel] Fast Path failed: ${e.message}. Falling back...")
+            }
+
+            // --- Slow Path (YoutubeDL) ---
+            if (streamInfo == null) {
+                try {
+                    AppLogger.log("[ViewModel] Calling YoutubeClient.getStreamUrl (Slow Path)...")
+                    streamInfo = YoutubeClient.getStreamUrl(getApplication(), video.webUrl)
+                    AppLogger.log("[ViewModel] Slow Path Success. URL Length: ${streamInfo?.url?.length}, isHls: ${streamInfo?.isHls}")
+                } catch (e: Exception) {
+                    AppLogger.log("[ViewModel] Slow Path failed: ${e.message}")
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                         _toastEvent.emit("Streaming failed: ${e.message}")
+                         _uiState.value = _uiState.value.copy(isLoadingPlayer = false)
+                    }
+                    return@launch
+                }
+            }
+
+            // --- Play Stream ---
+            try {
+                if (streamInfo != null && streamInfo.url.isNotBlank()) {
                     AppLogger.log("[ViewModel] Building MediaMetadata...")
                     val mediaMetadata = MediaMetadata.Builder()
                         .setTitle(video.title)
@@ -501,12 +539,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else {
                     AppLogger.log("[ViewModel] ERROR: Stream URL is blank!")
+                    withContext(Dispatchers.Main) {
+                        _toastEvent.emit("Could not extract stream URL")
+                    }
                 }
             } catch (e: Exception) {
-                AppLogger.log("[ViewModel] Streaming failed with exception: ${e.message}")
-                e.printStackTrace()
+                AppLogger.log("[ViewModel] Error building media item: ${e.message}")
                 withContext(Dispatchers.Main) {
-                     _toastEvent.emit("Streaming failed: ${e.message}")
+                    _toastEvent.emit("Playback preparation failed")
                 }
             } finally {
                 withContext(Dispatchers.Main) {
