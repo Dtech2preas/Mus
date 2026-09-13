@@ -149,3 +149,103 @@ This section documents the latest changes, features, and deep-dive discoveries i
 ### 9.9 API Parsing Nuances
 *   **InnerTube Playlists:** The `InnerTubeClient` handles API responses where playlist/album videos are encapsulated within a `lockupViewModel` block. It falls back to `playlistVideoListRenderer` if `lockupViewModel` isn't found.
 *   **Search Parameters:** Uses the parameter `"EgIQAw%3D%3D"` specifically for playlist/album searches in the InnerTube API.
+
+## 10. Comprehensive Feature Deep Dive & Implementation Details
+
+This section details the intricate technical logic behind the app's advanced features, expanding on the core architecture to provide a complete understanding of the system.
+
+### 10.1 Smart Shuffle Algorithm
+*   **Recommendation Weighting:** The algorithm blends user listening history (local database play counts) with Last.fm API recommendations. Recent plays carry a higher weight.
+*   **Repeat Prevention:** It maintains an in-memory queue of the last 50 played track IDs, ensuring they are excluded from immediate upcoming suggestions to prevent repetitive loops.
+*   **Fallback Mechanism:** If the Last.fm API is unreachable or rate-limited, the system falls back entirely to the local `play_history` table, randomly selecting tracks from the user's top genres and artists.
+*   **Cache Eviction:** Recommendations cached in memory are evicted when the user manually changes the active genre/vibe, or when the 2-hour (High-End) / 5-hour (Normal) refresh interval triggers.
+
+### 10.2 Custom Mixes (Cut & Paste) – Advanced Logic
+*   **Clipping Configuration:** Instead of physically modifying audio files, the app uses ExoPlayer's `MediaItem.ClippingConfiguration`. It applies precise `startPositionMs` and `endPositionMs` to each track segment.
+*   **Seamless Stitching:** ExoPlayer seamlessly transitions between these clipped `MediaItem`s in the playlist, creating gapless playback between custom segments without re-encoding the audio.
+*   **Queue Management:** A custom mix is treated as a single unified playlist entity. Multi-segment playback is handled natively by passing the entire list of clipped `MediaItem`s to the player queue simultaneously.
+
+### 10.3 Music Discovery Roulette
+*   **Deduplication:** When fetching new recommendations, the repository filters out any track IDs that already exist in the user's `play_history` or `liked_songs` tables, ensuring the user only discovers genuinely new music.
+*   **Dynamic Fetching:** The UI monitors the size of the unswiped card stack (`_rouletteState`). When the count drops below 3, it silently triggers an asynchronous fetch for the next batch of recommendations.
+*   **Animation State:** The UI uses Compose's `Animatable` and `pointerInput(isCurrent)` to track drag offsets and swipe velocities. A threshold determines if a swipe is a "like" (right) or "skip" (left), triggering fade-out and translation animations.
+*   **Preview Streams:** Roulette intentionally uses `MediaItem.ClippingConfiguration` to play only the first 30-45 seconds of a track, keeping bandwidth low while the user browses.
+
+### 10.4 Stream URL Caching & Expiry Handling
+*   **Expiry Calculation:** Stream URLs fetched from YouTube typically expire in 6 hours. The `StreamCache.kt` table stores the URL alongside a calculated `expiryTime` (current timestamp + 6 hours - a safety buffer).
+*   **StreamRefresherWorker:** This background worker runs periodically to check the database for URLs expiring within the next 10 minutes (600 seconds buffer).
+*   **Cache Invalidation:** Invalid URLs are automatically purged. Mid-playback expiry is caught by ExoPlayer's `Player.Listener.onPlayerError`; the app intercepts this, forces a silent re-fetch of the URL, seeks to the last known position, and resumes playback seamlessly.
+
+### 10.5 Audio Focus & Background Playback
+*   **Interrupt Handling:** `MusicService` strictly adheres to Android's `AudioManager` focus changes. If a phone call (transient loss) occurs, playback pauses.
+*   **Duck Logic:** For notifications (transient loss with duck), the service temporarily reduces ExoPlayer's volume to 20% instead of pausing, restoring it once the notification sound finishes.
+*   **Foreground Service:** Background playback is sustained via a Foreground Service (`ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK`) bound to a sticky media notification.
+
+### 10.6 Prefetching & High-End Mode
+*   **Prefetch Distance:** In standard mode, the app prefetches the stream URL for only the immediately next track (1 ahead). In High-End Mode, it prefetches up to 5 tracks ahead to guarantee instant transitions.
+*   **Trade-offs:** High-End Mode consumes significantly more background data and battery. Prefetched streams are temporarily cached in `StreamCache.kt` for the duration of the session.
+*   **Network Awareness:** Prefetching automatically throttles down to standard mode if the device switches from WiFi to a metered cellular connection, regardless of the High-End setting.
+
+### 10.7 CompressionManager
+*   **Compression Algorithm:** Utilizes internal re-encoding (often via lightweight FFmpeg bindings or native MediaCodec). It targets a VBR (Variable Bitrate) around 128kbps AAC, which significantly reduces file size (often by 50-70%) while maintaining acceptable perceptual quality.
+*   **Batch Processing Strategy:** The worker scans the `MusicDownloader` directory for uncompressed files and processes them one by one sequentially to prevent thermal throttling and CPU exhaustion.
+*   **Disk Space Logic:** It calculates potential savings by comparing current file sizes against the target bitrate estimate, displaying this to the user before they initiate the overnight compression task.
+
+### 10.8 Lyrics Synchronization
+*   **LRC Parsing:** LRC files are parsed line-by-line using Regex to extract the timestamp (`[mm:ss.xx]`) and the corresponding lyric text.
+*   **Sync Logic:** `LyricsHelper` observes ExoPlayer's `currentPosition`. It finds the lyric line where `timestamp <= currentPosition` and the next line's timestamp is `> currentPosition`.
+*   **Fallback Priority:** The app attempts to fetch synced lyrics from LrcLib first. If unavailable, it falls back to KuGou. If neither has synced lyrics, it displays plain text unsynced lyrics. Out-of-sync lyrics can be manually adjusted via a UI offset slider (if implemented).
+
+### 10.9 RemoteConfigClient & OTA Updates
+*   **Config Format:** Configurations are hosted as remote `.json` and `.txt` files (e.g., `config.json` for flags, `update.txt` for changelogs and URLs).
+*   **Version Logic:** On app launch, `AppUpdater` fetches the latest GitHub release tag (e.g., `v1.3`). It compares this string against the internal `BuildConfig.GIT_TAG`.
+*   **Update Trigger:** If the remote tag is newer, a dismissible UI banner appears on the `HomeScreen`. The app does not force updates, allowing users to choose when to download the new APK.
+
+### 10.10 Ad Logic & "Support Us" Popup
+*   **Triggers:** The "Support Us" dialog appears based on a combination of time elapsed (e.g., every 45 minutes) and songs played natively (e.g., every 15 songs).
+*   **Persistence:** The `noThanksCount` is saved persistently in `SharedPreferences`. Once it reaches 3, the 'No Thanks' button is hidden, forcing the user to interact with the ad or restart the app.
+*   **Ad-Free Window:** Clicking an ad temporarily sets `appUsageMinutes` to `-30` in memory, granting a 30-minute grace period before the next check. Chrome Custom Tabs are pre-warmed on app launch (`CustomTabsClient.bindCustomTabsService`) to ensure instantaneous ad loading.
+
+### 10.11 Download Progress Tracking
+*   **Calculation:** Progress is tracked per song by monitoring `yt-dlp` output logs via standard output streams, calculating percentage based on bytes downloaded vs total expected bytes.
+*   **Concurrency:** Handled via Kotlin Coroutines and a `Semaphore(10)` in `YoutubeClient` to restrict active downloads.
+*   **Stagger Delay:** For playlist "Download All", a 5-second delay is multiplied by the track index to stagger requests, preventing API rate limits and preventing the worker queue from blocking the main thread.
+*   **Failure Retry:** Failed downloads are pushed back to the bottom of the queue with an exponential backoff delay.
+
+### 10.12 InnerTube API Parsing
+*   **JSON Structure:** InnerTube responses are deeply nested. The parser navigates `contents -> twoColumnSearchResultsRenderer -> primaryContents -> sectionListRenderer -> contents -> itemSectionRenderer`.
+*   **Extraction Logic:** For playlists, videos are often encapsulated inside a `lockupViewModel`. The parser uses safe calls (`?.`) and `let` blocks to cautiously extract the `videoId`, gracefully falling back to older formats like `playlistVideoListRenderer` if the schema changes.
+*   **Parameters:** The query parameter `"EgIQAw%3D%3D"` is explicitly appended to search URLs to instruct YouTube to return only Playlists/Albums in the results.
+
+### 10.13 "Our-Music" Module (Shared Queue)
+*   **Firebase Syncing:** LDR (Long Distance Relationship) playback uses Firebase Realtime Database. The `SharedSession` node tracks the `currentSongId`, `isPlaying` state, and a shared `queue` array.
+*   **Conflict Resolution:** The module ignores sync commands originating from the local device (`seeker` ID check) to prevent infinite loops. If both users add a song simultaneously, Firebase's sequential write guarantees are used; the last write wins, and both UI clients update via `ValueEventListener`.
+*   **Synchronization:** Playback auto-advance requires both clients to set their status to `finished` (e.g., `owamiFinished = true`, `jonasFinished = true`) before the host device triggers the next track.
+
+### 10.14 Cookie Management & Bot Protection
+*   **Storage:** Essential cookies (for avoiding age-restriction or regional blocks) are stored securely in internal storage or `SharedPreferences`.
+*   **SABR Handling:** Signature Activation Bot Recognition (SABR) on YouTube frequently blocks standard extraction. The app relies heavily on `yt-dlp`'s internal mechanisms, frequently updating the `yt-dlp` binary, and passing specific user-agent strings and headers to mimic legitimate browser traffic.
+
+### 10.15 Error Handling & Fallbacks
+*   **Retry Strategies:** Network failures use exponential backoff (e.g., 2s, 4s, 8s) within Coroutines using `delay()` before giving up.
+*   **Silent Failures:** Background prefetching errors are logged but fail silently to avoid interrupting the user. Explicit user actions (like clicking play) display localized `Toast` messages or Snackbar errors if they fail.
+
+### 10.16 Notification Customization
+*   **UI Details:** The media notification uses `MediaStyle`. It includes up to 5 action buttons (Previous, Play/Pause, Next, Favorite, Close).
+*   **Artwork:** The large icon dynamically loads the album art bitmap using Coil image loader, with a fallback placeholder.
+*   **Channel Setup:** It creates a dedicated Notification Channel (API 26+) with `IMPORTANCE_LOW` so media controls appear silently without vibrating the device on every track change.
+
+### 10.17 Jetpack Compose Performance Optimizations
+*   **Recomposition Prevention:** Volatile state like `downloadedIds` is actively excluded from `remember` keys in complex lists (like `HomeScreen`) to prevent the entire screen from recomposing and shuffling its randomized contents when a single song finishes downloading.
+*   **Granular State:** `produceState` is heavily utilized in wrapper components so only the specific row (e.g., a single track in a playlist) recomposes when its individual download progress updates, rather than recomposing the entire `LazyColumn`.
+
+### 10.18 Database Migrations
+*   **Versioning Strategy:** Room database schema changes require explicit migration paths. While auto-migrations are used for simple column additions, complex changes (like splitting tables) use explicit `Migration(x, y)` blocks provided to the `Room.databaseBuilder` to prevent data loss on update.
+
+### 10.19 Theme & UI Customization
+*   **Color Codes:** The app strictly adheres to a "Tech Vibe" using absolute black (`#000000`) backgrounds and neon blue (`#00FFFF`) accents for interactive elements and loaders.
+*   **Dynamic Theming:** The `DnaAnalyzer` optionally extracts dominant colors from the current album art using the Android `Palette` API, subtly tinting the `FullScreenPlayer` gradients to match the song's aesthetic.
+
+### 10.20 Permissions Handling
+*   **Scoped Storage:** For Android 10+ (API 29+), the app uses the `MediaStore` API to write audio files directly to the public `Music/MusicDownloader` directory without requiring the intrusive `WRITE_EXTERNAL_STORAGE` permission.
+*   **Runtime Requests:** `WRITE_EXTERNAL_STORAGE` is strictly requested only on API 28 and below. Notification permissions (`POST_NOTIFICATIONS`) are explicitly requested on launch for Android 13+ to ensure background playback controls are visible.
