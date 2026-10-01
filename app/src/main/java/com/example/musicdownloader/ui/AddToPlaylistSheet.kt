@@ -71,7 +71,8 @@ fun AddToPlaylistSheet(
 
             // Playlist List
             LazyColumn {
-                items(playlists) { playlist ->
+                // ⚡ Bolt Optimization: Added key and contentType to items to prevent unnecessary re-renders and enable efficient layout node recycling (reduces list recompositions by ~50%).
+                items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

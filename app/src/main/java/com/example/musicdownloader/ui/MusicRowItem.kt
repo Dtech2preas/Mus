@@ -92,7 +92,7 @@ fun MusicRowItem(
             ) {
                 Image(
                     painter = rememberAsyncImagePainter(thumbnailUrl),
-                    contentDescription = null,
+                    contentDescription = "Thumbnail for $title",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -281,7 +281,7 @@ fun MusicCard(
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 Image(
                     painter = rememberAsyncImagePainter(thumbnailUrl),
-                    contentDescription = null,
+                    contentDescription = "Thumbnail for $title",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
